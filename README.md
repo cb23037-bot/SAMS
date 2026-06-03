@@ -42,8 +42,7 @@ SAMS/
     └── lib/
         ├── main.dart
         ├── pages/
-        │   ├── student/        # Student-facing pages
-        │   └── pusat_adab/     # Admin-facing pages
+        │   
         └── services/
             └── api_service.dart
 ```
