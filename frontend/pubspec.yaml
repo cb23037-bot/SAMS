@@ -1,0 +1,35 @@
+name: nama_project
+description: "A new Flutter project."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  file_picker: ^11.0.2
+  image_picker: ^1.1.2
+  geolocator: ^13.0.2
+  pdf: ^3.11.0
+  printing: ^5.12.0
+  qr_flutter: ^4.1.0
+  flutter_map: ^6.1.0
+  latlong2: ^0.9.1
+  url_launcher: ^6.3.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/umpsa_logo.png
