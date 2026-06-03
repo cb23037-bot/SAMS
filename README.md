@@ -137,30 +137,6 @@ flutter run
 | PUT | `/api/profile` | Update profile |
 | GET | `/api/activities` | List all activities with slots |
 
-### Student Only
-| Method | Endpoint | Description |
-|---|---|---|
-| GET | `/api/student/access` | Check if registration/claims are open |
-| GET | `/api/student/registrations` | List registrations |
-| POST | `/api/student/registrations` | Register for a slot |
-| DELETE | `/api/student/registrations/{id}` | Cancel registration |
-| POST | `/api/student/registrations/{id}/claim` | Submit credit claim |
-| DELETE | `/api/student/registrations/{id}/claim` | Withdraw claim |
-| POST | `/api/student/attendances` | Submit attendance |
-
-### Pusat Adab Only
-| Method | Endpoint | Description |
-|---|---|---|
-| POST | `/api/activities` | Create activity |
-| PUT | `/api/activities/{id}` | Update activity |
-| DELETE | `/api/activities/{id}` | Delete activity |
-| POST | `/api/activities/{id}/slots` | Add slot |
-| DELETE | `/api/activities/{id}/slots/{slot}` | Remove slot |
-| GET/PUT | `/api/adab/access` | Get/set student access |
-| GET | `/api/adab/claims` | List all claims |
-| PUT | `/api/adab/claims/{id}/approve` | Approve claim |
-| PUT | `/api/adab/claims/{id}/reject` | Reject claim |
-
 ---
 
 ## Database Schema
@@ -176,12 +152,6 @@ flutter run
 
 ---
 
-## User Roles
-
-| Role | Access |
-|---|---|
-| `student` | Register activities, submit attendance, claim credits |
-| `adab` | Manage activities, review and process claims |
 
 > Login is restricted to `@adab.umpsa.edu.my` email domain for Pusat Adab staff.
 
