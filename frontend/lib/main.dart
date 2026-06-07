@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import 'app/app_controller.dart';
 import 'pages/LoginPage.dart';
 import 'pages/pusat_adab/SystemPage.dart';
@@ -19,12 +18,21 @@ class SamsApp extends StatefulWidget {
 }
 
 class _SamsAppState extends State<SamsApp> {
+  // Declare these as late so they are initialized in initState
+  late final ApiService _apiService;
   late final AppController _controller;
 
   @override
   void initState() {
     super.initState();
-    _controller = AppController(apiService: ApiService());
+    // 1. Initialize API service first
+    _apiService = ApiService();
+    
+    // 2. Initialize Controller
+    _controller = AppController(apiService: _apiService);
+    
+    // 3. Link the controller back to the service
+    _apiService.setController(_controller);
   }
 
   @override
@@ -65,8 +73,8 @@ class _SamsAppState extends State<SamsApp> {
       return PusatAdabDashboardPage(controller: _controller);
     }
     if (_controller.currentUser!.isFacultyRegistrar) {
-    return FacultyRegistrarDashboard(controller: _controller);
-  }
+      return FacultyRegistrarDashboard(controller: _controller);
+    }
 
     return StudentHomePage(controller: _controller);
   }

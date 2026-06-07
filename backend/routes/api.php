@@ -9,6 +9,9 @@ use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ProfileController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\AcademicSessionController;
+use App\Http\Controllers\Api\SubjectController;
+
 
 Route::post('/login', [AuthController::class, 'login']);
 
@@ -50,4 +53,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/adab/claims/{registration}/proof', [CreditClaimController::class, 'downloadProof']);
     Route::put('/adab/claims/{registration}/approve', [CreditClaimController::class, 'approve']);
     Route::put('/adab/claims/{registration}/reject', [CreditClaimController::class, 'reject']);
+
+
+    //Open Registration
+    Route::get('/academic-sessions', [AcademicSessionController::class, 'index']);
+    Route::put('/academic-sessions/{id}/registration', [AcademicSessionController::class, 'updateRegistration']);
+    Route::get('/subjects', [SubjectController::class, 'index']);
+    Route::post('/subjects', [SubjectController::class, 'store']);
 });
