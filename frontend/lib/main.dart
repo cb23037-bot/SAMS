@@ -5,6 +5,7 @@ import 'pages/LoginPage.dart';
 import 'pages/pusat_adab/SystemPage.dart';
 import 'pages/student/HomePage.dart';
 import 'services/api_service.dart';
+import 'pages/faculty_registrar/dashboard_page.dart';
 
 void main() {
   runApp(const SamsApp());
@@ -63,6 +64,9 @@ class _SamsAppState extends State<SamsApp> {
     if (_controller.currentUser!.isPusatAdab) {
       return PusatAdabDashboardPage(controller: _controller);
     }
+    if (_controller.currentUser!.isFacultyRegistrar) {
+    return FacultyRegistrarDashboard(controller: _controller);
+  }
 
     return StudentHomePage(controller: _controller);
   }

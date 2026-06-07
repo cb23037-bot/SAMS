@@ -22,6 +22,17 @@ class UserSeeder extends Seeder
                 'personal_advisor' => null,
                 'address'          => null,
             ],
+                        [
+                'name'             => 'Faculty Registrar',
+                'email'            => 'facultyregistrar@adab.umpsa.edu.my',
+                'role'             => 'facultyregistrar',
+                'student_id'       => null,
+                'course'           => null,
+                'phone_number'     => null,
+                'current_semester' => null,
+                'personal_advisor' => null,
+                'address'          => null,
+            ],
             [
                 'name'             => 'Muhammad Ammar bin Azizan',
                 'email'            => 'cb23037@adab.umpsa.edu.my',

@@ -120,7 +120,7 @@ class _LoginPageState extends State<LoginPage> {
                     _Label(
                       title: 'User Type',
                       child: DropdownButtonFormField<String>(
-                        initialValue: _role,
+                        value: _role,
                         items: const [
                           DropdownMenuItem(
                             value: 'student',
@@ -129,6 +129,10 @@ class _LoginPageState extends State<LoginPage> {
                           DropdownMenuItem(
                             value: 'adab',
                             child: Text('Pusat Adab'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'facultyregistrar',
+                            child: Text('Faculty Registrar'),
                           ),
                         ],
                         decoration: _inputDecoration(
