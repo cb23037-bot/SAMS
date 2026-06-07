@@ -22,7 +22,18 @@ class UserSeeder extends Seeder
                 'personal_advisor' => null,
                 'address'          => null,
             ],
-                        [
+            [
+                'name'             => 'Dr Jamaludin bin Abdullah',
+                'email'            => 'jamaludin@adab.umpsa.edu.my',
+                'role'             => 'lecturer',
+                'student_id'       => null,
+                'course'           => null,
+                'phone_number'     => '012 3456789',
+                'current_semester' => null,
+                'personal_advisor' => null,
+                'address'          => 'Office 216, Building C',
+            ],
+            [
                 'name'             => 'Faculty Registrar',
                 'email'            => 'facultyregistrar@adab.umpsa.edu.my',
                 'role'             => 'facultyregistrar',

@@ -60,4 +60,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/academic-sessions/{id}/registration', [AcademicSessionController::class, 'updateRegistration']);
     Route::get('/subjects', [SubjectController::class, 'index']);
     Route::post('/subjects', [SubjectController::class, 'store']);
+
+    // Student subject registration
+    Route::get('/student/subject-registrations', [SubjectController::class, 'getRegisteredSubjects']);
+    Route::post('/student/subject-registrations', [SubjectController::class, 'registerSubject']);
+    Route::delete('/student/subject-registrations/{subject_id}', [SubjectController::class, 'unregisterSubject']);
+    Route::post('/student/subject-registrations/submit', [SubjectController::class, 'submitRegistration']);
+
+    // Lecturer approval workflow
+    Route::get('/lecturer/subject-registrations/pending', [SubjectController::class, 'getPendingApprovals']);
+    Route::put('/lecturer/subject-registrations/{registration}/approve', [SubjectController::class, 'approveSubjectRegistration']);
+    Route::get('/lecturer/student/{studentId}/pending-subjects', [SubjectController::class, 'getStudentPendingSubjects']);
 });
