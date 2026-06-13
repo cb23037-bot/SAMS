@@ -92,7 +92,7 @@ class _CurriculumActivitiesPageState extends State<CurriculumActivitiesPage> {
     );
     if (created != null) {
       setState(() {
-        _all.add(created);
+        _all.insert(0, created);
         _applyFilter();
       });
     }

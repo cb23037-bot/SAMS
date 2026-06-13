@@ -12,7 +12,7 @@ class ActivityController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $activities = Activity::with('slots')->orderBy('name')->get();
+        $activities = Activity::with('slots')->orderByDesc('created_at')->get();
 
         return response()->json([
             'status'     => 'success',
