@@ -23,6 +23,17 @@ class UserSeeder extends Seeder
                 'address'          => null,
             ],
             [
+                'name'             => 'Treasury Office',
+                'email'            => 'treasury@adab.umpsa.edu.my',
+                'role'             => 'treasury',
+                'student_id'       => null,
+                'course'           => null,
+                'phone_number'     => null,
+                'current_semester' => null,
+                'personal_advisor' => null,
+                'address'          => null,
+            ],
+            [
                 'name'             => 'Muhammad Ammar bin Azizan',
                 'email'            => 'cb23037@adab.umpsa.edu.my',
                 'role'             => 'student',

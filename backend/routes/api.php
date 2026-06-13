@@ -7,7 +7,9 @@ use App\Http\Controllers\Api\ActivityRegistrationController;
 use App\Http\Controllers\Api\ActivitySlotController;
 use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\FeeController;
 use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\TreasuryController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login']);
@@ -50,4 +52,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/adab/claims/{registration}/proof', [CreditClaimController::class, 'downloadProof']);
     Route::put('/adab/claims/{registration}/approve', [CreditClaimController::class, 'approve']);
     Route::put('/adab/claims/{registration}/reject', [CreditClaimController::class, 'reject']);
+
+    // Student fees and payments
+    Route::get('/fees', [FeeController::class, 'index']);
+    Route::get('/fees/{fee}', [FeeController::class, 'show']);
+    Route::post('/fees/{fee}/pay', [FeeController::class, 'pay']);
+    Route::get('/payments', [FeeController::class, 'history']);
+
+    // Treasury fee management
+    Route::get('/treasury/dashboard', [TreasuryController::class, 'dashboard']);
+    Route::get('/treasury/fees', [TreasuryController::class, 'feeRecords']);
+    Route::get('/treasury/fees/{fee}', [TreasuryController::class, 'feeDetail']);
+    Route::get('/treasury/unpaid', [TreasuryController::class, 'unpaid']);
 });
