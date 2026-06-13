@@ -127,10 +127,6 @@ class _LoginPageState extends State<LoginPage> {
                             child: Text('Student'),
                           ),
                           DropdownMenuItem(
-                            value: 'lecturer',
-                            child: Text('Lecturer'),
-                          ),
-                          DropdownMenuItem(
                             value: 'adab',
                             child: Text('Pusat Adab'),
                           ),

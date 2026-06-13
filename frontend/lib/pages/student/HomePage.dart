@@ -7,7 +7,6 @@ import 'EditProfilePage.dart';
 import 'ModuleBookingPage.dart';
 import 'CurriculumActivityPage.dart';
 import 'StudentNotificationsPage.dart';
-import 'SubjectRegistrationPage.dart';
 
 class StudentHomePage extends StatefulWidget {
   const StudentHomePage({super.key, required this.controller});
@@ -218,11 +217,7 @@ class _StudentHomePageState extends State<StudentHomePage> {
                 title: 'Register Subjects',
                 icon: Icons.menu_book_outlined,
                 color: const Color(0xFF3B82F6),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => SubjectRegistrationPage(controller: widget.controller),
-                  ),
-                ),
+                onTap: () => _showSoon('Register Subjects is coming soon.'),
               ),
               _ActionCard(
                 title: 'Mark Attendance',

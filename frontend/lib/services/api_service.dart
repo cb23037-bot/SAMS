@@ -649,105 +649,11 @@ Future<List<dynamic>> getSubjects({required String token}) async {
   }
 }
 
-  Future<Map<String, dynamic>> submitRegistration({required String token, required List<int> subjectIds}) async {
+  Future<Map<String, dynamic>> submitRegistration(List<int> subjectIds) async {
     final response = await _request(
       method: 'POST',
       path: '/subjects/register',
-      token: token,
       body: {'subject_ids': subjectIds},
-    );
-    return response as Map<String, dynamic>;
-  }
-
-  /// Register a student for a subject with selected sections.
-  Future<Map<String, dynamic>> registerStudentSubject({
-    required String token,
-    required int subjectId,
-    required String lectureSection,
-    String? lectureInstructor,
-    String? lectureSchedule,
-    String? labSection,
-    String? labInstructor,
-    String? labSchedule,
-  }) async {
-    final response = await _request(
-      method: 'POST',
-      path: '/student/subject-registrations',
-      token: token,
-      body: {
-        'subject_id': subjectId,
-        'lecture_section': lectureSection,
-        'lecture_instructor': lectureInstructor,
-        'lecture_schedule': lectureSchedule,
-        'lab_section': labSection,
-        'lab_instructor': labInstructor,
-        'lab_schedule': labSchedule,
-      },
-    );
-    return response as Map<String, dynamic>;
-  }
-
-  /// Get all subjects registered by the authenticated student.
-  Future<List<dynamic>> getStudentSubjectRegistrations({required String token}) async {
-    final response = await _request(
-      method: 'GET',
-      path: '/student/subject-registrations',
-      token: token,
-    );
-    final data = response['subjects'];
-    if (data is List) {
-      return data;
-    } else {
-      return [];
-    }
-  }
-
-  /// Get pending subject registration approvals for the authenticated lecturer.
-  Future<List<dynamic>> getPendingSubjectApprovals({required String token}) async {
-    final response = await _request(
-      method: 'GET',
-      path: '/lecturer/subject-registrations/pending',
-      token: token,
-    );
-    final data = response['registrations'];
-    if (data is List) {
-      return data;
-    } else {
-      return [];
-    }
-  }
-
-  /// Approve a student's pending subject registration.
-  Future<Map<String, dynamic>> approveStudentSubjectRegistration({
-    required String token,
-    required int registrationId,
-  }) async {
-    final response = await _request(
-      method: 'PUT',
-      path: '/lecturer/subject-registrations/$registrationId/approve',
-      token: token,
-    );
-    return response as Map<String, dynamic>;
-  }
-
-  /// Unregister a student from a subject.
-  Future<void> unregisterStudentSubject({
-    required String token,
-    required int subjectId,
-  }) async {
-    await _request(
-      method: 'DELETE',
-      path: '/student/subject-registrations/$subjectId',
-      token: token,
-    );
-  }
-
-  /// Submit all student subject registrations.
-  Future<Map<String, dynamic>> submitSubjectRegistration({required String token}) async {
-    final response = await _request(
-      method: 'POST',
-      path: '/student/subject-registrations/submit',
-      token: token,
     );
     return response as Map<String, dynamic>;
   }
@@ -776,40 +682,6 @@ Future<List<dynamic>> getSubjects({required String token}) async {
       body: requestBody,
     );
   }
-
-Future<List<dynamic>> getPendingStudents({required String token}) async {
-  // Use the route you defined in your web.php
-  final response = await _request(
-    method: 'GET',
-    path: '/lecturer/subject-registrations/pending', 
-    token: token,
-  );
-  
-  // The data key in your API response should match what the backend returns
-  final data = response['registrations']; 
-  return (data is List) ? data : [];
-}
-
-  /// Get specific pending subjects for a single student
-Future<List<dynamic>> getStudentPendingSubjects({
-  required String token, 
-  required int studentId
-}) async {
-  final response = await _request(
-    method: 'GET',
-    path: '/lecturer/student/$studentId/pending-subjects',
-    token: token,
-  );
-
-  // Since you changed the API to return {"subjects": [...] }
-  // We must extract the list from that key
-  if (response is Map<String, dynamic> && response.containsKey('subjects')) {
-    return (response['subjects'] as List<dynamic>);
-  }
-  
-  // If it's not a Map with a 'subjects' key, return empty
-  return [];
-}
 
 
   // ── Private Helpers ────────────────────────────────────────────────────────

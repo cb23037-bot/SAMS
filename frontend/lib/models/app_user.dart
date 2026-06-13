@@ -56,9 +56,6 @@ class AppUser {
   /// Returns true if this user is a Faculty Registrar.
   bool get isFacultyRegistrar => role == 'facultyregistrar';
 
-  /// Returns true if this user is a Lecturer.
-  bool get isLecturer => role == 'lecturer';
-
   // ── Factory constructor ────────────────────────────────────────────────────
 
   /// Creates an [AppUser] from the JSON map returned by the login endpoint.

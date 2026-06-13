@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'app/app_controller.dart';
 import 'pages/LoginPage.dart';
-import 'pages/lecturer/LecturerDashboardPage.dart';
 import 'pages/pusat_adab/SystemPage.dart';
 import 'pages/student/HomePage.dart';
 import 'services/api_service.dart';
@@ -75,9 +74,6 @@ class _SamsAppState extends State<SamsApp> {
     }
     if (_controller.currentUser!.isFacultyRegistrar) {
       return FacultyRegistrarDashboard(controller: _controller);
-    }
-    if (_controller.currentUser!.isLecturer) {
-      return LecturerDashboardPage(controller: _controller);
     }
 
     return StudentHomePage(controller: _controller);
