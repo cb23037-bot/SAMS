@@ -7,7 +7,6 @@ import '../models/activity.dart';
 import '../models/activity_registration.dart';
 import '../models/activity_slot.dart';
 import '../models/app_user.dart';
-import '../models/subject.dart';
 
 /// Handles all HTTP communication between the Flutter app and the Laravel backend.
 ///
@@ -30,17 +29,6 @@ class ApiService {
   /// [path]    — API path relative to base URL (e.g. '/activities')
   /// [token]   — Bearer token for authenticated routes; null for public routes
   /// [body]    — Optional JSON body, only sent for POST and PUT
-  /// 
-  Future<List<Subject>> getSubjects({required String token}) async {
-  // For now, return an empty list or mock data
-  return []; 
-  }
-
-  Future<Subject> createSubject({required String token, required Map<String, dynamic> data}) async {
-    // Backend logic to be implemented later
-    throw Exception("Not implemented");
-  }
-
   Future<Map<String, dynamic>> _request({
     required String method,
     required String path,
@@ -360,7 +348,6 @@ class ApiService {
   ///
   /// Uses multipart/form-data to send both text fields and the photo file
   /// in a single request.
-  
   Future<AttendanceResult> submitAttendance({
     required String token,
     required int slotId,

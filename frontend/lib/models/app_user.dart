@@ -53,9 +53,6 @@ class AppUser {
   /// Used to conditionally show admin-only UI elements.
   bool get isPusatAdab => role == 'adab';
 
-  /// Returns true if this user is a Faculty Registrar.
-  bool get isFacultyRegistrar => role == 'facultyregistrar';
-
   // ── Factory constructor ────────────────────────────────────────────────────
 
   /// Creates an [AppUser] from the JSON map returned by the login endpoint.
