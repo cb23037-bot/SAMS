@@ -8,8 +8,6 @@ import '../models/activity_registration.dart';
 import '../models/activity_slot.dart';
 import '../models/app_user.dart';
 import '../models/subject.dart';
-import '../app/app_controller.dart';
-
 
 /// Handles all HTTP communication between the Flutter app and the Laravel backend.
 ///
@@ -33,28 +31,15 @@ class ApiService {
   /// [token]   — Bearer token for authenticated routes; null for public routes
   /// [body]    — Optional JSON body, only sent for POST and PUT
   /// 
-  // Make the controller nullable so it can be set later
-  AppController? _controller; 
-
-  // Remove the 'required' constructor for the controller
-  ApiService(); 
-
-  // Add this method to link the controller later
-  void setController(AppController controller) {
-    _controller = controller;
+  Future<List<Subject>> getSubjects({required String token}) async {
+  // For now, return an empty list or mock data
+  return []; 
   }
 
-
-  // Use the helper to access the token safely
-  Future<Map<String, String>> getHeaders() async {
-    final token = _controller?.token;
-    return {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'Authorization': 'Bearer ${token ?? ''}',
-    };
+  Future<Subject> createSubject({required String token, required Map<String, dynamic> data}) async {
+    // Backend logic to be implemented later
+    throw Exception("Not implemented");
   }
-
 
   Future<Map<String, dynamic>> _request({
     required String method,
@@ -584,105 +569,6 @@ class ApiService {
       client.close(force: true);
     }
   }
-
-//Open Registration
-
-Future<void> createSession(String sessionName) async {
-  await _request(
-    method: 'POST',
-    path: '/academic-sessions',
-    body: {'session_name': sessionName},
-    token: _controller?.token,
-  );
-}
-
-// 2. Delete a session
-Future<void> deleteSession(int sessionId) async {
-  await _request(
-    method: 'DELETE',
-    path: '/academic-sessions/$sessionId',
-    token: _controller?.token,
-  );
-}
-
-Future<void> postSubject({required String token, required Map<String, dynamic> data}) async {
-  final response = await _request(
-    method: 'POST',
-    path: '/subjects',
-    token: token,
-    body: data, // Ensure your _request method handles sending JSON bodies
-  );
-  // Handle response as needed
-}
-
-Future<List<dynamic>> getAcademicSessions() async {
-  try {
-    final response = await _request(
-      method: 'GET',
-      path: '/academic-sessions',
-      token: _controller?.token,
-    );
-    
-    return (response['sessions'] as List<dynamic>); 
-    
-  } catch (e) {
-    print("DEBUG: ERROR in getAcademicSessions: $e");
-    rethrow; // This lets you see the error in the UI
-  }
-}
-
-Future<List<dynamic>> getSubjects({required String token}) async {
-  final response = await _request(
-    method: 'GET',
-    path: '/subjects',
-    token: token,
-  );
-  
-  // Use a null-aware operator to prevent crashes if the key is missing
-  final data = response['subjects'];
-  
-  if (data is List) {
-    return data;
-  } else {
-    print("DEBUG: Unexpected response format: $data");
-    return [];
-  }
-}
-
-  Future<Map<String, dynamic>> submitRegistration(List<int> subjectIds) async {
-    final response = await _request(
-      method: 'POST',
-      path: '/subjects/register',
-      body: {'subject_ids': subjectIds},
-    );
-    return response as Map<String, dynamic>;
-  }
-
-  Future<bool> checkRegistrationStatus() async {
-    try {
-      final response = await _request(
-        method: 'GET',
-        path: '/registration/status',
-      );
-      return response['is_registration_open'] == true;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  Future<void> updateRegistrationStatus(int sessionId, bool isOpen) async {
-    final Map<String, dynamic> requestBody = {
-      'is_registration_open': isOpen,
-    };
-
-    await _request(
-      method: 'PUT',
-      path: '/academic-sessions/$sessionId/registration',
-      token: _controller?.token,
-      body: requestBody,
-    );
-  }
-
 
   // ── Private Helpers ────────────────────────────────────────────────────────
 
