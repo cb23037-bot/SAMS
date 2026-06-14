@@ -8,6 +8,8 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Laravel\Sanctum\HasApiTokens;
+use App\Models\SubjectRegistration;
+
 
 class User extends Authenticatable
 {
@@ -49,7 +51,7 @@ class User extends Authenticatable
      */
     public function subjectRegistrations(): HasMany
     {
-        return $this->hasMany(StudentSubjectRegistration::class);
+        return $this->hasMany(SubjectRegistration::class);
     }
 
     /**

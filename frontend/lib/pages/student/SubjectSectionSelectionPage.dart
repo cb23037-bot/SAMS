@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import '../../app/app_controller.dart';
 import '../../models/subject.dart';
 
@@ -49,15 +48,14 @@ class _SubjectSectionSelectionPageState extends State<SubjectSectionSelectionPag
     if (_labOptions.isNotEmpty) _selectedLab = _labOptions.first;
   }
 
+  // --- Clash Detection Logic ---
   bool _clashesWithExisting(String? schedule) {
     if (schedule == null || schedule.isEmpty) return false;
     final scheduleItem = _parseSchedule(schedule);
     if (scheduleItem == null) return false;
 
     for (final existing in widget.existingSubjects) {
-      if (_subjectHasScheduleConflict(existing, scheduleItem)) {
-        return true;
-      }
+      if (_subjectHasScheduleConflict(existing, scheduleItem)) return true;
     }
     return false;
   }
@@ -74,7 +72,9 @@ class _SubjectSectionSelectionPageState extends State<SubjectSectionSelectionPag
     }
 
     for (final existing in schedules) {
-      if (existing.day == scheduleItem.day && existing.startTime < scheduleItem.endTime && existing.endTime > scheduleItem.startTime) {
+      if (existing.day == scheduleItem.day && 
+          existing.startTime < scheduleItem.endTime && 
+          existing.endTime > scheduleItem.startTime) {
         return true;
       }
     }
@@ -103,29 +103,28 @@ class _SubjectSectionSelectionPageState extends State<SubjectSectionSelectionPag
     return hour * 60 + minute;
   }
 
-  bool get _canConfirm {
-    if (_selectedLecture == null) return false;
-    if (_clashesWithExisting(_selectedLecture?.schedule)) return false;
-    if (_labOptions.isNotEmpty) {
-      if (_selectedLab == null) return false;
-      if (_clashesWithExisting(_selectedLab?.schedule)) return false;
-    }
-    return true;
-  }
+  // --- Confirmation Logic ---
+  bool get _canConfirm => _selectedLecture != null;
 
   void _confirmSelection() async {
     if (!_canConfirm) return;
+
+    // Check for clashes before allowing submission
+    final lectureClash = _selectedLecture != null && _clashesWithExisting(_selectedLecture!.schedule);
+    final labClash = _selectedLab != null && _clashesWithExisting(_selectedLab!.schedule);
+
+    if (lectureClash || labClash) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cannot confirm: One of your selected sections has a time conflict.')),
+      );
+      return;
+    }
 
     setState(() => _isSubmitting = true);
 
     try {
       final token = widget.controller.token;
-      if (token == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Authentication error. Please log in again.')),
-        );
-        return;
-      }
+      if (token == null) throw Exception('Authentication error.');
 
       await widget.controller.apiService.registerStudentSubject(
         token: token,
@@ -159,9 +158,7 @@ class _SubjectSectionSelectionPageState extends State<SubjectSectionSelectionPag
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSubmitting = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: ${e.toString()}')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
     }
   }
 
@@ -188,9 +185,7 @@ class _SubjectSectionSelectionPageState extends State<SubjectSectionSelectionPag
               return RadioListTile<SectionOption>(
                 value: option,
                 groupValue: _selectedLecture,
-                onChanged: clash
-                    ? null
-                    : (value) => setState(() => _selectedLecture = value),
+                onChanged: (value) => setState(() => _selectedLecture = value),
                 title: Text('Section ${option.section}'),
                 subtitle: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -198,13 +193,13 @@ class _SubjectSectionSelectionPageState extends State<SubjectSectionSelectionPag
                     if (option.instructor != null) Text(option.instructor!),
                     if (option.schedule != null) Text(option.schedule!, style: const TextStyle(color: Color(0xFF64748B))),
                     if (clash)
-                      const Text('This section clashes with other registered subjects.', style: TextStyle(color: Colors.red, fontSize: 12)),
+                      const Text('Warning: This section clashes with your current timetable.', style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 12)),
                   ],
                 ),
               );
             }).toList(),
-            const SizedBox(height: 20),
             if (_labOptions.isNotEmpty) ...[
+              const SizedBox(height: 20),
               Text('Lab Sections', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
               const SizedBox(height: 12),
               ..._labOptions.map((option) {
@@ -212,9 +207,7 @@ class _SubjectSectionSelectionPageState extends State<SubjectSectionSelectionPag
                 return RadioListTile<SectionOption>(
                   value: option,
                   groupValue: _selectedLab,
-                  onChanged: clash
-                      ? null
-                      : (value) => setState(() => _selectedLab = value),
+                  onChanged: (value) => setState(() => _selectedLab = value),
                   title: Text('Lab ${option.section}'),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -222,22 +215,23 @@ class _SubjectSectionSelectionPageState extends State<SubjectSectionSelectionPag
                       if (option.instructor != null) Text(option.instructor!),
                       if (option.schedule != null) Text(option.schedule!, style: const TextStyle(color: Color(0xFF64748B))),
                       if (clash)
-                        const Text('This section clashes with other registered subjects.', style: TextStyle(color: Colors.red, fontSize: 12)),
+                        const Text('Warning: This section clashes with your current timetable.', style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 12)),
                     ],
                   ),
                 );
               }).toList(),
-              const SizedBox(height: 20),
             ],
+            const SizedBox(height: 24),
             ElevatedButton(
               onPressed: (_canConfirm && !_isSubmitting) ? _confirmSelection : null,
               style: ElevatedButton.styleFrom(
-                minimumSize: const Size.fromHeight(54),
+                minimumSize: const Size.fromHeight(54), 
                 backgroundColor: const Color(0xFF2563EB),
+                foregroundColor: Colors.white, // Button text/icon color
               ),
-              child: _isSubmitting
-                  ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                  : const Text('Confirm Selection', style: TextStyle(fontWeight: FontWeight.w700)),
+              child: _isSubmitting 
+                ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                : const Text('Confirm Selection', style: TextStyle(fontWeight: FontWeight.w700, color: Colors.white)),
             ),
           ],
         ),
@@ -250,6 +244,5 @@ class _Schedule {
   final String day;
   final int startTime;
   final int endTime;
-
   _Schedule({required this.day, required this.startTime, required this.endTime});
 }

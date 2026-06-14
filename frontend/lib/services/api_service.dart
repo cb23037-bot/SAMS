@@ -9,6 +9,7 @@ import '../models/activity_slot.dart';
 import '../models/app_user.dart';
 import '../models/subject.dart';
 import '../app/app_controller.dart';
+import 'package:http/http.dart' as http;
 
 
 /// Handles all HTTP communication between the Flutter app and the Laravel backend.
@@ -54,6 +55,37 @@ class ApiService {
       'Authorization': 'Bearer ${token ?? ''}',
     };
   }
+
+// New helper for GET requests that return a list
+Future<List<dynamic>> _requestList({
+  required String path,
+  String? token,
+}) async {
+  // We perform a standard GET request using the same logic as your _request
+  // but we cast the result to List<dynamic>
+  final uri = Uri.parse('${_baseUrl()}$path');
+  
+  // (Assuming you use HttpClient logic similar to your _request method)
+  final client = HttpClient();
+  final req = await client.getUrl(uri);
+
+  req.headers.add('Content-Type', 'application/json');
+  req.headers.add('Accept', 'application/json');
+  
+  if (token != null) req.headers.add('Authorization', 'Bearer $token');
+  
+  final response = await req.close();
+  final responseBody = await response.transform(utf8.decoder).join();
+  
+  // This is the key: decoding as a List
+  final dynamic decoded = jsonDecode(responseBody);
+  
+  if (decoded is List) {
+    return decoded;
+  } else {
+    throw Exception("Expected a List from API, but received: ${decoded.runtimeType}");
+  }
+}
 
 
   Future<Map<String, dynamic>> _request({
@@ -605,117 +637,177 @@ Future<void> deleteSession(int sessionId) async {
   );
 }
 
-Future<void> postSubject({required String token, required Map<String, dynamic> data}) async {
-  final response = await _request(
-    method: 'POST',
-    path: '/subjects',
-    token: token,
-    body: data, // Ensure your _request method handles sending JSON bodies
-  );
-  // Handle response as needed
-}
+
 
 Future<List<dynamic>> getAcademicSessions() async {
   try {
-    final response = await _request(
-      method: 'GET',
+    // We now use _requestList instead of _request to avoid the Map cast error
+    return await _requestList(
       path: '/academic-sessions',
       token: _controller?.token,
     );
-    
-    return (response['sessions'] as List<dynamic>); 
-    
   } catch (e) {
     print("DEBUG: ERROR in getAcademicSessions: $e");
-    rethrow; // This lets you see the error in the UI
+    // Return an empty list or rethrow depending on how you want the UI to handle it
+    return []; 
+  }
+}
+
+Future<Map<String, dynamic>?> getActiveSession({required String token}) async {
+  try {
+    final url = Uri.parse('${_baseUrl()}/academic-sessions/active');
+    
+    final response = await http.get(
+      url,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Accept': 'application/json',
+      },
+    );
+
+    // Check if the server is actually sending JSON
+    final contentType = response.headers['content-type'];
+    final bool isJson = contentType != null && contentType.contains('application/json');
+
+    if (response.statusCode == 200 && isJson) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } else {
+      // If it's NOT 200 or NOT JSON, print the error for debugging
+      print("DEBUG: Server error. Status: ${response.statusCode}");
+      print("DEBUG: Response Body: ${response.body}");
+      return null; 
+    }
+  } catch (e) {
+    print('Error fetching active session: $e');
+    return null;
   }
 }
 
 Future<List<dynamic>> getSubjects({required String token}) async {
-  final response = await _request(
-    method: 'GET',
-    path: '/subjects',
-    token: token,
-  );
-  
-  // Use a null-aware operator to prevent crashes if the key is missing
-  final data = response['subjects'];
-  
-  if (data is List) {
-    return data;
-  } else {
-    print("DEBUG: Unexpected response format: $data");
-    return [];
+  try {
+    // This calls the request logic specifically for GET requests that return lists
+    return await _requestList(
+      path: '/subjects',
+      token: token,
+    );
+  } catch (e) {
+    print("DEBUG: Error in getSubjects: $e");
+    return []; // Return empty list to prevent crashes
   }
 }
 
-  Future<Map<String, dynamic>> submitRegistration({required String token, required List<int> subjectIds}) async {
-    final response = await _request(
-      method: 'POST',
-      path: '/subjects/register',
-      token: token,
-      body: {'subject_ids': subjectIds},
-    );
-    return response as Map<String, dynamic>;
-  }
+// 2. Your postSubject is fine, as POST returns a Map (the created object)
+Future<void> postSubject({required String token, required Map<String, dynamic> data}) async {
+  await _request(
+    method: 'POST',
+    path: '/subjects',
+    token: token,
+    body: data,
+  );
+}
+
+Future<void> createSubject({
+  required String token,
+  required String code,
+  required String name,
+  required int creditHours,
+  required List<Map<String, dynamic>> lectureSections,
+  required List<Map<String, dynamic>> labSections,
+}) async {
+  await _request(
+    method: 'POST',
+    path: '/subjects',
+    token: token,
+    body: {
+      'code': code,
+      'name': name,
+      'credit_hours': creditHours,
+      'lecture_sections': lectureSections,
+      'lab_sections': labSections,
+    },
+  );
+}
 
   /// Register a student for a subject with selected sections.
-  Future<Map<String, dynamic>> registerStudentSubject({
-    required String token,
-    required int subjectId,
-    required String lectureSection,
-    String? lectureInstructor,
-    String? lectureSchedule,
-    String? labSection,
-    String? labInstructor,
-    String? labSchedule,
-  }) async {
-    final response = await _request(
-      method: 'POST',
-      path: '/student/subject-registrations',
-      token: token,
-      body: {
-        'subject_id': subjectId,
-        'lecture_section': lectureSection,
-        'lecture_instructor': lectureInstructor,
-        'lecture_schedule': lectureSchedule,
-        'lab_section': labSection,
-        'lab_instructor': labInstructor,
-        'lab_schedule': labSchedule,
-      },
-    );
-    return response as Map<String, dynamic>;
+Future<Map<String, dynamic>> registerStudentSubject({
+  required String token,
+  required int subjectId,
+  required String lectureSection,
+  String? lectureInstructor,
+  String? lectureSchedule,
+  String? labSection,
+  String? labInstructor,
+  String? labSchedule,
+}) async {
+  // Use a map and only add non-null values if your API is strict
+  final Map<String, dynamic> body = {
+    'subject_id': subjectId,
+    'lecture_section': lectureSection,
+    'lecture_instructor': lectureInstructor,
+    'lecture_schedule': lectureSchedule,
+    'lab_section': labSection,
+    'lab_instructor': labInstructor,
+    'lab_schedule': labSchedule,
+  };
+
+  // Remove null values to keep the payload clean
+  body.removeWhere((key, value) => value == null);
+
+  final response = await _request(
+    method: 'POST',
+    path: '/student/subject-registrations',
+    token: token,
+    body: body,
+  );
+
+  // Safely handle the response
+  if (response is Map<String, dynamic>) {
+    return response;
+  } else {
+    throw Exception('Unexpected response format from server');
   }
+}
 
   /// Get all subjects registered by the authenticated student.
-  Future<List<dynamic>> getStudentSubjectRegistrations({required String token}) async {
-    final response = await _request(
-      method: 'GET',
-      path: '/student/subject-registrations',
-      token: token,
-    );
-    final data = response['subjects'];
-    if (data is List) {
-      return data;
-    } else {
-      return [];
-    }
-  }
+// Future<List<dynamic>> getStudentSubjectRegistrations({required String token}) async {
+//   final url = Uri.parse('${_baseUrl()}/student-registrations'); // Ensure path is correct
+  
+//   final response = await http.get(
+//     url,
+//     headers: {
+//       'Authorization': 'Bearer $token',
+//       'Accept': 'application/json',
+//     },
+//   );
+
+//   print("DEBUG: Registrations Status: ${response.statusCode}");
+//   print("DEBUG: Registrations Body: ${response.body}");
+
+//   if (response.statusCode == 200) {
+//     final Map<String, dynamic> jsonResponse = jsonDecode(response.body);
+//     return jsonResponse['registrations'] ?? []; // Ensure it returns a list
+//   } else {
+//     print("DEBUG: Failed to fetch registrations. Returning empty list.");
+//     return []; // Return empty list instead of crashing
+//   }
+// }
 
   /// Get pending subject registration approvals for the authenticated lecturer.
-  Future<List<dynamic>> getPendingSubjectApprovals({required String token}) async {
-    final response = await _request(
-      method: 'GET',
-      path: '/lecturer/subject-registrations/pending',
-      token: token,
-    );
-    final data = response['registrations'];
-    if (data is List) {
-      return data;
-    } else {
-      return [];
-    }
+ Future<List<dynamic>> getPendingSubjectApprovals({required String token}) async {
+  final Map<String, dynamic> response = await _request(
+    method: 'GET',
+    path: '/lecturer/subject-registrations/pending',
+    token: token,
+  );
+
+  // Safely extract the 'registrations' key as defined in your controller
+  final data = response['registrations'];
+  
+  if (data is List) {
+    return data;
   }
+  return [];
+}
 
   /// Approve a student's pending subject registration.
   Future<Map<String, dynamic>> approveStudentSubjectRegistration({
@@ -764,30 +856,54 @@ Future<List<dynamic>> getSubjects({required String token}) async {
     }
   }
 
-  Future<void> updateRegistrationStatus(int sessionId, bool isOpen) async {
+  Future<void> updateRegistrationStatus(int registrationId, String status) async {
     final Map<String, dynamic> requestBody = {
-      'is_registration_open': isOpen,
+      'status': status, // 'approved' or 'rejected'
     };
 
     await _request(
-      method: 'PUT',
-      path: '/academic-sessions/$sessionId/registration',
+      method: 'PATCH', // PATCH is often preferred for updating a specific field
+      path: '/registrations/$registrationId', 
       token: _controller?.token,
       body: requestBody,
     );
   }
 
 Future<List<dynamic>> getPendingStudents({required String token}) async {
-  // Use the route you defined in your web.php
-  final response = await _request(
+  final dynamic response = await _request(
     method: 'GET',
-    path: '/lecturer/subject-registrations/pending', 
+    path: '/lecturer/subject-registrations/pending',
     token: token,
   );
+
+  // Use the correct key 'students' that matches your Controller response
+  if (response is Map<String, dynamic>) {
+    return (response['students'] ?? []) as List<dynamic>;
+  } 
+  else if (response is List) {
+    return response;
+  }
   
-  // The data key in your API response should match what the backend returns
-  final data = response['registrations']; 
-  return (data is List) ? data : [];
+  return [];
+}
+
+Future<void> approveAllRegistrations({required String token, required int studentId}) async {
+  await _request(
+    method: 'POST',
+    // Must match the URL pattern defined in routes/api.php
+    path: '/lecturer/student/$studentId/approve-all', 
+    token: token,
+  );
+}
+
+
+Future<dynamic> getStudentSubjectRegistrations({required String token}) async {
+  return await _request(
+    method: 'GET',
+    // Added 'student/' to match your routes/api.php file
+    path: '/student/subject-registrations', 
+    token: token,
+  );
 }
 
   /// Get specific pending subjects for a single student
@@ -801,8 +917,6 @@ Future<List<dynamic>> getStudentPendingSubjects({
     token: token,
   );
 
-  // Since you changed the API to return {"subjects": [...] }
-  // We must extract the list from that key
   if (response is Map<String, dynamic> && response.containsKey('subjects')) {
     return (response['subjects'] as List<dynamic>);
   }

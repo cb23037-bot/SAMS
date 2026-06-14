@@ -5,7 +5,6 @@ import 'AddSubjectPage.dart';
 
 class SubjectManagementPage extends StatefulWidget {
   final AppController controller;
-
   const SubjectManagementPage({super.key, required this.controller});
 
   @override
@@ -28,10 +27,27 @@ class _SubjectManagementPageState extends State<SubjectManagementPage> {
     _searchController.addListener(_filterSubjects);
   }
 
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
+  Future<void> _fetchSubjects() async {
+    final String? token = widget.controller.token;
+    if (token == null) return;
+
+    setState(() => _isLoading = true);
+    try {
+      final subjects = await _apiService.getSubjects(token: token);
+      if (mounted) {
+        setState(() {
+          _allSubjects = subjects;
+          _filteredSubjects = subjects;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error loading subjects: $e')));
+      }
+    }
   }
 
   void _filterSubjects() {
@@ -43,51 +59,6 @@ class _SubjectManagementPageState extends State<SubjectManagementPage> {
         return name.contains(query) || code.contains(query);
       }).toList();
     });
-  }
-
-  Future<void> _fetchSubjects() async {
-    final String? token = widget.controller.token;
-    if (token == null) return;
-
-    try {
-      final subjects = await _apiService.getSubjects(token: token);
-      setState(() {
-        _allSubjects = subjects;
-        _filteredSubjects = subjects;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error loading subjects: $e')));
-      }
-    }
-  }
-
-  Future<void> _deleteSubject(int id) async {
-    // Show confirmation dialog before deleting
-    bool? confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Subject'),
-        content: const Text('Are you sure you want to delete this subject?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete', style: TextStyle(color: Colors.red))),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      try {
-        // Assume you implement this in ApiService later
-        // await _apiService.deleteSubject(token: widget.controller.token!, id: id);
-        _fetchSubjects();
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
-      }
-    }
   }
 
   @override
@@ -104,8 +75,6 @@ class _SubjectManagementPageState extends State<SubjectManagementPage> {
                 hintText: "Search by code or name...",
                 prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                filled: true,
-                fillColor: Colors.white,
               ),
             ),
           ),
@@ -115,20 +84,14 @@ class _SubjectManagementPageState extends State<SubjectManagementPage> {
                 : _filteredSubjects.isEmpty
                     ? const Center(child: Text("No subjects found."))
                     : ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
                         itemCount: _filteredSubjects.length,
                         itemBuilder: (context, index) {
                           final subject = _filteredSubjects[index];
                           return Card(
-                            margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                            margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
                             child: ListTile(
-                              leading: CircleAvatar(child: Text(subject['code'][0])),
                               title: Text(subject['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
                               subtitle: Text("Code: ${subject['code']} | Credits: ${subject['credit_hours']}"),
-                              trailing: IconButton(
-                                icon: const Icon(Icons.delete, color: Colors.redAccent),
-                                onPressed: () => _deleteSubject(subject['id']),
-                              ),
                             ),
                           );
                         },
@@ -142,10 +105,16 @@ class _SubjectManagementPageState extends State<SubjectManagementPage> {
             context, 
             MaterialPageRoute(builder: (_) => AddSubjectPage(token: widget.controller.token!))
           );
-          if (result == true) _fetchSubjects(); // Refresh only if something was added
+          if (result == true) _fetchSubjects();
         },
         child: const Icon(Icons.add),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 }

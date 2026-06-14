@@ -23,16 +23,23 @@ class _SubjectApprovalListPageState extends State<SubjectApprovalListPage> {
   Future<void> _fetchPending() async {
     setState(() => _isLoading = true);
     try {
-      final data = await widget.controller.apiService.getPendingStudents(
+      final dynamic data = await widget.controller.apiService.getPendingStudents(
         token: widget.controller.token!
       );
-      // Ensure we are working with a list
-      setState(() => _students = (data is List) ? data : []);
+
+      List<dynamic> parsedList = [];
+      if (data is Map<String, dynamic>) {
+        parsedList = data['students'] ?? [];
+      } else if (data is List) {
+        parsedList = data;
+      }
+
+      setState(() => _students = parsedList);
     } catch (e) {
       debugPrint("DEBUG: Error fetching students: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load students: ${e.toString()}')),
+          SnackBar(content: Text('Failed to load: ${e.toString()}')),
         );
       }
     } finally {
@@ -54,18 +61,27 @@ class _SubjectApprovalListPageState extends State<SubjectApprovalListPage> {
                   itemBuilder: (context, index) {
                     final item = _students[index];
                     
-                    // Defensive null-safe data extraction
+                    // --- DEBUG ---
+                    // Run with 'flutter run' and check Logcat/Debug Console for:
+                    // DEBUG: Row Data: {...}
+                    debugPrint("DEBUG: Row Data: $item");
+
                     final String name = item['student_name']?.toString() ?? 'Unknown Student';
-                    final String id = item['student_id']?.toString() ?? 'N/A';
                     
-                    // We need the ID for navigation. If the backend sends 'id' or 'student_id', 
-                    // ensure this points to the database primary key.
-                    final dynamic userId = item['user_id']; 
-                    final int? sId = (userId is int) ? userId : int.tryParse(userId.toString());
-                    debugPrint("DEBUG: Preparing to navigate. Student: $name, UserID: $sId");
+                    // --- KEY FIX ---
+                    // Check your debug console for the correct key name
+                    final String studentId = item['student_id']?.toString() 
+                                          ?? item['student_number']?.toString() 
+                                          ?? item['matric_no']?.toString()
+                                          ?? item['id']?.toString() 
+                                          ?? 'N/A';
+                    
+                    final dynamic rawId = item['user_id'];
+                    final int? sId = (rawId is int) ? rawId : int.tryParse(rawId?.toString() ?? '');
+
                     return Card(
                       margin: const EdgeInsets.only(bottom: 12),
-                      // InkWell ensures the whole card is clickable
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       child: InkWell(
                         onTap: sId != null 
                             ? () => Navigator.push(
@@ -75,10 +91,10 @@ class _SubjectApprovalListPageState extends State<SubjectApprovalListPage> {
                                   studentId: sId
                                 ))
                               )
-                            : () => debugPrint("Error: No ID found for this row"),
+                            : null,
                         child: ListTile(
-                          title: Text(name),
-                          subtitle: Text('ID: $id'),
+                          title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                          subtitle: Text('ID: $studentId'),
                           trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                         ),
                       ),

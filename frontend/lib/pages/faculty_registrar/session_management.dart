@@ -81,7 +81,7 @@ class _ManageSessionPageState extends State<ManageSessionPage> {
   // --- Toggle Registration Logic ---
   Future<void> _toggleRegistration(int sessionId, bool newValue) async {
     try {
-      await widget.controller.apiService.updateRegistrationStatus(sessionId, newValue);
+      await widget.controller.apiService.updateRegistrationStatus(sessionId, newValue.toString());
       _refreshSessions();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Update failed')));
@@ -104,19 +104,31 @@ class _ManageSessionPageState extends State<ManageSessionPage> {
           }
           
           final sessions = snapshot.data ?? [];
+          
+          if (sessions.isEmpty) {
+            return const Center(child: Text("No academic sessions found."));
+          }
+
           return ListView.builder(
             padding: const EdgeInsets.all(16),
             itemCount: sessions.length,
             itemBuilder: (context, index) {
-              final session = sessions[index] as Map<String, dynamic>;
+              // Safe conversion from dynamic to Map
+              final dynamic item = sessions[index];
+              final Map<String, dynamic> session = (item is Map) 
+                  ? Map<String, dynamic>.from(item) 
+                  : {};
+
+              if (session.isEmpty) return const SizedBox.shrink();
+
               return Card(
                 margin: const EdgeInsets.only(bottom: 12),
                 child: Column(
                   children: [
                     SwitchListTile(
-                      title: Text(session['session_name'] ?? 'Unnamed'),
-                      subtitle: Text((session['is_active'] == true) ? "Active Session" : ""),
-                      value: session['is_registration_open'] == true,
+                      title: Text(session['session_name']?.toString() ?? 'Unnamed'),
+                      subtitle: Text((session['is_active'] == true || session['is_active'] == 1) ? "Active Session" : ""),
+                      value: (session['is_registration_open'] == 1 || session['is_registration_open'] == true),
                       onChanged: (bool value) => _toggleRegistration(session['id'], value),
                     ),
                     Align(
