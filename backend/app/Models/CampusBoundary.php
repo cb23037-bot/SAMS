@@ -4,7 +4,22 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-// SAMS-PACK-403
+/**
+ * CampusBoundary — Entity Model
+ * Requirement ID : SAMS-PACK-403
+ * Responsibility : Manages campus GPS boundary information used to verify whether
+ *                  students are within the permitted campus area.
+ *
+ * Attributes:
+ *   campus_boundary_id    int
+ *   campus_name           String
+ *   center_latitude       Decimal
+ *   center_longitude      Decimal
+ *   allowed_radius_meter  int
+ *   status                String
+ *   created_at            Timestamp
+ *   updated_at            Timestamp
+ */
 class CampusBoundary extends Model
 {
     protected $primaryKey = 'campus_boundary_id';
@@ -19,13 +34,32 @@ class CampusBoundary extends Model
         'center_longitude' => 'float',
     ];
 
-    // SAMS-PACK-403: getActiveBoundary()
+    /**
+     * getActiveBoundary() — CampusBoundary|null
+     * SAMS-PACK-403
+     *
+     * Retrieves the currently active campus boundary configuration.
+     * Returns null if no active boundary is configured.
+     *
+     * Algorithm:
+     *   FIND campus boundary WHERE status = "active"
+     *   IF boundary found THEN RETURN boundary ELSE RETURN null
+     */
     public static function getActiveBoundary(): ?self
     {
         return self::where('status', 'active')->first();
     }
 
-    // SAMS-PACK-403: verifyLocation(gps_latitude, gps_longitude, campus_boundary_id)
+    /**
+     * verifyLocation(gps_latitude, gps_longitude, campus_boundary_id) — Boolean
+     * SAMS-PACK-403
+     *
+     * Checks whether the student's GPS coordinates are within the allowed campus radius.
+     *
+     * Algorithm:
+     *   CALL calculateDistance(student_latitude, student_longitude, center_latitude, center_longitude)
+     *   IF distance <= allowed_radius_meter THEN RETURN true ELSE RETURN false
+     */
     public static function verifyLocation(float $lat, float $lng, int $boundaryId): bool
     {
         $boundary = self::find($boundaryId);
@@ -34,7 +68,17 @@ class CampusBoundary extends Model
         return $distance <= $boundary->allowed_radius_meter;
     }
 
-    // SAMS-PACK-403: calculateDistance() — Haversine formula
+    /**
+     * calculateDistance(gps_latitude, gps_longitude, center_latitude, center_longitude) — Decimal
+     * SAMS-PACK-403
+     *
+     * Calculates the straight-line distance (in metres) between the student's GPS coordinate
+     * and the campus centre using the Haversine formula.
+     *
+     * Algorithm:
+     *   CALCULATE distance between student GPS coordinate and campus center
+     *   RETURN distance in metres
+     */
     public static function calculateDistance(float $lat1, float $lng1, float $lat2, float $lng2): float
     {
         $earthRadius = 6371000; // metres

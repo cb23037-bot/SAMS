@@ -1,3 +1,19 @@
+// lecturer_attendance_record.dart — Boundary Screen
+// Requirement ID : SAMS-PACK-409
+// Responsibility : Displays attendance records for a selected attendance session,
+//                  with search by student name/matric and filter by status.
+//
+// Attributes:
+//   attendanceRecord  List<AttendanceSubmission>
+//   searchKeyword     String
+//   filterStatus      String
+//
+// Methods:
+//   render()                                       — Renders attendance record interface.
+//   loadAttendanceRecord(attendance_session_id)    — Retrieves attendance records.
+//   searchStudent(keyword)                         — Searches record by student name or ID.
+//   filterByStatus(status)                         — Filters record by attendance status.
+
 import 'package:flutter/material.dart';
 import '../../models/models.dart';
 import '../../services/api_service.dart';
@@ -22,6 +38,7 @@ class _LecturerAttendanceRecordState extends State<LecturerAttendanceRecord> {
   @override
   void initState() {
     super.initState();
+    // loadAttendanceRecord() — SAMS-PACK-409
     _loadRecord();
     _searchCtrl.addListener(_applyFilter);
   }
@@ -32,6 +49,9 @@ class _LecturerAttendanceRecordState extends State<LecturerAttendanceRecord> {
     super.dispose();
   }
 
+  // loadAttendanceRecord(attendance_session_id) — List<AttendanceSubmission>
+  // SAMS-PACK-409
+  // CALL LecturerAttendanceController.viewRecord(attendance_session_id)
   Future<void> _loadRecord() async {
     setState(() => _loading = true);
     try {
@@ -46,6 +66,9 @@ class _LecturerAttendanceRecordState extends State<LecturerAttendanceRecord> {
     setState(() => _loading = false);
   }
 
+  // searchStudent(keyword) + filterByStatus(status) — SAMS-PACK-409
+  // FILTER attendanceRecord WHERE student name or matric matches searchKeyword
+  // AND attendance_status matches filterStatus
   void _applyFilter() {
     final kw = _searchCtrl.text.toLowerCase();
     setState(() {
@@ -59,6 +82,8 @@ class _LecturerAttendanceRecordState extends State<LecturerAttendanceRecord> {
     });
   }
 
+  // render() — void  (SAMS-PACK-409)
+  // Displays class/session details, stats, search field, status filter chips, and record list.
   @override
   Widget build(BuildContext context) {
     final present = _all.where((s) => s.attendanceStatus == 'present').length;
@@ -83,7 +108,7 @@ class _LecturerAttendanceRecordState extends State<LecturerAttendanceRecord> {
         ? const Center(child: CircularProgressIndicator(color: Color(0xFF1A3A6B)))
         : Column(children: [
 
-            // Header section
+            // Header section — course name, session date, stats, search, filter
             Container(
               color: Colors.white,
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
@@ -113,7 +138,7 @@ class _LecturerAttendanceRecordState extends State<LecturerAttendanceRecord> {
                 ]),
                 const SizedBox(height: 14),
 
-                // Progress bar
+                // Attendance progress bar
                 ClipRRect(
                   borderRadius: BorderRadius.circular(4),
                   child: LinearProgressIndicator(
@@ -131,7 +156,7 @@ class _LecturerAttendanceRecordState extends State<LecturerAttendanceRecord> {
                 ),
                 const SizedBox(height: 14),
 
-                // Search
+                // searchStudent() — SAMS-PACK-409
                 TextField(
                   controller: _searchCtrl,
                   style: const TextStyle(fontSize: 14),
@@ -150,7 +175,7 @@ class _LecturerAttendanceRecordState extends State<LecturerAttendanceRecord> {
                 ),
                 const SizedBox(height: 10),
 
-                // Filter chips
+                // filterByStatus() — SAMS-PACK-409
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(children: [
@@ -171,7 +196,7 @@ class _LecturerAttendanceRecordState extends State<LecturerAttendanceRecord> {
 
             const Divider(height: 1, color: Color(0xFFE8ECF2)),
 
-            // List
+            // Attendance record list
             Expanded(child: _filtered.isEmpty
               ? const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                   Icon(Icons.search_off_outlined, size: 40, color: Color(0xFFB0BAD0)),

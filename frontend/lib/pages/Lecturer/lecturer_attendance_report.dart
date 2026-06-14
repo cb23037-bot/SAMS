@@ -1,3 +1,20 @@
+// lecturer_attendance_report.dart — Boundary Screen
+// Requirement ID : SAMS-PACK-410
+// Responsibility : Displays attendance report filter, summary statistics, detailed records,
+//                  and provides download (CSV) and print (PDF) options.
+//
+// Attributes:
+//   selectedSchedule  ClassSchedule
+//   selectedDate      Date
+//   reportSummary     ReportDTO
+//   detailedRecord    List<AttendanceSubmission>
+//
+// Methods:
+//   render()                              — Renders attendance report interface.
+//   generateReport(schedule_id, date)     — Generates attendance summary and detailed record.
+//   downloadReport(reportData)            — Downloads attendance report as CSV.
+//   printReport(reportData)               — Prints attendance report as PDF.
+
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
@@ -30,9 +47,14 @@ class _LecturerAttendanceReportState extends State<LecturerAttendanceReport> {
   @override
   void initState() {
     super.initState();
+    // getReportFilter() — SAMS-PACK-410: load schedule dropdown on open
     _loadFilter();
   }
 
+  // getReportFilter() — List<ClassSchedule>
+  // SAMS-PACK-410
+  // CALL AttendanceReportController.getReportFilter(lecturer_id)
+  // Populates the schedule dropdown used to filter the report.
   Future<void> _loadFilter() async {
     try {
       final res = await ApiService.getReportFilter();
@@ -47,6 +69,11 @@ class _LecturerAttendanceReportState extends State<LecturerAttendanceReport> {
     setState(() => _loadingSchedules = false);
   }
 
+  // generateReport(schedule_id, session_date) — ReportDTO
+  // SAMS-PACK-410
+  // IF selectedSchedule is empty OR selectedDate is empty THEN DISPLAY error
+  // ELSE CALL AttendanceReportController.generateReport(selectedSchedule, selectedDate)
+  // DISPLAY report summary and detailed records
   Future<void> _generate() async {
     if (_selectedSchedule == null || _selectedDate == null) {
       setState(() => _error = 'Please select a class and date.');
@@ -67,6 +94,10 @@ class _LecturerAttendanceReportState extends State<LecturerAttendanceReport> {
     setState(() => _generating = false);
   }
 
+  // downloadReport(reportData) — File
+  // SAMS-PACK-410
+  // CALL AttendanceReportController.downloadReport(reportSummary, detailedRecord)
+  // FORMAT as CSV → save to temp directory → share via device share sheet
   Future<void> _exportReport() async {
     if (_reportData == null || _selectedSchedule == null || _selectedDate == null) return;
     setState(() => _exporting = true);
@@ -101,6 +132,10 @@ class _LecturerAttendanceReportState extends State<LecturerAttendanceReport> {
     if (mounted) setState(() => _exporting = false);
   }
 
+  // printReport(reportData) — void
+  // SAMS-PACK-410
+  // BUILD PDF document from reportSummary and detailedRecords
+  // CALL Printing.layoutPdf() → OPEN print preview on device
   Future<void> _printReport() async {
     if (_reportData == null || _selectedSchedule == null || _selectedDate == null) return;
     setState(() => _printing = true);
@@ -166,6 +201,8 @@ class _LecturerAttendanceReportState extends State<LecturerAttendanceReport> {
   String _displayDate(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')} / ${d.month.toString().padLeft(2, '0')} / ${d.year}';
 
+  // render() — void  (SAMS-PACK-410)
+  // Displays report filter form, generate button, export/print buttons, and report output.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -175,7 +212,7 @@ class _LecturerAttendanceReportState extends State<LecturerAttendanceReport> {
         padding: const EdgeInsets.all(16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
-          // Filter card
+          // Report filter card — schedule dropdown + date picker
           _SectionCard(
             title: 'Generate Report',
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -247,6 +284,7 @@ class _LecturerAttendanceReportState extends State<LecturerAttendanceReport> {
                 ),
               ),
 
+              // Validation error — shown when generate is tapped with incomplete filter
               if (_error != null) ...[
                 const SizedBox(height: 12),
                 Container(
@@ -266,6 +304,7 @@ class _LecturerAttendanceReportState extends State<LecturerAttendanceReport> {
               ],
               const SizedBox(height: 16),
 
+              // generateReport() trigger — SAMS-PACK-410
               SizedBox(
                 width: double.infinity,
                 height: 46,
@@ -283,7 +322,7 @@ class _LecturerAttendanceReportState extends State<LecturerAttendanceReport> {
           if (_reportData != null) ...[
             const SizedBox(height: 14),
 
-            // Export/Print actions
+            // downloadReport() and printReport() triggers — SAMS-PACK-410
             Row(children: [
               Expanded(child: _ActionButton(
                 icon: Icons.download_outlined,
@@ -303,6 +342,7 @@ class _LecturerAttendanceReportState extends State<LecturerAttendanceReport> {
             ]),
             const SizedBox(height: 14),
 
+            // Report output — summary + detailed records
             _ReportOutput(data: _reportData!),
           ],
           const SizedBox(height: 16),
@@ -399,7 +439,7 @@ class _ReportOutput extends StatelessWidget {
           : const Color(0xFFD32F2F);
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      // Summary
+      // Summary card
       Container(
         decoration: BoxDecoration(
           color: Colors.white,
@@ -454,7 +494,7 @@ class _ReportOutput extends StatelessWidget {
       ),
       const SizedBox(height: 12),
 
-      // Detailed records
+      // Detailed records card
       Container(
         decoration: BoxDecoration(
           color: Colors.white,

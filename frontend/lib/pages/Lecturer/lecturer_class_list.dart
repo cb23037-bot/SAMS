@@ -1,3 +1,18 @@
+// lecturer_class_list.dart — Boundary Screen
+// Requirement ID : SAMS-PACK-407
+// Responsibility : Displays all class schedules assigned to the lecturer and allows
+//                  the lecturer to start or resume an attendance session.
+//
+// Attributes:
+//   scheduleList      List<ClassSchedule>
+//   selectedSchedule  ClassSchedule
+//   navigation        Navigation
+//
+// Methods:
+//   render()                            — Renders lecturer class list interface.
+//   loadLecturerSchedules()             — Retrieves schedules assigned to lecturer.
+//   startAttendanceSession(schedule_id) — Starts or resumes an attendance session.
+
 import 'package:flutter/material.dart';
 import '../../models/models.dart';
 import '../../services/api_service.dart';
@@ -18,9 +33,13 @@ class _LecturerClassListState extends State<LecturerClassList> {
   @override
   void initState() {
     super.initState();
+    // loadLecturerSchedules() — SAMS-PACK-407
     _loadSchedules();
   }
 
+  // loadLecturerSchedules() — List<ClassSchedule>
+  // SAMS-PACK-407
+  // GET lecturer_id from session → CALL LecturerAttendanceController.getAssignedSchedules()
   Future<void> _loadSchedules() async {
     setState(() => _loading = true);
     try {
@@ -36,6 +55,10 @@ class _LecturerClassListState extends State<LecturerClassList> {
     setState(() => _loading = false);
   }
 
+  // startAttendanceSession(schedule_id) — AttendanceSession
+  // SAMS-PACK-407
+  // CALL LecturerAttendanceController.startSession(schedule_id)
+  // IF session created THEN NAVIGATE to LecturerActiveSession ELSE DISPLAY error
   Future<void> _startSession(ClassScheduleModel schedule) async {
     final res = await ApiService.startSession(schedule.scheduleId);
     if (res['status'] == 201) {
@@ -54,6 +77,8 @@ class _LecturerClassListState extends State<LecturerClassList> {
     }
   }
 
+  // render() — void  (SAMS-PACK-407)
+  // Displays the list of class schedules with Start/View Session buttons.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -100,6 +125,8 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
+// _ScheduleItem — renders a single class schedule card.
+// Shows "View Active Session" when an active session exists, "Start Session" otherwise.
 class _ScheduleItem extends StatefulWidget {
   final ClassScheduleModel schedule;
   final Future<void> Function(ClassScheduleModel) onStartSession;
@@ -130,7 +157,7 @@ class _ScheduleItemState extends State<_ScheduleItem> {
         border: Border.all(color: const Color(0xFFE8ECF2)),
       ),
       child: Column(children: [
-        // Top accent bar
+        // Top accent bar — green when active session exists, blue otherwise
         Container(
           height: 4,
           decoration: BoxDecoration(
@@ -149,6 +176,7 @@ class _ScheduleItemState extends State<_ScheduleItem> {
                 Text('${s.courseCode}  ·  ${s.className}  ·  ${s.section}',
                   style: const TextStyle(color: Color(0xFF8896AB), fontSize: 13)),
               ])),
+              // Active badge — shown when a session is currently running
               if (hasActive)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -170,6 +198,8 @@ class _ScheduleItemState extends State<_ScheduleItem> {
               _InfoChip(icon: Icons.calendar_today_outlined, label: s.scheduleDate),
             ]),
             const SizedBox(height: 14),
+            // startAttendanceSession() — SAMS-PACK-407
+            // Tapping navigates to the active session if one exists, or starts a new one.
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(

@@ -4,7 +4,24 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-// SAMS-PACK-405
+/**
+ * AttendanceSubmission — Entity Model
+ * Requirement ID : SAMS-PACK-405
+ * Responsibility : Manages student attendance submissions, including submitted code,
+ *                  submission time, GPS location, and attendance status.
+ *
+ * Attributes:
+ *   attendance_submission_id  int
+ *   attendance_session_id     int
+ *   student_id                int
+ *   submitted_code            String
+ *   submitted_at              Timestamp
+ *   gps_latitude              Decimal
+ *   gps_longitude             Decimal
+ *   attendance_status         String
+ *   created_at                Timestamp
+ *   updated_at                Timestamp
+ */
 class AttendanceSubmission extends Model
 {
     protected $primaryKey = 'attendance_submission_id';
@@ -20,7 +37,18 @@ class AttendanceSubmission extends Model
         'gps_longitude' => 'float',
     ];
 
-    // SAMS-PACK-405: submitAttendance(...)
+    /**
+     * submitAttendance(attendance_session_id, student_id, submitted_code, gps_latitude, gps_longitude) — Boolean
+     * SAMS-PACK-405
+     *
+     * Saves an attendance submission record for the student.
+     * Returns an error string if the student has already submitted for this session.
+     *
+     * Algorithm:
+     *   CHECK duplicate submission WHERE attendance_session_id AND student_id match
+     *   IF duplicate exists THEN RETURN error "Attendance has already been submitted"
+     *   ELSE CREATE new submission with attendance_status = "present" → RETURN record
+     */
     public static function submitAttendance(
         int $sessionId, int $studentId, string $code,
         float $lat, float $lng
@@ -39,7 +67,16 @@ class AttendanceSubmission extends Model
         ]);
     }
 
-    // SAMS-PACK-405: checkDuplicateSubmission(session_id, student_id)
+    /**
+     * checkDuplicateSubmission(attendance_session_id, student_id) — Boolean
+     * SAMS-PACK-405
+     *
+     * Checks whether the student has already submitted attendance for this session.
+     *
+     * Algorithm:
+     *   FIND submission WHERE attendance_session_id AND student_id match
+     *   IF submission found THEN RETURN true ELSE RETURN false
+     */
     public static function checkDuplicateSubmission(int $sessionId, int $studentId): bool
     {
         return self::where('attendance_session_id', $sessionId)
@@ -47,7 +84,18 @@ class AttendanceSubmission extends Model
             ->exists();
     }
 
-    // SAMS-PACK-405: getSubmissionsBySession(attendance_session_id)
+    /**
+     * getSubmissionsBySession(attendance_session_id) — List<AttendanceSubmission>
+     * SAMS-PACK-405
+     *
+     * Retrieves all submissions for a session, with student details eager-loaded.
+     * Used by both live session monitoring and attendance record views.
+     *
+     * Algorithm:
+     *   FIND submissions WHERE attendance_session_id = attendance_session_id
+     *   FETCH student details
+     *   RETURN submission list ordered by submitted_at
+     */
     public static function getSubmissionsBySession(int $sessionId): \Illuminate\Database\Eloquent\Collection
     {
         return self::with('student:id,name,student_id,course')
@@ -56,7 +104,18 @@ class AttendanceSubmission extends Model
             ->get();
     }
 
-    // SAMS-PACK-405: countPresentStudents(attendance_session_id)
+    /**
+     * countPresentStudents(attendance_session_id) — int
+     * SAMS-PACK-405
+     *
+     * Counts the number of students with attendance_status = "present" for a session.
+     * Used by the report controller to calculate summary statistics.
+     *
+     * Algorithm:
+     *   COUNT submissions WHERE attendance_session_id = attendance_session_id
+     *   AND attendance_status = "present"
+     *   RETURN present_students count
+     */
     public static function countPresentStudents(int $sessionId): int
     {
         return self::where('attendance_session_id', $sessionId)
@@ -64,7 +123,8 @@ class AttendanceSubmission extends Model
             ->count();
     }
 
-    // Relationships
+    // ── Relationships ────────────────────────────────────────────────────────
+
     public function session()
     {
         return $this->belongsTo(AttendanceSession::class, 'attendance_session_id', 'attendance_session_id');

@@ -1,3 +1,21 @@
+// lecturer_active_session.dart — Boundary Screen
+// Requirement ID : SAMS-PACK-408
+// Responsibility : Displays the active attendance session, generated attendance code,
+//                  live submissions list, and close session action.
+//
+// Attributes:
+//   activeSession       AttendanceSession
+//   attendanceCode      String
+//   submissionList      List<AttendanceSubmission>
+//   confirmationStatus  Boolean
+//
+// Methods:
+//   render()                                          — Renders active session interface.
+//   loadActiveSession(attendance_session_id)          — Loads active session details.
+//   generateAttendanceCode(attendance_session_id)     — Requests a new attendance code.
+//   loadLiveSubmissions(attendance_session_id)        — Retrieves live submissions.
+//   closeAttendanceSession(attendance_session_id)     — Closes the attendance session.
+
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -27,7 +45,9 @@ class _LecturerActiveSessionState extends State<LecturerActiveSession> {
     super.initState();
     _session = widget.session;
     _loadEnrolledCount();
+    // loadLiveSubmissions() — SAMS-PACK-408: initial fetch
     _loadLiveSubmissions();
+    // Poll every 5 seconds while session is active to update submission list
     if (_session.isActive) {
       _timer = Timer.periodic(const Duration(seconds: 5), (_) => _loadLiveSubmissions());
     }
@@ -39,6 +59,7 @@ class _LecturerActiveSessionState extends State<LecturerActiveSession> {
     super.dispose();
   }
 
+  // loadActiveSession() — loads enrolled count for the progress metric tile
   Future<void> _loadEnrolledCount() async {
     try {
       final res = await ApiService.getEnrolledCount(widget.schedule.scheduleId);
@@ -48,6 +69,10 @@ class _LecturerActiveSessionState extends State<LecturerActiveSession> {
     } catch (_) {}
   }
 
+  // loadLiveSubmissions(attendance_session_id) — List<AttendanceSubmission>
+  // SAMS-PACK-408
+  // CALL LecturerAttendanceController.getLiveSubmissions(attendance_session_id)
+  // Sets _pollError flag if the request fails so a retry banner is shown.
   Future<void> _loadLiveSubmissions() async {
     try {
       final res = await ApiService.getLiveSubmissions(_session.attendanceSessionId);
@@ -67,6 +92,10 @@ class _LecturerActiveSessionState extends State<LecturerActiveSession> {
     }
   }
 
+  // generateAttendanceCode(attendance_session_id) — String
+  // SAMS-PACK-408
+  // CALL LecturerAttendanceController.generateCode(attendance_session_id)
+  // IF code generated THEN update displayed code ELSE show error snackbar
   Future<void> _generateCode() async {
     final res = await ApiService.generateCode(_session.attendanceSessionId);
     if (res['status'] == 200) {
@@ -88,6 +117,11 @@ class _LecturerActiveSessionState extends State<LecturerActiveSession> {
     }
   }
 
+  // closeAttendanceSession(attendance_session_id) — Boolean
+  // SAMS-PACK-408
+  // DISPLAY confirmation dialog
+  // IF lecturer confirms → CALL LecturerAttendanceController.closeSession(attendance_session_id)
+  // IF closed THEN NAVIGATE to LecturerAttendanceRecord ELSE DISPLAY error
   Future<void> _closeSession() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -144,6 +178,8 @@ class _LecturerActiveSessionState extends State<LecturerActiveSession> {
     }
   }
 
+  // render() — void  (SAMS-PACK-408)
+  // Displays session info, attendance code, metric tiles, action buttons, and submissions list.
   @override
   Widget build(BuildContext context) {
     final presentCount = _submissions.where((s) => s.attendanceStatus == 'present').length;
@@ -168,7 +204,7 @@ class _LecturerActiveSessionState extends State<LecturerActiveSession> {
         padding: const EdgeInsets.all(16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
-          // Session info
+          // Session info card
           _Card(child: Row(children: [
             Container(
               width: 46, height: 46,
@@ -196,13 +232,14 @@ class _LecturerActiveSessionState extends State<LecturerActiveSession> {
           ])),
           const SizedBox(height: 12),
 
-          // Attendance code
+          // Attendance code card — only shown while session is active
           if (_session.isActive) ...[
             _Card(child: Column(children: [
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                 const Text('Attendance Code',
                   style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
                     color: Color(0xFF8896AB), letterSpacing: 0.5)),
+                // generateAttendanceCode() trigger — SAMS-PACK-408
                 TextButton.icon(
                   onPressed: _generateCode,
                   icon: const Icon(Icons.refresh_outlined, size: 14),
@@ -250,7 +287,7 @@ class _LecturerActiveSessionState extends State<LecturerActiveSession> {
             const SizedBox(height: 12),
           ],
 
-          // Metrics
+          // Metric tiles — Enrolled, Present, Attendance Rate
           Row(children: [
             _MetricTile(
               label: 'Enrolled',
@@ -279,7 +316,7 @@ class _LecturerActiveSessionState extends State<LecturerActiveSession> {
           ]),
           const SizedBox(height: 12),
 
-          // Poll error banner
+          // Poll error banner — shown when live submission polling fails
           if (_pollError)
             Container(
               margin: const EdgeInsets.only(bottom: 12),
@@ -315,6 +352,7 @@ class _LecturerActiveSessionState extends State<LecturerActiveSession> {
                 child: const Text('View Records', style: TextStyle(fontSize: 13)),
               )),
               const SizedBox(width: 10),
+              // closeAttendanceSession() trigger — SAMS-PACK-408
               Expanded(child: ElevatedButton(
                 onPressed: _closing ? null : _closeSession,
                 style: ElevatedButton.styleFrom(
@@ -336,7 +374,7 @@ class _LecturerActiveSessionState extends State<LecturerActiveSession> {
           ],
           const SizedBox(height: 20),
 
-          // Submissions header
+          // Submissions section header
           Row(children: [
             const Text('Submissions',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF0F2449))),
@@ -351,6 +389,7 @@ class _LecturerActiveSessionState extends State<LecturerActiveSession> {
                 style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF5A6B82))),
             ),
             const SizedBox(width: 8),
+            // Live indicator dot — shown while polling is healthy
             if (_session.isActive && !_pollError)
               Container(
                 width: 7, height: 7,
@@ -359,6 +398,7 @@ class _LecturerActiveSessionState extends State<LecturerActiveSession> {
           ]),
           const SizedBox(height: 10),
 
+          // Submissions list
           _submissions.isEmpty
             ? const _Card(child: Padding(
                 padding: EdgeInsets.symmetric(vertical: 28),

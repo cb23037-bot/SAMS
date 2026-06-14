@@ -10,12 +10,34 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
-// SAMS-PACK-416 — AttendanceReportController
+/**
+ * AttendanceReportController — Controller
+ * Requirement ID : SAMS-PACK-416
+ * Responsibility : Handles attendance report generation by retrieving attendance data,
+ *                  calculating summary statistics, displaying detailed records,
+ *                  and preparing reports for download or printing.
+ *
+ * Attributes:
+ *   enrollmentModel  ClassEnrollment
+ *   scheduleModel    ClassSchedule
+ *   sessionModel     AttendanceSession
+ *   submissionModel  AttendanceSubmission
+ */
 class AttendanceReportController extends Controller
 {
-    // SAMS-PACK-416: getReportFilter(lecturer_id)
-    // GET /api/lecturer/report/filter
-    // FIX: this endpoint is now properly called by the Flutter report screen
+    /**
+     * getReportFilter(lecturer_id) — List<ClassSchedule>
+     * SAMS-PACK-416
+     * GET /api/lecturer/report/filter
+     *
+     * Retrieves the list of class schedules assigned to the lecturer for use
+     * as dropdown options in the report filter form.
+     *
+     * Algorithm:
+     *   GET lecturer_id from session
+     *   CALL ClassSchedule.getLecturerSchedules(lecturer_id)
+     *   RETURN schedule list
+     */
     public function getReportFilter(Request $request): JsonResponse
     {
         $lecturerId = $request->user()->id;
@@ -23,8 +45,26 @@ class AttendanceReportController extends Controller
         return response()->json(['schedules' => $schedules]);
     }
 
-    // SAMS-PACK-416: generateReport(schedule_id, session_date)
-    // GET /api/lecturer/report?schedule_id=1&session_date=2026-05-10
+    /**
+     * generateReport(schedule_id, session_date) — ReportDTO
+     * SAMS-PACK-416
+     * GET /api/lecturer/report?schedule_id=1&session_date=2026-05-10
+     *
+     * Generates an attendance summary and detailed record for the selected class and date.
+     * Calculates total students, present, absent, and attendance percentage.
+     *
+     * Algorithm:
+     *   CALL ClassSchedule.verifyLecturerSchedule(lecturer_id, schedule_id)
+     *   IF not authorized THEN RETURN error "Unauthorized access to attendance report"
+     *   FIND attendance session WHERE schedule_id AND session_date match
+     *   IF not found THEN RETURN error "Attendance session not found"
+     *   CALL ClassEnrollment.countEnrolledStudents(class_id) → total_students
+     *   CALL AttendanceSubmission.countPresentStudents(session_id) → present_students
+     *   SET absent_students = total_students - present_students
+     *   SET attendance_percentage = present_students / total_students * 100
+     *   CALL AttendanceSubmission.getSubmissionsBySession(session_id) → detailed records
+     *   RETURN ReportDTO
+     */
     public function generateReport(Request $request): JsonResponse
     {
         $request->validate([
@@ -36,14 +76,14 @@ class AttendanceReportController extends Controller
         $scheduleId  = $request->schedule_id;
         $sessionDate = $request->session_date;
 
-        // SAMS-PACK-402: verifyLecturerSchedule
+        // SAMS-PACK-402: verify lecturer owns this schedule
         if (!ClassSchedule::verifyLecturerSchedule($scheduleId, $lecturerId)) {
             return response()->json(['message' => 'Unauthorized access to attendance report.'], 403);
         }
 
         $schedule = ClassSchedule::find($scheduleId);
 
-        // Find attendance session
+        // Find the attendance session for the selected date
         $session = AttendanceSession::where('schedule_id', $scheduleId)
             ->whereDate('session_date', $sessionDate)
             ->first();
@@ -60,13 +100,12 @@ class AttendanceReportController extends Controller
             ? round(($presentStudents / $totalStudents) * 100, 1)
             : 0;
 
-        // Detailed records
         $detailedRecords = AttendanceSubmission::getSubmissionsBySession($session->attendance_session_id);
 
         return response()->json([
-            'schedule'        => $schedule,
-            'session'         => $session,
-            'summary' => [
+            'schedule'         => $schedule,
+            'session'          => $session,
+            'summary'          => [
                 'total_students'        => $totalStudents,
                 'present_students'      => $presentStudents,
                 'absent_students'       => $absentStudents,
@@ -76,8 +115,19 @@ class AttendanceReportController extends Controller
         ]);
     }
 
-    // FIX: SAMS-REQ-414 — Download attendance report as CSV
-    // GET /api/lecturer/report/download?schedule_id=1&session_date=2026-05-10
+    /**
+     * downloadReport(schedule_id, session_date) — File
+     * SAMS-PACK-416
+     * GET /api/lecturer/report/download?schedule_id=1&session_date=2026-05-10
+     *
+     * Downloads the attendance report as a CSV file.
+     * The file includes a report header block, summary block, and detailed records.
+     *
+     * Algorithm:
+     *   GET reportData (same as generateReport)
+     *   FORMAT reportData as CSV
+     *   RETURN file as streamed download response
+     */
     public function downloadReport(Request $request): StreamedResponse|JsonResponse
     {
         $request->validate([
@@ -132,7 +182,7 @@ class AttendanceReportController extends Controller
             fputcsv($out, ['Attendance Rate', $percentage . '%']);
             fputcsv($out, []);
 
-            // Detailed records header
+            // Detailed records
             fputcsv($out, ['No.', 'Student Name', 'Matric No.', 'Submitted At', 'GPS Latitude', 'GPS Longitude', 'Status']);
 
             foreach ($records as $i => $record) {
