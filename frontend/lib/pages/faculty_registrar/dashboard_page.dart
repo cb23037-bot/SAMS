@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../app/app_controller.dart';
 import '../../theme/app_theme.dart' as theme;
 import 'session_management.dart';
-import 'subject_management.dart'; // Added import for Subject Management
+import 'subject_management.dart';
 
 class FacultyRegistrarDashboard extends StatelessWidget {
   const FacultyRegistrarDashboard({super.key, required this.controller});
@@ -62,18 +62,9 @@ class FacultyRegistrarDashboard extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        // Assuming your SubjectManagementPage needs the controller
-                        builder: (context) => SubjectManagementPage(controller: controller), 
+                        builder: (context) => SubjectManagementPage(controller: controller),
                       ),
                     );
-                  },
-                ),
-                _DashboardCard(
-                  title: 'Student Records',
-                  icon: Icons.people_outline,
-                  color: theme.AppColors.primaryPurple,
-                  onTap: () {
-                    // Add navigation to student records here if needed
                   },
                 ),
               ],
