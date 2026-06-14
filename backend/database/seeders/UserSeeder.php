@@ -34,7 +34,7 @@ class UserSeeder extends Seeder
                 'address'          => '162A, Jalan Nilam 3, Taman Delima, 08000 Sungai Petani, Kedah',
             ],
             [
-                'name'             => 'Student CB23022',
+                'name'             => 'Muhammad izbu Farhan bin Alias',
                 'email'            => 'cb23022@adab.umpsa.edu.my',
                 'role'             => 'student',
                 'student_id'       => 'CB23022',
@@ -45,7 +45,7 @@ class UserSeeder extends Seeder
                 'address'          => null,
             ],
             [
-                'name'             => 'Student CB23065',
+                'name'             => 'MUHAMMAD AKRAM SYAHMI BIN MOHD SHAM SURI',
                 'email'            => 'cb23065@adab.umpsa.edu.my',
                 'role'             => 'student',
                 'student_id'       => 'CB23065',
@@ -56,7 +56,7 @@ class UserSeeder extends Seeder
                 'address'          => null,
             ],
             [
-                'name'             => 'Student CB23111',
+                'name'             => 'STEVE DEMIUS',
                 'email'            => 'cb23111@adab.umpsa.edu.my',
                 'role'             => 'student',
                 'student_id'       => 'CB23111',

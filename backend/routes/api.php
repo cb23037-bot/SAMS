@@ -11,6 +11,8 @@ use App\Http\Controllers\Api\ProfileController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login']);
+Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
+Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
@@ -24,6 +26,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Activity Slots (adab only)
     Route::post('/activities/{activity}/slots', [ActivitySlotController::class, 'store']);
+    Route::put('/activities/{activity}/slots/{slot}', [ActivitySlotController::class, 'update']);
     Route::delete('/activities/{activity}/slots/{slot}', [ActivitySlotController::class, 'destroy']);
 
     // Student access state (readable by any authenticated user)
@@ -47,7 +50,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/adab/notifications', [CreditClaimController::class, 'notifications']);
     Route::get('/adab/claims', [CreditClaimController::class, 'index']);
     Route::get('/adab/claims/{activityId}', [CreditClaimController::class, 'activityClaims']);
-    Route::get('/adab/claims/{registration}/proof', [CreditClaimController::class, 'downloadProof']);
     Route::put('/adab/claims/{registration}/approve', [CreditClaimController::class, 'approve']);
     Route::put('/adab/claims/{registration}/reject', [CreditClaimController::class, 'reject']);
 });

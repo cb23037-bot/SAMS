@@ -74,7 +74,7 @@ class ApiService {
       final raw = await response.transform(utf8.decoder).join();
 
       // Some endpoints return an empty body (e.g. DELETE), handle gracefully
-      final json = raw.isEmpty ? <String, dynamic>{} : jsonDecode(raw) as Map<String, dynamic>;
+      final json = _decodeJson(raw, response.statusCode);
 
       // 2xx = success; anything else is an API error
       if (response.statusCode >= 200 && response.statusCode < 300) return json;
@@ -109,6 +109,30 @@ class ApiService {
   /// Called when the user taps the logout button.
   Future<void> logout({required String token}) async {
     await _request(method: 'POST', path: '/logout', token: token);
+  }
+
+  /// Requests a one-time password (OTP) be emailed to [email] so the user
+  /// can reset their password.
+  Future<void> forgotPassword({required String email}) async {
+    await _request(
+      method: 'POST',
+      path: '/forgot-password',
+      body: {'email': email},
+    );
+  }
+
+  /// Verifies the [otp] sent to [email] and sets a new [password] for the
+  /// account.
+  Future<void> resetPassword({
+    required String email,
+    required String otp,
+    required String password,
+  }) async {
+    await _request(
+      method: 'POST',
+      path: '/reset-password',
+      body: {'email': email, 'otp': otp, 'password': password},
+    );
   }
 
   // ── Profile ────────────────────────────────────────────────────────────────
@@ -209,6 +233,26 @@ class ApiService {
     final json = await _request(
       method: 'POST',
       path: '/activities/$activityId/slots',
+      token: token,
+      body: {'date': date, 'time': time, 'capacity': capacity},
+    );
+    return ActivitySlot.fromJson(json['slot'] as Map<String, dynamic>);
+  }
+
+  /// Updates the date, time, and capacity of an existing slot.
+  /// Requires both [activityId] and [slotId] because the route is nested:
+  /// PUT /activities/{activity}/slots/{slot}
+  Future<ActivitySlot> updateSlot({
+    required String token,
+    required int activityId,
+    required int slotId,
+    required String date,
+    required String time,
+    required int capacity,
+  }) async {
+    final json = await _request(
+      method: 'PUT',
+      path: '/activities/$activityId/slots/$slotId',
       token: token,
       body: {'date': date, 'time': time, 'capacity': capacity},
     );
@@ -323,8 +367,7 @@ class ApiService {
 
       final response = await req.close();
       final raw = await response.transform(utf8.decoder).join();
-      final json =
-          raw.isEmpty ? <String, dynamic>{} : jsonDecode(raw) as Map<String, dynamic>;
+      final json = _decodeJson(raw, response.statusCode);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return ActivityRegistration.fromJson(json['registration'] as Map<String, dynamic>);
@@ -405,8 +448,7 @@ class ApiService {
 
       final response = await req.close();
       final raw = await response.transform(utf8.decoder).join();
-      final json =
-          raw.isEmpty ? <String, dynamic>{} : jsonDecode(raw) as Map<String, dynamic>;
+      final json = _decodeJson(raw, response.statusCode);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final sub = json['submission'] as Map<String, dynamic>;
@@ -523,21 +565,36 @@ class ApiService {
     );
   }
 
-  /// Downloads the proof document (PDF) for a specific claim as raw bytes.
-  /// The backend returns it base64-encoded inside JSON (rather than a raw
-  /// binary response) to avoid the PHP dev server truncating binary bodies.
-  /// The bytes are then passed to the [printing] package to let the admin
-  /// view or share the file.
-  Future<Uint8List> downloadProof({
-    required String token,
-    required int registrationId,
-  }) async {
-    final json = await _request(
-      method: 'GET',
-      path: '/adab/claims/$registrationId/proof',
-      token: token,
-    );
-    return base64Decode(json['data'] as String);
+  /// Downloads the proof document (PDF) for a claim as raw bytes.
+  ///
+  /// Fetched directly from the `storage/` static path (served by Laravel's
+  /// `public/storage` symlink) instead of going through a JSON/base64
+  /// controller response — the PHP dev server truncates large JSON bodies,
+  /// but static file serving streams the full file correctly.
+  Future<Uint8List> downloadProof({required String proofPath}) async {
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 15)
+      ..idleTimeout = const Duration(seconds: 15);
+
+    try {
+      final uri = Uri.parse('${_storageBaseUrl()}/storage/$proofPath');
+      final req = await client.getUrl(uri);
+      final response = await req.close();
+
+      if (response.statusCode != 200) {
+        throw Exception('Proof document not found.');
+      }
+
+      final bytes = <int>[];
+      await for (final chunk in response) {
+        bytes.addAll(chunk);
+      }
+      return Uint8List.fromList(bytes);
+    } on SocketException {
+      throw Exception('Unable to connect to the server. Make sure the backend is running.');
+    } finally {
+      client.close(force: true);
+    }
   }
 
   // ── Private Helpers ────────────────────────────────────────────────────────
@@ -550,6 +607,28 @@ class ApiService {
     if (kIsWeb) return 'http://127.0.0.1:8000/api';
     if (Platform.isAndroid) return 'http://10.0.2.2:8000/api';
     return 'http://127.0.0.1:8000/api';
+  }
+
+  /// Returns the server's root URL (without the `/api` suffix), used to
+  /// fetch static files served from Laravel's `public/storage` symlink.
+  String _storageBaseUrl() {
+    final base = _baseUrl();
+    return base.substring(0, base.length - '/api'.length);
+  }
+
+  /// Safely decodes a JSON response body.
+  ///
+  /// If the server returns a non-JSON body (e.g. an HTML error page from a
+  /// 500 server error), `jsonDecode` throws a [FormatException] whose message
+  /// includes the raw HTML — this would otherwise leak onto the screen via
+  /// `e.toString()`. Instead, throw a clean, user-friendly [Exception].
+  Map<String, dynamic> _decodeJson(String raw, int statusCode) {
+    if (raw.isEmpty) return <String, dynamic>{};
+    try {
+      return jsonDecode(raw) as Map<String, dynamic>;
+    } catch (_) {
+      throw Exception('Server error (code $statusCode). Please try again later.');
+    }
   }
 
   /// Extracts a human-readable error message from the backend's JSON response.

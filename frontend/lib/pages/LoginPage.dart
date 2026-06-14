@@ -1,6 +1,13 @@
 import 'package:flutter/material.dart';
 import '../app/app_controller.dart';
+import 'ForgotPasswordPage.dart';
 
+/// Initial entry point of the app for unauthenticated users.
+///
+/// Lets the user pick a role (student or Pusat Adab staff), enter their
+/// username/password, and signs in via [AppController.signIn]. On success,
+/// [AppController] notifies its listeners and [SamsApp] swaps this page out
+/// for the appropriate home page based on the logged-in user's role.
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key, required this.controller});
 
@@ -11,11 +18,16 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
+  /// Key used to validate all form fields before attempting sign in.
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
+  /// Selected user type: 'student' or 'adab'. Must match the role stored
+  /// in the database for the account, or [AppController.signIn] will reject it.
   String? _role;
+
+  /// Toggles whether the password field shows plain text or dots.
   bool _obscurePassword = true;
 
   @override
@@ -25,6 +37,12 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
+  /// Validates the form, then attempts to sign in via [AppController].
+  ///
+  /// The entered username is normalized to a full university email address
+  /// (appending the `@adab.umpsa.edu.my` domain if not already present) so
+  /// users can type just their username. On failure, the exception message
+  /// is shown in a snackbar with the "Exception: " prefix stripped.
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -47,6 +65,8 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  /// Builds the login card: logo/branding, role dropdown, email/password
+  /// fields, "Forgot password?" link, and the Sign In button.
   @override
   Widget build(BuildContext context) {
     final isLoading = widget.controller.isLoading;
@@ -76,7 +96,7 @@ class _LoginPageState extends State<LoginPage> {
                 child: Column(
                   children: [
 
-                    /// 🔥 LOGO
+                    // ── Header / branding ───────────────────────────────
                     Image.asset(
                       'assets/images/umpsa_logo.png',
                       height: 90,
@@ -116,7 +136,9 @@ class _LoginPageState extends State<LoginPage> {
 
                     const SizedBox(height: 28),
 
-                    /// ROLE
+                    // ── Role selector ────────────────────────────────────
+                    // Determines which role _submit() passes to signIn();
+                    // disabled while a sign-in request is already in flight.
                     _Label(
                       title: 'User Type',
                       child: DropdownButtonFormField<String>(
@@ -145,7 +167,9 @@ class _LoginPageState extends State<LoginPage> {
 
                     const SizedBox(height: 16),
 
-                    /// EMAIL
+                    // ── Email field ───────────────────────────────────────
+                    // Accepts a bare username; _submit() appends the
+                    // university domain suffix shown here as a hint.
                     _Label(
                       title: 'Email',
                       child: TextFormField(
@@ -166,7 +190,7 @@ class _LoginPageState extends State<LoginPage> {
 
                     const SizedBox(height: 16),
 
-                    /// PASSWORD
+                    // ── Password field ───────────────────────────────────
                     _Label(
                       title: 'Password',
                       child: TextFormField(
@@ -181,6 +205,8 @@ class _LoginPageState extends State<LoginPage> {
                                   ? Icons.visibility_outlined
                                   : Icons.visibility_off_outlined,
                             ),
+                            // Toggles the obscureText flag so the user can
+                            // reveal/hide what they typed.
                             onPressed: () {
                               setState(() {
                                 _obscurePassword = !_obscurePassword;
@@ -195,14 +221,17 @@ class _LoginPageState extends State<LoginPage> {
 
                     const SizedBox(height: 10),
 
-                    /// REMEMBER + FORGOT
+                    // ── Forgot password link ─────────────────────────────
+                    // Navigates to the OTP-based password reset flow.
                     Row(
                       children: [
-                        const SizedBox(width: 4),
-                        const Text('Remember me'),
                         const Spacer(),
                         TextButton(
-                          onPressed: () {},
+                          onPressed: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => ForgotPasswordPage(controller: widget.controller),
+                            ),
+                          ),
                           child: const Text('Forgot password?'),
                         )
                       ],
@@ -210,7 +239,9 @@ class _LoginPageState extends State<LoginPage> {
 
                     const SizedBox(height: 12),
 
-                    /// BUTTON
+                    // ── Sign in button ───────────────────────────────────
+                    // Disabled and replaced with a spinner while
+                    // AppController.isLoading is true (request in flight).
                     SizedBox(
                       width: double.infinity,
                       height: 52,
@@ -244,6 +275,11 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
+  /// Shared text field styling used by all inputs on this page.
+  ///
+  /// [domainSuffix], if provided, is displayed as trailing static text
+  /// (e.g. "@adab.umpsa.edu.my") to hint at the email format without the
+  /// user needing to type it.
   InputDecoration _inputDecoration({
     required String hintText,
     required IconData icon,
@@ -267,6 +303,8 @@ class _LoginPageState extends State<LoginPage> {
   }
 }
 
+/// Small helper widget that renders a bold [title] above an input [child].
+/// Used to keep the field labels in the login form consistent.
 class _Label extends StatelessWidget {
   const _Label({required this.title, required this.child});
 

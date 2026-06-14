@@ -5,6 +5,12 @@ import '../../models/activity.dart';
 import '../../models/activity_slot.dart';
 
 // Embedded widget — no Scaffold. Used inside StudentHomePage.
+/// Lists KoQ (Ko-Kurikulum) activities the student can register for, with
+/// search/filtering and a slot-selection dialog for registration.
+///
+/// Reached from the Curriculum Activity page's "Book Now" action. Activities
+/// the student is already registered for ([registeredActivityIds]) and
+/// activities with no upcoming (non-past) slots are hidden from the list.
 class KoQBookingContent extends StatefulWidget {
   const KoQBookingContent({
     super.key,
@@ -14,7 +20,13 @@ class KoQBookingContent extends StatefulWidget {
   });
 
   final AppController controller;
+
+  /// Activity IDs the student has already registered for — excluded from
+  /// the bookable list so they can't register twice.
   final Set<int> registeredActivityIds;
+
+  /// Called to return to the Curriculum Activity page (e.g. after the back
+  /// button is tapped, or after a successful registration).
   final VoidCallback onBack;
 
   @override
@@ -22,10 +34,21 @@ class KoQBookingContent extends StatefulWidget {
 }
 
 class _KoQBookingContentState extends State<KoQBookingContent> {
+  /// All activities fetched from the backend.
   List<Activity> _activities = [];
+
+  /// [_activities] after applying the registered/past-date/search filters —
+  /// this is what's actually rendered in the list.
   List<Activity> _filtered = [];
+
+  /// True while [_load] is fetching activities from the backend.
   bool _loading = true;
+
+  /// Error message from the last failed [_load] call, or null if no error.
   String? _error;
+
+  /// Controls the search box; filtering re-runs via [_filter] on every
+  /// keystroke through the listener added in [initState].
   final _searchController = TextEditingController();
 
   @override
@@ -41,6 +64,8 @@ class _KoQBookingContentState extends State<KoQBookingContent> {
     super.dispose();
   }
 
+  /// Fetches all activities from the backend and applies [_filter] to
+  /// populate [_filtered]. Shows [_ErrorView] on failure with a retry button.
   Future<void> _load() async {
     setState(() { _loading = true; _error = null; });
     try {
@@ -60,11 +85,16 @@ class _KoQBookingContentState extends State<KoQBookingContent> {
     }
   }
 
+  /// Recomputes [_filtered] from [_activities] based on:
+  /// - excluding activities the student is already registered for,
+  /// - excluding activities whose every slot is in the past,
+  /// - matching the current search text against the activity name or code.
   void _filter() {
     final q = _searchController.text.toLowerCase();
     setState(() {
       _filtered = _activities
           .where((a) => !widget.registeredActivityIds.contains(a.id))
+          .where((a) => a.slots.any((s) => !_isPastDate(s.date)))
           .where((a) =>
               q.isEmpty ||
               a.name.toLowerCase().contains(q) ||
@@ -73,6 +103,13 @@ class _KoQBookingContentState extends State<KoQBookingContent> {
     });
   }
 
+  /// Opens [_SlotSelectionDialog] for [activity]; if the student picks a
+  /// slot and confirms, registers them for that slot via the API.
+  ///
+  /// On success, shows a green confirmation snackbar and calls
+  /// [KoQBookingContent.onBack] to return to the Curriculum Activity page
+  /// (which reloads and will show the new registration). On failure, shows
+  /// the error in a red snackbar and stays on this page.
   Future<void> _register(Activity activity) async {
     final slotId = await showDialog<int>(
       context: context,
@@ -104,6 +141,9 @@ class _KoQBookingContentState extends State<KoQBookingContent> {
     }
   }
 
+  /// Builds the page: a gradient header with a back button, a search bar,
+  /// and either a loading spinner, an error view, an "all done" empty
+  /// state, or the list of bookable activity cards.
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -219,12 +259,15 @@ class _KoQBookingContentState extends State<KoQBookingContent> {
 
 // ── Activity booking card ─────────────────────────────────────────────────────
 
+/// Card showing one activity's name, code, total capacity, and a
+/// "Register" button (or "No Slots Available" if [activity.slots] is empty).
 class _ActivityBookingCard extends StatelessWidget {
   const _ActivityBookingCard({required this.activity, required this.onRegister});
 
   final Activity activity;
   final VoidCallback onRegister;
 
+  /// Sum of capacities across all of the activity's slots.
   int get _totalCapacity => activity.slots.fold<int>(0, (s, slot) => s + slot.capacity);
 
   @override
@@ -284,6 +327,8 @@ class _ActivityBookingCard extends StatelessWidget {
   }
 }
 
+/// Small icon + label row used inside [_ActivityBookingCard] for the
+/// activity code, capacity, and CATs reward info.
 class _InfoRow extends StatelessWidget {
   const _InfoRow({required this.icon, required this.label, this.color});
   final IconData icon;
@@ -305,6 +350,12 @@ class _InfoRow extends StatelessWidget {
 
 // ── Slot selection dialog ─────────────────────────────────────────────────────
 
+/// Dialog that lets the student pick a date/time slot for [activity].
+///
+/// Returns the selected slot's ID via `Navigator.pop(slotId)` when
+/// "Confirm Registration" is pressed, or null if cancelled/dismissed.
+/// [_KoQBookingContentState._register] awaits this result to perform
+/// the actual registration API call.
 class _SlotSelectionDialog extends StatefulWidget {
   const _SlotSelectionDialog({required this.activity});
   final Activity activity;
@@ -314,10 +365,15 @@ class _SlotSelectionDialog extends StatefulWidget {
 }
 
 class _SlotSelectionDialogState extends State<_SlotSelectionDialog> {
+  /// The slot the student has tapped on. The "Confirm Registration" button
+  /// is disabled until this is non-null.
   int? _selectedSlotId;
 
-  List<ActivitySlot> get _availableSlots =>
-      widget.activity.slots.where((s) => s.registered < s.capacity).toList();
+  /// Slots that are both not full and not in the past — the only slots the
+  /// student is allowed to pick.
+  List<ActivitySlot> get _availableSlots => widget.activity.slots
+      .where((s) => s.registered < s.capacity && !_isPastDate(s.date))
+      .toList();
 
   @override
   Widget build(BuildContext context) {
@@ -463,6 +519,8 @@ class _SlotSelectionDialogState extends State<_SlotSelectionDialog> {
 
 // ── Error view ────────────────────────────────────────────────────────────────
 
+/// Generic "something went wrong" view with a message and a Retry button,
+/// shown when [_KoQBookingContentState._load] fails.
 class _ErrorView extends StatelessWidget {
   const _ErrorView({required this.message, required this.onRetry});
   final String message;
@@ -488,8 +546,20 @@ class _ErrorView extends StatelessWidget {
   }
 }
 
-// ── Date formatter ────────────────────────────────────────────────────────────
+// ── Date helpers ─────────────────────────────────────────────────────────────
 
+/// Returns true if [dateStr] (format 'YYYY-MM-DD') is strictly before today.
+/// Activities/slots happening today are considered "ongoing" and still valid.
+bool _isPastDate(String dateStr) {
+  final parts = dateStr.split('-');
+  final date = DateTime(int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2]));
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  return date.isBefore(today);
+}
+
+/// Formats [dateStr] (format 'YYYY-MM-DD') as e.g. "Monday, January 1, 2026"
+/// for display in the slot selection dialog.
 String _formatDate(String dateStr) {
   final parts = dateStr.split('-');
   final dt = DateTime(int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2]));

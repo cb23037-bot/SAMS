@@ -20,8 +20,27 @@ import '../../app/app_controller.dart';
 import '../../models/activity_registration.dart';
 import '../../models/app_user.dart';
 
+// ════════════════════════════════════════════════════════════════════════════
+// This file implements the student-facing "Curriculum Activity" page — the
+// screen where a student tracks the activities they registered for, marks
+// attendance (with photo + GPS proof), downloads a PDF receipt, and submits
+// that receipt to claim CATs (Co-Curriculum Activity Transcript) credits.
+//
+// Top-level structure:
+//   - Time-window / GPS / PDF helper functions (module-level, no state)
+//   - StudentCurriculumContent: the main embedded page widget
+//   - Supporting display widgets (cards, badges, empty/error states)
+//   - _AttendDialog / _ReceiptModal / _ClaimCreditDialog: the attendance flow
+//   - _formatDate: shared date formatting helper
+// ════════════════════════════════════════════════════════════════════════════
+
 // ── Time-window helpers ───────────────────────────────────────────────────────
 
+/// Combines a `yyyy-MM-dd` [date] string with a 12-hour [time12h] string
+/// (e.g. "8:00 AM") into a single [DateTime].
+///
+/// Used to compare slot start/end times against the current time when
+/// deciding whether an activity slot is currently active or has ended.
 DateTime _parseSlotDateTime(String date, String time12h) {
   final d = date.split('-');
   final parts = time12h.trim().split(RegExp(r'[:\s]'));
@@ -34,6 +53,12 @@ DateTime _parseSlotDateTime(String date, String time12h) {
   return DateTime(int.parse(d[0]), int.parse(d[1]), int.parse(d[2]), hour, minute);
 }
 
+/// True only if [date] is today AND the current time falls within the
+/// slot's start/end time range parsed from [time] (format "start - end").
+///
+/// Used to decide whether to show the "Attend" button on a registration card —
+/// students can only mark attendance during the exact activity time window
+/// (no grace period before or after).
 bool _isSlotActive(String date, String time) {
   try {
     final slotDate = DateTime.parse(date);
@@ -57,7 +82,11 @@ bool _isSlotActive(String date, String time) {
   }
 }
 
-// Returns true only after the slot's end time has passed (or date is past).
+/// Returns true only after the slot's end time has passed (or its date is
+/// entirely in the past).
+///
+/// Used to decide whether to show the "Claim Credit" button — claiming is
+/// only allowed once the activity has fully ended.
 bool _isSlotEnded(String date, String time) {
   try {
     final now     = DateTime.now();
@@ -80,6 +109,8 @@ bool _isSlotEnded(String date, String time) {
 
 // ── Attend data (returned by _AttendDialog) ───────────────────────────────────
 
+/// Simple value object holding the result of [_AttendDialog]: the attendance
+/// code entered by the student and the selfie photo taken as proof.
 class _AttendData {
   _AttendData({required this.code, required this.photo});
   final String code;
@@ -88,6 +119,11 @@ class _AttendData {
 
 // ── GPS helpers ───────────────────────────────────────────────────────────────
 
+/// Attempts to get the device's current GPS position.
+///
+/// Returns `null` (instead of throwing) if location permission is denied or
+/// any error occurs — GPS proof is optional, so attendance submission must
+/// still succeed without it.
 Future<Position?> _getLocation() async {
   try {
     var perm = await Geolocator.checkPermission();
@@ -108,6 +144,12 @@ Future<Position?> _getLocation() async {
   }
 }
 
+/// Converts GPS coordinates into a human-readable address using the free
+/// OpenStreetMap Nominatim reverse-geocoding API.
+///
+/// Returns `null` on any failure (network error, non-200 response, etc.) —
+/// the address is purely informational and shown on the receipt, so it must
+/// not block the attendance flow if it fails.
 Future<String?> _reverseGeocode(double lat, double lon) async {
   try {
     final uri = Uri.parse(
@@ -129,15 +171,27 @@ Future<String?> _reverseGeocode(double lat, double lon) async {
 }
 
 // ── OSM tile-based map image for PDF ─────────────────────────────────────────
+//
+// The PDF receipt cannot embed an interactive map widget, so we build a
+// static map image instead: fetch a 3×3 grid of OpenStreetMap tiles around
+// the GPS point, stitch them into one canvas, and draw a pin at the exact
+// coordinates. The result is rendered as a PNG and embedded in the PDF.
 
+/// Converts a longitude to an OSM tile X index at the given [zoom] level.
+/// Standard "slippy map" tile math — see OSM wiki for the formula.
 int _tileX(double lon, int zoom) =>
     ((lon + 180) / 360 * pow(2, zoom)).floor();
 
+/// Converts a latitude to an OSM tile Y index at the given [zoom] level.
+/// Standard "slippy map" tile math — see OSM wiki for the formula.
 int _tileY(double lat, int zoom) {
   final r = lat * pi / 180;
   return ((1 - log(tan(r) + 1 / cos(r)) / pi) / 2 * pow(2, zoom)).floor();
 }
 
+/// Downloads a single OSM tile image at ([zoom], [x], [y]).
+/// Returns `null` on any network/decode failure so the map is simply omitted
+/// from the receipt rather than crashing PDF generation.
 Future<ui.Image?> _fetchOsmTile(int zoom, int x, int y) async {
   try {
     final client = HttpClient()..connectionTimeout = const Duration(seconds: 10);
@@ -158,6 +212,10 @@ Future<ui.Image?> _fetchOsmTile(int zoom, int x, int y) async {
   }
 }
 
+/// Builds a static map PNG centered on ([lat], [lon]) with a red pin marker,
+/// for embedding in the PDF receipt. Fetches a 3×3 grid of OSM tiles, stitches
+/// them into one 768×768 canvas, and draws the pin at the precise GPS pixel
+/// position. Returns `null` on any failure (map is then omitted from the PDF).
 Future<Uint8List?> _fetchMapImage(double lat, double lon) async {
   try {
     const zoom       = 16;
@@ -220,11 +278,13 @@ Future<Uint8List?> _fetchMapImage(double lat, double lon) async {
 
 // ── PDF receipt generator ─────────────────────────────────────────────────────
 
+/// Formats [dt] as `dd/MM/yyyy, HH:mm:ss` for display on receipts.
 String _formatTimestamp(DateTime dt) {
   String p(int n) => n.toString().padLeft(2, '0');
   return '${p(dt.day)}/${p(dt.month)}/${dt.year}, ${p(dt.hour)}:${p(dt.minute)}:${p(dt.second)}';
 }
 
+/// Builds a single "label: value" row used throughout the PDF receipt layout.
 pw.Widget _pdfLabelValue(String label, String value) {
   return pw.Padding(
     padding: const pw.EdgeInsets.only(bottom: 4),
@@ -246,6 +306,14 @@ pw.Widget _pdfLabelValue(String label, String value) {
   );
 }
 
+/// Generates the downloadable PDF "Attendance Receipt" for [registration],
+/// embedding the student's selfie [photoBytes], a static map of the GPS
+/// location (if available), and the [receiptId]/[receiptHash] returned by
+/// the attendance submission API.
+///
+/// This PDF is what the student later uploads to [_ClaimCreditDialog] to
+/// claim CATs credits, so it must contain everything Pusat Adab needs to
+/// verify the attendance (timestamp, location, photo, activity details).
 Future<Uint8List> _generateReceiptPdf({
   required ActivityRegistration registration,
   required AppUser user,
@@ -398,29 +466,67 @@ Future<Uint8List> _generateReceiptPdf({
 // Main embedded widget
 // ═══════════════════════════════════════════════════════════════════════════════
 
+/// The student's "Curriculum Activity" tab content.
+///
+/// Shows a "Book Now" entry point, the list of activities the student has
+/// registered for (each as a [_RegistrationCard]), and a summary card of
+/// total claimed CATs. This widget is embedded inside the student's main
+/// scaffold/navigation shell (it is not its own [Scaffold]).
 class StudentCurriculumContent extends StatefulWidget {
   const StudentCurriculumContent({
     super.key,
     required this.controller,
     required this.onBookNow,
+    this.highlightRegistrationId,
   });
 
+  /// Shared app state — used here to access [AppController.apiService] and
+  /// the auth [AppController.token] for all network calls.
   final AppController controller;
+
+  /// Called when the student taps "Book Now". Receives the set of activity
+  /// IDs the student is already registered for, so the booking page can
+  /// hide/disable activities that would create a duplicate registration.
   final void Function(Set<int> registeredActivityIds) onBookNow;
+
+  /// Registration to scroll to and highlight on load — set when the student
+  /// taps a notification to jump straight to the related activity.
+  final int? highlightRegistrationId;
 
   @override
   State<StudentCurriculumContent> createState() => _StudentCurriculumContentState();
 }
 
 class _StudentCurriculumContentState extends State<StudentCurriculumContent> {
+  /// All of the student's activity registrations, as returned by the API.
+  /// This is the single source of truth for the list rendered below.
   List<ActivityRegistration> _registrations = [];
+
+  /// True while [_load] is fetching registrations from the server.
   bool _loading = true;
+
+  /// Error message from the last failed [_load] call, or null if the last
+  /// load succeeded. Shown via [_ErrorView] with a retry button.
   String? _error;
+
+  /// Periodic timer that triggers a rebuild every 30 seconds so the
+  /// "Attend" button appears/disappears automatically as slot time windows
+  /// open and close, without requiring the user to manually refresh.
   Timer? _timer;
+
+  /// Registration ID to scroll to and visually highlight on first load
+  /// (copied from [StudentCurriculumContent.highlightRegistrationId]).
+  /// Cleared automatically a couple seconds after scrolling into view.
+  int? _highlightRegId;
+
+  /// Per-registration [GlobalKey]s so [_scrollToHighlight] can locate and
+  /// scroll to the highlighted card's position in the list.
+  final Map<int, GlobalKey> _cardKeys = {};
 
   @override
   void initState() {
     super.initState();
+    _highlightRegId = widget.highlightRegistrationId;
     _load();
     // Refresh every 30 s so Attend button visibility updates automatically
     _timer = Timer.periodic(const Duration(seconds: 30), (_) {
@@ -434,6 +540,9 @@ class _StudentCurriculumContentState extends State<StudentCurriculumContent> {
     super.dispose();
   }
 
+  /// Fetches the student's registrations from the backend and refreshes
+  /// the list. If [_highlightRegId] is set, schedules a scroll-to-highlight
+  /// once the new list has been laid out.
   Future<void> _load() async {
     setState(() { _loading = true; _error = null; });
     try {
@@ -441,6 +550,9 @@ class _StudentCurriculumContentState extends State<StudentCurriculumContent> {
           .getStudentRegistrations(token: widget.controller.token!);
       if (!mounted) return;
       setState(() => _registrations = regs);
+      if (_highlightRegId != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToHighlight());
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
@@ -449,8 +561,37 @@ class _StudentCurriculumContentState extends State<StudentCurriculumContent> {
     }
   }
 
+  /// Scrolls the list so the card matching [_highlightRegId] is visible,
+  /// then clears the highlight after a short delay so it doesn't stay
+  /// outlined forever.
+  void _scrollToHighlight() {
+    final id = _highlightRegId;
+    if (id == null) return;
+    final ctx = _cardKeys[id]?.currentContext;
+    if (ctx != null) {
+      Scrollable.ensureVisible(ctx, duration: const Duration(milliseconds: 400), alignment: 0.1);
+    }
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) setState(() => _highlightRegId = null);
+    });
+  }
+
   // ── Attend flow ───────────────────────────────────────────────────────────
 
+  /// Runs the full "mark attendance" flow for [reg]:
+  ///
+  /// 1. Show [_AttendDialog] to collect the attendance code + selfie photo.
+  /// 2. Show a blocking loading overlay while submitting.
+  /// 3. Try to capture GPS coordinates and reverse-geocode an address
+  ///    (best-effort — failures are silently ignored).
+  /// 4. Read the photo bytes (needed to embed in the receipt PDF).
+  /// 5. Call the attendance API to record the attendance and get back a
+  ///    receipt ID/hash.
+  /// 6. Close the loading overlay and show [_ReceiptModal] so the student
+  ///    can download the PDF receipt (required later for claiming credit).
+  ///
+  /// Any error during submission closes the loading overlay and shows a
+  /// snackbar via [_showError].
   Future<void> _attendActivity(ActivityRegistration reg) async {
     // 1. Attend dialog
     final attendData = await showDialog<_AttendData>(
@@ -522,6 +663,12 @@ class _StudentCurriculumContentState extends State<StudentCurriculumContent> {
 
   // ── Claim credit flow ─────────────────────────────────────────────────────
 
+  /// Shows [_ClaimCreditDialog] for [reg] to pick a PDF receipt, uploads it
+  /// via [ApiService.claimWithProof], and updates the local registration's
+  /// claim status to "pending" on success.
+  ///
+  /// Updates the in-memory [_registrations] list in place (rather than
+  /// re-fetching) so the UI reflects the new status immediately.
   Future<void> _claimCredit(ActivityRegistration reg) async {
     final result = await showDialog<PlatformFile>(
       context: context,
@@ -554,6 +701,8 @@ class _StudentCurriculumContentState extends State<StudentCurriculumContent> {
     }
   }
 
+  /// Cancels a pending credit claim for [reg], reverting its status back to
+  /// "not claimed" so the student can re-attend/re-submit if needed.
   Future<void> _cancelClaim(ActivityRegistration reg) async {
     try {
       final updated = await widget.controller.apiService.cancelClaim(
@@ -571,6 +720,9 @@ class _StudentCurriculumContentState extends State<StudentCurriculumContent> {
     }
   }
 
+  /// Removes the student's registration for [reg] entirely (not a claim
+  /// cancellation — this unregisters them from the activity slot).
+  /// Shows a confirmation dialog first since this action is irreversible.
   Future<void> _cancelRegistration(ActivityRegistration reg) async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -604,6 +756,7 @@ class _StudentCurriculumContentState extends State<StudentCurriculumContent> {
     }
   }
 
+  /// Shows a red error snackbar with [message].
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -611,10 +764,14 @@ class _StudentCurriculumContentState extends State<StudentCurriculumContent> {
     );
   }
 
+  /// Navigates to the booking page, passing along the IDs of activities the
+  /// student is already registered for so they can't double-book.
   void _openBooking() {
     widget.onBookNow(_registrations.map((r) => r.activity.id).toSet());
   }
 
+  /// Number of registrations whose claim has been approved by Pusat Adab.
+  /// Used by [_TotalCatsCard] to compute total CATs earned (2 per claim).
   int get _claimedCount => _registrations.where((r) => r.isClaimed).length;
 
   @override
@@ -622,6 +779,7 @@ class _StudentCurriculumContentState extends State<StudentCurriculumContent> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // ── Page header ─────────────────────────────────────────────────
         const Padding(
           padding: EdgeInsets.fromLTRB(16, 12, 16, 6),
           child: Column(
@@ -642,6 +800,7 @@ class _StudentCurriculumContentState extends State<StudentCurriculumContent> {
             ],
           ),
         ),
+        // ── Body: loading / error / registration list ──────────────────
         Expanded(
           child: _loading
               ? const Center(child: CircularProgressIndicator())
@@ -658,12 +817,16 @@ class _StudentCurriculumContentState extends State<StudentCurriculumContent> {
                           if (_registrations.isEmpty)
                             const _EmptyRegistrations()
                           else
+                            // Each card gets a GlobalKey so it can be scrolled
+                            // into view when highlighted (see _scrollToHighlight).
                             ..._registrations.map(
                               (reg) => Padding(
+                                key: _cardKeys.putIfAbsent(reg.id, () => GlobalKey()),
                                 padding:
                                     const EdgeInsets.only(bottom: 14),
                                 child: _RegistrationCard(
                                   registration: reg,
+                                  highlighted: reg.id == _highlightRegId,
                                   onAttend: () => _attendActivity(reg),
                                   onClaimCredit: () =>
                                       _claimCredit(reg),
@@ -678,6 +841,7 @@ class _StudentCurriculumContentState extends State<StudentCurriculumContent> {
                       ),
                     ),
         ),
+        // ── Footer: total CATs summary ──────────────────────────────────
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
           child: _TotalCatsCard(claimedCount: _claimedCount),
@@ -689,6 +853,8 @@ class _StudentCurriculumContentState extends State<StudentCurriculumContent> {
 
 // ── Book Now card ─────────────────────────────────────────────────────────────
 
+/// Static call-to-action card at the top of the list that navigates the
+/// student to the activity booking page when tapped.
 class _BookNowCard extends StatelessWidget {
   const _BookNowCard({required this.onTap});
   final VoidCallback onTap;
@@ -740,6 +906,14 @@ class _BookNowCard extends StatelessWidget {
 
 // ── Registration card ─────────────────────────────────────────────────────────
 
+/// Card showing one activity registration: name, code, schedule, status
+/// badge, rejection reason (if any), WhatsApp link, and the action button(s)
+/// appropriate to the registration's current state (Attend / Claim Credit /
+/// Cancel Claim / Cancel Registration).
+///
+/// The visible action button is determined entirely by [_isSlotActive],
+/// [_isSlotEnded] and [ActivityRegistration.claimStatus] — see the
+/// "Action buttons" section in [build] below.
 class _RegistrationCard extends StatelessWidget {
   const _RegistrationCard({
     required this.registration,
@@ -747,13 +921,31 @@ class _RegistrationCard extends StatelessWidget {
     required this.onClaimCredit,
     required this.onCancelClaim,
     required this.onCancelRegistration,
+    this.highlighted = false,
   });
 
   final ActivityRegistration registration;
+
+  /// Called when the student taps "Attend" (only shown while the slot is
+  /// currently active and the claim hasn't been started).
   final VoidCallback onAttend;
+
+  /// Called when the student taps "Claim Credit" (only shown once the slot
+  /// has ended and the claim hasn't been started).
   final VoidCallback onClaimCredit;
+
+  /// Called when the student taps "Cancel Claim" (only shown while a claim
+  /// is pending review).
   final VoidCallback onCancelClaim;
+
+  /// Called when the student taps the delete icon to remove this
+  /// registration entirely (only shown when no claim has been made yet).
   final VoidCallback onCancelRegistration;
+
+  /// True if this card should be visually outlined — set briefly when the
+  /// student navigates here from a notification (see
+  /// [_StudentCurriculumContentState._scrollToHighlight]).
+  final bool highlighted;
 
   @override
   Widget build(BuildContext context) {
@@ -763,10 +955,15 @@ class _RegistrationCard extends StatelessWidget {
     final active   = _isSlotActive(slot.date, slot.time);
     final ended    = _isSlotEnded(slot.date, slot.time);
 
-    return Container(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 400),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: highlighted ? const Color(0xFF2E6BFF) : Colors.transparent,
+          width: 2,
+        ),
         boxShadow: const [
           BoxShadow(
               color: Color(0x120D1B2A), blurRadius: 16, offset: Offset(0, 6)),
@@ -827,6 +1024,39 @@ class _RegistrationCard extends StatelessWidget {
                 style: const TextStyle(
                     fontSize: 13, color: Color(0xFF374151))),
           ]),
+
+          if (reg.isRejected &&
+              reg.rejectionReason != null &&
+              reg.rejectionReason!.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF5F5),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFFFD9DB)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Reason for rejection',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFFFF3B30),
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    reg.rejectionReason!,
+                    style: const TextStyle(fontSize: 13, color: Color(0xFF374151), height: 1.4),
+                  ),
+                ],
+              ),
+            ),
+          ],
 
           if (activity.whatsappLink != null &&
               activity.whatsappLink!.isNotEmpty) ...[
@@ -926,12 +1156,16 @@ class _RegistrationCard extends StatelessWidget {
 
 // ── Status badge ──────────────────────────────────────────────────────────────
 
+/// Small pill showing the registration's claim status ("Claimed", "Pending",
+/// "Rejected", or "Not Claimed") with status-appropriate colors.
+/// Maps directly to [ActivityRegistration.claimStatus] values.
 class _StatusBadge extends StatelessWidget {
   const _StatusBadge({required this.status});
   final String status;
 
   @override
   Widget build(BuildContext context) {
+    // Pick label/background/foreground colors based on claim status.
     final (label, bg, fg) = switch (status) {
       'claimed'  => ('Claimed',     const Color(0xFFE7F9EE), const Color(0xFF0EAF4B)),
       'pending'  => ('Pending',     const Color(0xFFFFF5D8), const Color(0xFFD4960A)),
@@ -951,12 +1185,15 @@ class _StatusBadge extends StatelessWidget {
 
 // ── Total CATs card ───────────────────────────────────────────────────────────
 
+/// Green summary footer card showing the student's total claimed CATs
+/// credits (2 CATs per approved claim, per [claimedCount]).
 class _TotalCatsCard extends StatelessWidget {
   const _TotalCatsCard({required this.claimedCount});
   final int claimedCount;
 
   @override
   Widget build(BuildContext context) {
+    // Each claimed registration is worth a fixed 2 CATs.
     final cats = claimedCount * 2;
     return Container(
       decoration: BoxDecoration(
@@ -1002,6 +1239,8 @@ class _TotalCatsCard extends StatelessWidget {
 
 // ── Empty state ───────────────────────────────────────────────────────────────
 
+/// Placeholder shown in the registration list when the student has not
+/// registered for any activities yet.
 class _EmptyRegistrations extends StatelessWidget {
   const _EmptyRegistrations();
 
@@ -1029,6 +1268,9 @@ class _EmptyRegistrations extends StatelessWidget {
 
 // ── Error view ────────────────────────────────────────────────────────────────
 
+/// Shown in place of the registration list when [_StudentCurriculumContentState._load]
+/// fails (e.g. network error). Displays [message] and a "Retry" button that
+/// calls [onRetry] to attempt loading again.
 class _ErrorView extends StatelessWidget {
   const _ErrorView({required this.message, required this.onRetry});
   final String message;
@@ -1059,6 +1301,9 @@ class _ErrorView extends StatelessWidget {
 
 // ── Attend dialog ─────────────────────────────────────────────────────────────
 
+/// Step 1 of the attendance flow: prompts the student to enter the
+/// attendance code announced at the activity and take a selfie photo as
+/// proof. Pops with an [_AttendData] result, or `null` if dismissed.
 class _AttendDialog extends StatefulWidget {
   const _AttendDialog(
       {required this.activityName, required this.slotTime});
@@ -1070,8 +1315,13 @@ class _AttendDialog extends StatefulWidget {
 }
 
 class _AttendDialogState extends State<_AttendDialog> {
+  /// Controller for the attendance code text field.
   final _codeCtrl = TextEditingController();
+
+  /// The selfie photo taken via [_takePhoto], or null until captured.
   XFile? _photo;
+
+  /// Validation error shown under the code field, or null if valid.
   String? _codeError;
 
   @override
@@ -1080,6 +1330,9 @@ class _AttendDialogState extends State<_AttendDialog> {
     super.dispose();
   }
 
+  /// Opens the device camera to capture a proof-of-attendance selfie.
+  /// Image is downscaled (max width 1280, quality 85) to keep upload/PDF
+  /// size reasonable.
   Future<void> _takePhoto() async {
     final picker = ImagePicker();
     final photo  = await picker.pickImage(
@@ -1090,6 +1343,9 @@ class _AttendDialogState extends State<_AttendDialog> {
     if (photo != null) setState(() => _photo = photo);
   }
 
+  /// Validates the attendance code and photo, then closes the dialog
+  /// returning an [_AttendData]. Shows inline/snackbar errors if either
+  /// the code is empty or no photo has been taken.
   void _submit() {
     setState(() => _codeError = null);
 
@@ -1264,6 +1520,14 @@ class _AttendDialogState extends State<_AttendDialog> {
 
 // ── Receipt modal ─────────────────────────────────────────────────────────────
 
+/// Step 2 of the attendance flow: shown immediately after attendance is
+/// successfully submitted. Displays a summary of the receipt (ID, timestamp,
+/// student/activity info, GPS map, selfie) and lets the student download the
+/// PDF version via [_generateReceiptPdf].
+///
+/// IMPORTANT: this receipt is NOT stored by the app — the warning banner
+/// tells the student to download it now, because the downloaded PDF is what
+/// they must upload later in [_ClaimCreditDialog] to claim CATs credit.
 class _ReceiptModal extends StatefulWidget {
   const _ReceiptModal({
     required this.registration,
@@ -1292,8 +1556,12 @@ class _ReceiptModal extends StatefulWidget {
 }
 
 class _ReceiptModalState extends State<_ReceiptModal> {
+  /// True while the PDF is being generated/shared, used to disable the
+  /// download button and show a spinner.
   bool _downloading = false;
 
+  /// Generates the receipt PDF via [_generateReceiptPdf] and opens the
+  /// platform share/save sheet via [Printing.sharePdf].
   Future<void> _downloadPdf() async {
     setState(() => _downloading = true);
     try {
@@ -1568,6 +1836,8 @@ class _ReceiptModalState extends State<_ReceiptModal> {
     );
   }
 
+  /// Renders a bold section heading (e.g. "Student Information") within the
+  /// receipt's scrollable content.
   Widget _sectionTitle(String title) => Padding(
         padding: const EdgeInsets.only(bottom: 6),
         child: Text(title,
@@ -1577,6 +1847,9 @@ class _ReceiptModalState extends State<_ReceiptModal> {
                 color: Color(0xFF111827))),
       );
 
+  /// Renders a "label: value" row in the receipt. When [highlight] is true
+  /// (used for the Receipt ID), the value is styled in bold blue to draw
+  /// attention to it.
   Widget _receiptRow(String label, String value,
       {bool highlight = false}) =>
       Padding(
@@ -1609,6 +1882,13 @@ class _ReceiptModalState extends State<_ReceiptModal> {
 
 // ── Claim Credit dialog (PDF only) ────────────────────────────────────────────
 
+/// Step 3 of the attendance flow: lets the student pick the PDF receipt
+/// (downloaded earlier from [_ReceiptModal]) and submit it to claim CATs
+/// credit. Pops with the selected [PlatformFile], or `null` if cancelled.
+///
+/// Submission of the picked file is handled by the caller
+/// ([_StudentCurriculumContentState._claimCredit]) via
+/// [ApiService.claimWithProof] — this dialog only handles file selection.
 class _ClaimCreditDialog extends StatefulWidget {
   const _ClaimCreditDialog({required this.activityName});
   final String activityName;
@@ -1618,8 +1898,11 @@ class _ClaimCreditDialog extends StatefulWidget {
 }
 
 class _ClaimCreditDialogState extends State<_ClaimCreditDialog> {
+  /// The PDF file chosen via [_pickFile], or null until one is selected.
+  /// The "Submit" button stays disabled until this is non-null.
   PlatformFile? _pickedFile;
 
+  /// Opens the system file picker restricted to PDF files.
   Future<void> _pickFile() async {
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
@@ -1756,6 +2039,8 @@ class _ClaimCreditDialogState extends State<_ClaimCreditDialog> {
 
 // ── Date formatter ────────────────────────────────────────────────────────────
 
+/// Converts a `yyyy-MM-dd` date string into a friendly format like
+/// "Monday, June 15, 2026" for display on cards and receipts.
 String _formatDate(String dateStr) {
   final parts = dateStr.split('-');
   final dt    = DateTime(

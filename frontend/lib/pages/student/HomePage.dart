@@ -8,6 +8,14 @@ import 'ModuleBookingPage.dart';
 import 'CurriculumActivityPage.dart';
 import 'StudentNotificationsPage.dart';
 
+/// Top-level home page shown to authenticated students.
+///
+/// Acts as a mini-router for the student-facing portion of the app: it owns
+/// the bottom [NavigationBar] (Home / Notification / Attend / Profile) and
+/// swaps the body between the home dashboard, notifications, profile view,
+/// the Curriculum Activity module ([StudentCurriculumContent]), and the
+/// KoQ module booking flow ([KoQBookingContent]) — all without using
+/// [Navigator] routes, so state (like [_notifUnreadCount]) is preserved.
 class StudentHomePage extends StatefulWidget {
   const StudentHomePage({super.key, required this.controller});
 
@@ -18,11 +26,26 @@ class StudentHomePage extends StatefulWidget {
 }
 
 class _StudentHomePageState extends State<StudentHomePage> {
+  /// Index of the selected bottom navigation tab:
+  /// 0 = Home, 1 = Notification, 2 = Attend (placeholder), 3 = Profile.
   int _selectedIndex = 0;
+
+  /// True when the Curriculum Activity module is open over the Home tab.
   bool _showCurriculum = false;
+
+  /// True when the KoQ module booking flow is open (reached from Curriculum).
   bool _showKoQ = false;
+
+  /// Activity IDs the student is already registered for, passed to the KoQ
+  /// booking page so it can hide/disable activities already taken.
   Set<int> _koqRegisteredIds = {};
+
+  /// Number of unread notifications, shown as a badge on the Notification tab.
   int _notifUnreadCount = 0;
+
+  // Set when the student taps a notification, so the Curriculum Activity
+  // page can scroll to and highlight the related registration on load.
+  int? _highlightRegistrationId;
 
   // Persists across rebuilds so the badge reflects reality even after leaving tab 1.
   static DateTime? _sLastNotifViewed;
@@ -30,9 +53,20 @@ class _StudentHomePageState extends State<StudentHomePage> {
   @override
   void initState() {
     super.initState();
+    // Fetch the unread notification count as soon as the home page loads,
+    // so the badge on the Notification tab is accurate immediately.
     _loadNotifCount();
   }
 
+  /// Computes how many of the student's registrations have a status update
+  /// (claimed/pending/rejected) that the student hasn't seen yet, and
+  /// stores the result in [_notifUnreadCount] for the bottom nav badge.
+  ///
+  /// A registration counts as "unread" if its [ActivityRegistration.updatedAt]
+  /// is after [_sLastNotifViewed] (or if the tab has never been viewed).
+  /// 'not_claimed' registrations are excluded since they have no status
+  /// update to notify about. Errors are swallowed so a failed fetch simply
+  /// leaves the badge at its previous value.
   Future<void> _loadNotifCount() async {
     try {
       final regs = await widget.controller.apiService.getStudentRegistrations(
@@ -51,6 +85,48 @@ class _StudentHomePageState extends State<StudentHomePage> {
     } catch (_) {}
   }
 
+  /// Opens the Curriculum Activity module, but first checks with the backend
+  /// whether Pusat Adab currently has student access open for this module.
+  ///
+  /// If access is closed, shows [_AccessClosedDialog] instead of navigating.
+  /// If the access check itself fails (e.g. network error), the check is
+  /// skipped and the module opens as usual rather than blocking the student.
+  Future<void> _openCurriculum() async {
+    try {
+      final isOpen = await widget.controller.apiService.getStudentAccessOpen(
+        token: widget.controller.token!,
+      );
+      if (!isOpen) {
+        if (!mounted) return;
+        showDialog<void>(
+          context: context,
+          builder: (_) => const _AccessClosedDialog(),
+        );
+        return;
+      }
+    } catch (_) {
+      // If the check itself fails, fall through and let the module load as usual.
+    }
+    if (!mounted) return;
+    setState(() {
+      _showCurriculum = true;
+      _highlightRegistrationId = null;
+    });
+  }
+
+  /// Navigates to the Curriculum Activity page and scrolls to/highlights the
+  /// registration that the tapped notification refers to.
+  void _openActivityFromNotification(ActivityRegistration reg) {
+    setState(() {
+      _selectedIndex = 0;
+      _showCurriculum = true;
+      _showKoQ = false;
+      _highlightRegistrationId = reg.id;
+    });
+  }
+
+  /// Opens the KoQ module booking flow, passing along the activity IDs the
+  /// student is already registered for (so they can be filtered out there).
   void _openKoQ(Set<int> registeredIds) {
     setState(() {
       _showKoQ = true;
@@ -64,11 +140,18 @@ class _StudentHomePageState extends State<StudentHomePage> {
     setState(() => _showKoQ = false);
   }
 
+  /// Builds the scaffold: a [PopScope] that intercepts the system back
+  /// button to close the Curriculum/KoQ overlays instead of leaving the
+  /// page, a bottom [NavigationBar] for tab switching, a persistent header,
+  /// and a body that switches between the various sub-pages/content widgets.
   @override
   Widget build(BuildContext context) {
     final user = widget.controller.currentUser!;
 
     return PopScope(
+      // Block the default "pop" (which would exit the home page) while the
+      // Curriculum or KoQ overlay is open, so back navigates within the
+      // module instead of leaving the app's root page.
       canPop: !_showCurriculum && !_showKoQ,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) {
@@ -81,6 +164,7 @@ class _StudentHomePageState extends State<StudentHomePage> {
       },
       child: Scaffold(
         backgroundColor: Colors.white,
+        // ── Bottom navigation bar ──────────────────────────────────────────
         bottomNavigationBar: NavigationBar(
           selectedIndex: _selectedIndex,
           height: 72,
@@ -95,6 +179,7 @@ class _StudentHomePageState extends State<StudentHomePage> {
               _selectedIndex = index;
               _showCurriculum = false;
               _showKoQ = false;
+              _highlightRegistrationId = null;
               if (index == 1) _notifUnreadCount = 0;
             });
             if (index == 2) {
@@ -167,6 +252,7 @@ class _StudentHomePageState extends State<StudentHomePage> {
                         ? StudentNotificationsContent(
                             controller: widget.controller,
                             lastViewed: _sLastNotifViewed,
+                            onOpenActivity: _openActivityFromNotification,
                           )
                         : _showKoQ
                             ? KoQBookingContent(
@@ -178,6 +264,7 @@ class _StudentHomePageState extends State<StudentHomePage> {
                                 ? StudentCurriculumContent(
                                     controller: widget.controller,
                                     onBookNow: _openKoQ,
+                                    highlightRegistrationId: _highlightRegistrationId,
                                   )
                                 : _buildHomeView(user),
               ),
@@ -188,6 +275,10 @@ class _StudentHomePageState extends State<StudentHomePage> {
     );
   }
 
+  /// Builds the default "Home" tab content: a welcome card and a grid of
+  /// quick action shortcuts. Only "Curriculum Activity" is wired up
+  /// ([_openCurriculum]); the others show a "coming soon" snackbar via
+  /// [_showSoon].
   Widget _buildHomeView(AppUser user) {
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
@@ -229,7 +320,7 @@ class _StudentHomePageState extends State<StudentHomePage> {
                 title: 'Curriculum Activity',
                 icon: Icons.trending_up_outlined,
                 color: const Color(0xFFA855F7),
-                onTap: () => setState(() => _showCurriculum = true),
+                onTap: _openCurriculum,
               ),
               _ActionCard(
                 title: 'Pay Fees',
@@ -244,6 +335,9 @@ class _StudentHomePageState extends State<StudentHomePage> {
     );
   }
 
+  /// Builds the "Profile" tab content: a gradient header card with an edit
+  /// shortcut to [EditProfilePage], a card of read-only personal info, and
+  /// a logout button.
   Widget _buildProfileView(AppUser user) {
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
@@ -372,10 +466,14 @@ class _StudentHomePageState extends State<StudentHomePage> {
     );
   }
 
+  /// Signs the student out via [AppController.signOut]. The controller
+  /// clears [AppController.currentUser]/token and notifies listeners, which
+  /// causes [SamsApp] to rebuild and show [LoginPage] again.
   Future<void> _logout() async {
     await widget.controller.signOut();
   }
 
+  /// Shows a placeholder snackbar for features that aren't implemented yet.
   void _showSoon(String message) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
@@ -383,6 +481,8 @@ class _StudentHomePageState extends State<StudentHomePage> {
 
 // ── Shared widgets ────────────────────────────────────────────────────────────
 
+/// Single row in the "Personal Information" card: an icon, a label, and a
+/// value, with an optional bottom divider.
 class _InfoRow extends StatelessWidget {
   const _InfoRow({
     required this.icon,
@@ -433,6 +533,8 @@ class _InfoRow extends StatelessWidget {
   }
 }
 
+/// Small rounded square showing the UMPSA logo, used in the persistent
+/// header at the top of the home page.
 class _MiniBrandMark extends StatelessWidget {
   const _MiniBrandMark();
 
@@ -451,6 +553,8 @@ class _MiniBrandMark extends StatelessWidget {
   }
 }
 
+/// Gradient card at the top of the Home tab showing the student's name,
+/// student ID, and current semester.
 class _WelcomeCard extends StatelessWidget {
   const _WelcomeCard({required this.user});
 
@@ -510,6 +614,69 @@ class _WelcomeCard extends StatelessWidget {
   }
 }
 
+/// Dialog shown by [_StudentHomePageState._openCurriculum] when Pusat Adab
+/// has closed student access to the Curriculum Activity module.
+class _AccessClosedDialog extends StatelessWidget {
+  const _AccessClosedDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: const BoxDecoration(
+                color: Color(0xFFFFE5E5),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.lock_outline, color: Color(0xFFFF3B30), size: 28),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Access Closed',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF111827),
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Curriculum Activity is currently closed by Pusat Adab. '
+              'Please try again later.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, color: Color(0xFF5B6B86)),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () => Navigator.of(context).pop(),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF2E6BFF),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                child: const Text(
+                  'OK',
+                  style: TextStyle(fontWeight: FontWeight.w700, color: Colors.white),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Tappable card used in the "Quick Actions" grid on the Home tab.
 class _ActionCard extends StatelessWidget {
   const _ActionCard({
     required this.title,
@@ -535,7 +702,7 @@ class _ActionCard extends StatelessWidget {
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: const Color(0xFFE8EDF6)),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
             boxShadow: const [
               BoxShadow(color: Color(0x120D1B2A), blurRadius: 18, offset: Offset(0, 8)),
             ],
