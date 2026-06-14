@@ -637,8 +637,22 @@ Future<void> deleteSession(int sessionId) async {
   );
 }
 
-
-
+Future<void> setRegistrationStatus(int sessionId, bool isRegistrationOpen) async {
+  try {
+    await _request(
+      method: 'POST',
+      // Ensure this path matches the route defined in routes/api.php
+      path: '/academic-sessions/$sessionId/set-registration-status', 
+      body: {
+        'is_registration_open': isRegistrationOpen ? 1 : 0,
+      },
+      token: _controller?.token,
+    );
+  } catch (e) {
+    debugPrint("DEBUG: Error in setRegistrationStatus: $e");
+    rethrow;
+  }
+}
 Future<List<dynamic>> getAcademicSessions() async {
   try {
     // We now use _requestList instead of _request to avoid the Map cast error
@@ -768,31 +782,7 @@ Future<Map<String, dynamic>> registerStudentSubject({
   }
 }
 
-  /// Get all subjects registered by the authenticated student.
-// Future<List<dynamic>> getStudentSubjectRegistrations({required String token}) async {
-//   final url = Uri.parse('${_baseUrl()}/student-registrations'); // Ensure path is correct
-  
-//   final response = await http.get(
-//     url,
-//     headers: {
-//       'Authorization': 'Bearer $token',
-//       'Accept': 'application/json',
-//     },
-//   );
 
-//   print("DEBUG: Registrations Status: ${response.statusCode}");
-//   print("DEBUG: Registrations Body: ${response.body}");
-
-//   if (response.statusCode == 200) {
-//     final Map<String, dynamic> jsonResponse = jsonDecode(response.body);
-//     return jsonResponse['registrations'] ?? []; // Ensure it returns a list
-//   } else {
-//     print("DEBUG: Failed to fetch registrations. Returning empty list.");
-//     return []; // Return empty list instead of crashing
-//   }
-// }
-
-  /// Get pending subject registration approvals for the authenticated lecturer.
  Future<List<dynamic>> getPendingSubjectApprovals({required String token}) async {
   final Map<String, dynamic> response = await _request(
     method: 'GET',

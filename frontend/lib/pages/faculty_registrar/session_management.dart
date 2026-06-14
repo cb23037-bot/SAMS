@@ -25,6 +25,20 @@ class _ManageSessionPageState extends State<ManageSessionPage> {
     });
   }
 
+  // --- Toggle Registration Logic (FIXED) ---
+  Future<void> _updateRegistrationStatus(int sessionId, bool newValue) async {
+    try {
+      // Calling the service method directly with the boolean value
+      await widget.controller.apiService.setRegistrationStatus(sessionId, newValue);
+      _refreshSessions();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Update failed: ${e.toString()}')),
+      );
+    }
+  }
+
   // --- Add Session Dialog ---
   void _showAddSessionDialog() {
     final TextEditingController nameController = TextEditingController();
@@ -78,16 +92,6 @@ class _ManageSessionPageState extends State<ManageSessionPage> {
     }
   }
 
-  // --- Toggle Registration Logic ---
-  Future<void> _toggleRegistration(int sessionId, bool newValue) async {
-    try {
-      await widget.controller.apiService.updateRegistrationStatus(sessionId, newValue.toString());
-      _refreshSessions();
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Update failed')));
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -104,7 +108,6 @@ class _ManageSessionPageState extends State<ManageSessionPage> {
           }
           
           final sessions = snapshot.data ?? [];
-          
           if (sessions.isEmpty) {
             return const Center(child: Text("No academic sessions found."));
           }
@@ -113,12 +116,8 @@ class _ManageSessionPageState extends State<ManageSessionPage> {
             padding: const EdgeInsets.all(16),
             itemCount: sessions.length,
             itemBuilder: (context, index) {
-              // Safe conversion from dynamic to Map
               final dynamic item = sessions[index];
-              final Map<String, dynamic> session = (item is Map) 
-                  ? Map<String, dynamic>.from(item) 
-                  : {};
-
+              final Map<String, dynamic> session = (item is Map) ? Map<String, dynamic>.from(item) : {};
               if (session.isEmpty) return const SizedBox.shrink();
 
               return Card(
@@ -129,7 +128,7 @@ class _ManageSessionPageState extends State<ManageSessionPage> {
                       title: Text(session['session_name']?.toString() ?? 'Unnamed'),
                       subtitle: Text((session['is_active'] == true || session['is_active'] == 1) ? "Active Session" : ""),
                       value: (session['is_registration_open'] == 1 || session['is_registration_open'] == true),
-                      onChanged: (bool value) => _toggleRegistration(session['id'], value),
+                      onChanged: (bool value) => _updateRegistrationStatus(session['id'], value),
                     ),
                     Align(
                       alignment: Alignment.centerRight,

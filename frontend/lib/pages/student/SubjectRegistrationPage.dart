@@ -18,7 +18,7 @@ class _SubjectRegistrationPageState extends State<SubjectRegistrationPage> {
   late Future<void> _initFuture;
   final Set<int> _selectedSubjectIds = {};
   final List<Subject> _selectedSubjects = [];
-  List<Subject> _registeredSubjects = []; // NEW: List for confirmed subjects
+  List<Subject> _registeredSubjects = [];
   bool _isSubmitting = false;
 
   bool _isRegistrationOpen = false;
@@ -35,16 +35,13 @@ class _SubjectRegistrationPageState extends State<SubjectRegistrationPage> {
     if (token == null) throw Exception('Authentication token is missing.');
 
     final session = await widget.controller.apiService.getActiveSession(token: token);
-    final data = await widget.controller.apiService.getSubjects(token: token);
     
-    // Fetch existing registrations
     List<dynamic> registrations = [];
     try {
       final regData = await widget.controller.apiService.getStudentSubjectRegistrations(token: token);
-      // Adjust based on your API response structure
       registrations = (regData is Map) 
-    ? ((regData as Map<String, dynamic>)['registrations'] ?? []) 
-    : (regData as List);
+          ? ((regData as Map<String, dynamic>)['registrations'] ?? []) 
+          : (regData as List);
     } catch (e) {
       debugPrint("DEBUG: Could not load registrations: $e");
     }
@@ -70,7 +67,6 @@ class _SubjectRegistrationPageState extends State<SubjectRegistrationPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Registration submitted successfully!')));
       
-      // Reset and refresh
       _selectedSubjects.clear();
       _selectedSubjectIds.clear();
       _initializePage();
@@ -122,7 +118,6 @@ class _SubjectRegistrationPageState extends State<SubjectRegistrationPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header Card
           Container(
             margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
             padding: const EdgeInsets.all(18),
@@ -135,7 +130,6 @@ class _SubjectRegistrationPageState extends State<SubjectRegistrationPage> {
             ),
           ),
           
-          // Registered Subjects Section (NEW)
           if (_registeredSubjects.isNotEmpty) ...[
             const Padding(padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8), child: Text('My Registered Subjects', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF1E3A8A)))),
             ..._registeredSubjects.map((s) => Card(
@@ -147,7 +141,6 @@ class _SubjectRegistrationPageState extends State<SubjectRegistrationPage> {
             const SizedBox(height: 16),
           ],
 
-          // Registration Progress
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 16),
             padding: const EdgeInsets.all(18),
@@ -166,17 +159,33 @@ class _SubjectRegistrationPageState extends State<SubjectRegistrationPage> {
           ),
           const SizedBox(height: 16),
 
-          // Actions
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               children: [
-                Expanded(child: ElevatedButton.icon(onPressed: () async {
-                  final selected = await Navigator.of(context).push<Subject>(MaterialPageRoute(builder: (_) => AvailableSubjectsPage(controller: widget.controller, selectedSubjectIds: _selectedSubjectIds, selectedSubjects: _selectedSubjects, registeredSubjects: _registeredSubjects,)));
-                  if (selected != null && !_selectedSubjectIds.contains(selected.id)) { setState(() { _selectedSubjectIds.add(selected.id); _selectedSubjects.add(selected); }); }
-                }, icon: const Icon(Icons.add, size: 18), label: const Text('Add Subject'), style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2563EB), padding: const EdgeInsets.symmetric(vertical: 14))),),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      final selected = await Navigator.of(context).push<Subject>(MaterialPageRoute(builder: (_) => AvailableSubjectsPage(controller: widget.controller, selectedSubjectIds: _selectedSubjectIds, selectedSubjects: _selectedSubjects, registeredSubjects: _registeredSubjects,)));
+                      if (selected != null && !_selectedSubjectIds.contains(selected.id)) { setState(() { _selectedSubjectIds.add(selected.id); _selectedSubjects.add(selected); }); }
+                    }, 
+                    icon: const Icon(Icons.add, size: 20, color: Colors.white), 
+                    label: const Text('Add Subject', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)), 
+                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2563EB), padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                  ),
+                ),
                 const SizedBox(width: 12),
-                Expanded(child: OutlinedButton.icon(onPressed: _selectedSubjects.isEmpty ? null : () { Navigator.of(context).push(MaterialPageRoute(builder: (_) => TimetablePage(selectedSubjects: _selectedSubjects))); }, icon: const Icon(Icons.calendar_month_outlined, size: 18), label: const Text('Timetable'), style: OutlinedButton.styleFrom(side: const BorderSide(color: Color(0xFFD1D5DB)), padding: const EdgeInsets.symmetric(vertical: 14))),),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: (_selectedSubjects.isEmpty && _registeredSubjects.isEmpty) ? null : () {
+                      final allSubjects = [..._selectedSubjects, ..._registeredSubjects];
+                      Navigator.of(context).push(MaterialPageRoute(builder: (_) => TimetablePage(selectedSubjects: allSubjects)));
+                    }, 
+                    icon: const Icon(Icons.calendar_month_outlined, size: 20, color: Color(0xFF1E3A8A)), 
+                    label: const Text('Timetable', style: TextStyle(color: Color(0xFF1E3A8A), fontWeight: FontWeight.bold)), 
+                    style: OutlinedButton.styleFrom(side: const BorderSide(color: Color(0xFFD1D5DB)), padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                  ),
+                ),
               ],
             ),
           ),
@@ -208,7 +217,7 @@ class _SubjectRegistrationPageState extends State<SubjectRegistrationPage> {
             child: ElevatedButton(
               onPressed: _selectedSubjectIds.isEmpty || _isSubmitting ? null : _submitRegistration,
               style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(54), backgroundColor: const Color(0xFF2563EB)),
-              child: _isSubmitting ? const CircularProgressIndicator(color: Colors.white, strokeWidth: 2) : const Text('Submit Registration', style: TextStyle(fontWeight: FontWeight.w700)),
+              child: _isSubmitting ? const CircularProgressIndicator(color: Colors.white, strokeWidth: 2) : const Text('Submit Registration', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
             ),
           ),
         ],
