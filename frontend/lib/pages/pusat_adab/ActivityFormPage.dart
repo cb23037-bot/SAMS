@@ -124,12 +124,11 @@ class _CurriculumActivitiesPageState extends State<CurriculumActivitiesPage> {
   }
 
   Future<void> _showManageSlotsDialog(Activity activity) async {
-    final updated = await Navigator.of(context).push<Activity>(
-      MaterialPageRoute(
-        builder: (_) => SlotFormPage(
-          activity:   activity,
-          controller: widget.controller,
-        ),
+    final updated = await showDialog<Activity>(
+      context: context,
+      builder: (_) => SlotFormPage(
+        activity:   activity,
+        controller: widget.controller,
       ),
     );
     if (updated != null) _replaceActivity(updated);

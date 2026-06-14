@@ -166,58 +166,50 @@ class _SlotFormPageState extends State<SlotFormPage> {
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _goBack();
       },
-      child: Scaffold(
-        backgroundColor: const Color(0xFFEAF3FF),
-        body: SafeArea(
-          child: Column(
-            children: [
-              // Header card
-              Container(
-                margin: const EdgeInsets.all(14),
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(18),
-                  boxShadow: const [
-                    BoxShadow(color: Color(0x120D1B2A), blurRadius: 18, offset: Offset(0, 8)),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.arrow_back),
-                      onPressed: _goBack,
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
+      child: Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Manage Time Slots',
+                          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: Color(0xFF111827)),
+                        ),
+                        Text(
+                          '${_activity.name} (${_activity.code})',
+                          style: const TextStyle(fontSize: 13, color: Color(0xFF2E6BFF), fontWeight: FontWeight.w600),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Manage Time Slots',
-                            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: Color(0xFF111827)),
-                          ),
-                          Text(
-                            '${_activity.name} (${_activity.code})',
-                            style: const TextStyle(fontSize: 13, color: Color(0xFF2E6BFF), fontWeight: FontWeight.w600),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                  GestureDetector(
+                    onTap: _goBack,
+                    child: const Icon(Icons.close, size: 22, color: Color(0xFF5B6B86)),
+                  ),
+                ],
               ),
+            ),
+            const Divider(height: 1, color: Color(0xFFE5E7EB)),
 
-              // Scrollable content
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Add New Slot form
+            // Scrollable content
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Add New Slot form
                       Container(
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
@@ -548,12 +540,27 @@ class _SlotFormPageState extends State<SlotFormPage> {
                             }).toList(),
                           ),
                         ),
-                    ],
-                  ),
+                  ],
                 ),
               ),
-            ],
-          ),
+            ),
+
+            // Footer
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+              child: SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: _goBack,
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: const Text('Close', style: TextStyle(fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

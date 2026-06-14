@@ -7,7 +7,6 @@ use App\Models\Activity;
 use App\Models\ActivityRegistration;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
 
 class CreditClaimController extends Controller
@@ -175,7 +174,7 @@ class CreditClaimController extends Controller
     }
 
     // GET /api/adab/claims/{registration}/proof
-    public function downloadProof(Request $request, ActivityRegistration $registration): mixed
+    public function downloadProof(Request $request, ActivityRegistration $registration): JsonResponse
     {
         $this->requireAdab($request);
 
@@ -183,16 +182,17 @@ class CreditClaimController extends Controller
             return response()->json(['message' => 'Proof document not found.'], 404);
         }
 
-        // Use Storage::get() + a plain response instead of response()->file() — the PHP
-        // built-in dev server (artisan serve) drops the TCP connection mid-stream when
-        // using BinaryFileResponse, causing "HttpConnection closed while receiving data".
+        // Returned as base64 inside JSON rather than a raw binary response — the PHP
+        // built-in dev server (artisan serve) on Windows truncates raw binary response
+        // bodies, causing "HttpConnection closed while receiving data" on the client.
         $contents = Storage::disk('public')->get($registration->proof_path);
         $mime     = Storage::disk('public')->mimeType($registration->proof_path) ?: 'application/octet-stream';
 
-        return response($contents, 200, [
-            'Content-Type'        => $mime,
-            'Content-Length'      => strlen($contents),
-            'Content-Disposition' => 'inline; filename="proof_' . $registration->id . '.pdf"',
+        return response()->json([
+            'status'   => 'success',
+            'mime'     => $mime,
+            'filename' => 'proof_' . $registration->id . '.pdf',
+            'data'     => base64_encode($contents),
         ]);
     }
 }

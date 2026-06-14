@@ -523,38 +523,21 @@ class ApiService {
     );
   }
 
-  /// Downloads the proof document (PDF or image) for a specific claim
-  /// as raw bytes. The bytes are then passed to the [printing] package
-  /// to let the admin view or share the file.
+  /// Downloads the proof document (PDF) for a specific claim as raw bytes.
+  /// The backend returns it base64-encoded inside JSON (rather than a raw
+  /// binary response) to avoid the PHP dev server truncating binary bodies.
+  /// The bytes are then passed to the [printing] package to let the admin
+  /// view or share the file.
   Future<Uint8List> downloadProof({
     required String token,
     required int registrationId,
   }) async {
-    // Longer timeout for file downloads
-    final client = HttpClient()
-      ..connectionTimeout = const Duration(seconds: 30)
-      ..idleTimeout = const Duration(seconds: 30);
-
-    try {
-      final uri = Uri.parse('${_baseUrl()}/adab/claims/$registrationId/proof');
-      final req = await client.getUrl(uri);
-      req.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
-      final response = await req.close();
-
-      // Collect all response chunks into a single byte list
-      final chunks = await response.fold<List<int>>([], (p, c) => p..addAll(c));
-
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        return Uint8List.fromList(chunks);
-      }
-      final raw = utf8.decode(chunks);
-      final json = raw.isEmpty ? <String, dynamic>{} : jsonDecode(raw) as Map<String, dynamic>;
-      throw Exception(_extractMessage(json));
-    } on SocketException {
-      throw Exception('Unable to connect to the server.');
-    } finally {
-      client.close(force: true);
-    }
+    final json = await _request(
+      method: 'GET',
+      path: '/adab/claims/$registrationId/proof',
+      token: token,
+    );
+    return base64Decode(json['data'] as String);
   }
 
   // ── Private Helpers ────────────────────────────────────────────────────────

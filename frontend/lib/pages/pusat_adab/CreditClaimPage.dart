@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
 
@@ -1013,6 +1015,7 @@ class _ClaimDetailDialog extends StatefulWidget {
 
 class _ClaimDetailDialogState extends State<_ClaimDetailDialog> {
   bool _downloading = false;
+  bool _viewing = false;
   String? _downloadError;
 
   Future<void> _downloadProof() async {
@@ -1027,6 +1030,29 @@ class _ClaimDetailDialogState extends State<_ClaimDetailDialog> {
       setState(() => _downloadError = e.toString().replaceAll('Exception: ', ''));
     } finally {
       setState(() => _downloading = false);
+    }
+  }
+
+  Future<void> _viewProof() async {
+    setState(() { _viewing = true; _downloadError = null; });
+    try {
+      final bytes = await widget.controller.apiService.downloadProof(
+        token:          widget.controller.token!,
+        registrationId: widget.claim.id,
+      );
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => _PdfViewerPage(
+            bytes: bytes,
+            title: 'proof_${widget.claim.id}.pdf',
+          ),
+        ),
+      );
+    } catch (e) {
+      setState(() => _downloadError = e.toString().replaceAll('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _viewing = false);
     }
   }
 
@@ -1345,6 +1371,17 @@ class _ClaimDetailDialogState extends State<_ClaimDetailDialog> {
           ),
           const SizedBox(width: 8),
           GestureDetector(
+            onTap: _viewing ? null : _viewProof,
+            child: _viewing
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2E6BFF)),
+                  )
+                : const Icon(Icons.visibility_outlined, size: 22, color: Color(0xFF2E6BFF)),
+          ),
+          const SizedBox(width: 12),
+          GestureDetector(
             onTap: _downloading ? null : _downloadProof,
             child: _downloading
                 ? const SizedBox(
@@ -1355,6 +1392,30 @@ class _ClaimDetailDialogState extends State<_ClaimDetailDialog> {
                 : const Icon(Icons.download_outlined, size: 22, color: Color(0xFF2E6BFF)),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PDF Viewer Page (inline preview, no forced download)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _PdfViewerPage extends StatelessWidget {
+  const _PdfViewerPage({required this.bytes, required this.title});
+
+  final Uint8List bytes;
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(title)),
+      body: PdfPreview(
+        build: (format) async => bytes,
+        canChangeOrientation: false,
+        canChangePageFormat: false,
+        canDebug: false,
       ),
     );
   }
