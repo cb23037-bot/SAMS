@@ -297,17 +297,26 @@ class ApiService {
   // ── Pusat Adab: Access Control ─────────────────────────────────────────────
 
   Future<bool> getAdabAccess({required String token}) async {
-    final json = await _request(method: 'GET', path: '/adab/access', token: token);
+    final json = await getAdabAccessState(token: token);
     return (json['student_access'] as String) == 'open';
   }
 
-  Future<bool> setAdabAccess({required String token, required bool open}) async {
-    final json = await _request(
+  Future<Map<String, dynamic>> getAdabAccessState({required String token}) async {
+    final json = await _request(method: 'GET', path: '/adab/access', token: token);
+    return json;
+  }
+
+  Future<Map<String, dynamic>> setAdabAccessState({required String token, required bool open}) async {
+    return _request(
       method: 'PUT',
       path: '/adab/access',
       token: token,
       body: {'status': open ? 'open' : 'closed'},
     );
+  }
+
+  Future<bool> setAdabAccess({required String token, required bool open}) async {
+    final json = await setAdabAccessState(token: token, open: open);
     return (json['student_access'] as String) == 'open';
   }
 
@@ -443,16 +452,29 @@ class ApiService {
     return _request(method: 'PUT', path: '/treasury/fees/$feeId', token: token, body: fields);
   }
 
-  Future<Map<String, dynamic>> sendPaymentReminder({
+  // ── Restriction ────────────────────────────────────────────────────────────
+
+  Future<Map<String, dynamic>> getRestrictionStatus({required String token}) async {
+    return _request(method: 'GET', path: '/student/restriction-status', token: token);
+  }
+
+  Future<void> applyRestriction({required String token, required int userId}) async {
+    await _request(method: 'POST', path: '/treasury/restrict/$userId', token: token);
+  }
+
+  Future<void> liftRestriction({required String token, required int userId}) async {
+    await _request(method: 'DELETE', path: '/treasury/restrict/$userId', token: token);
+  }
+
+  Future<Map<String, dynamic>> getTreasurySettings({required String token}) async {
+    return _request(method: 'GET', path: '/treasury/settings', token: token);
+  }
+
+  Future<void> updateTreasurySettings({
     required String token,
-    required int studentId,
+    required Map<String, dynamic> settings,
   }) async {
-    return _request(
-      method: 'POST',
-      path: '/treasury/remind',
-      token: token,
-      body: {'student_id': studentId},
-    );
+    await _request(method: 'PUT', path: '/treasury/settings', token: token, body: settings);
   }
 
   // ── Private Helpers ────────────────────────────────────────────────────────

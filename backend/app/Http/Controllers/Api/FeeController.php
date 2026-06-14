@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Fee;
 use App\Models\Payment;
+use App\Models\Restriction;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -94,6 +95,22 @@ class FeeController extends Controller
             'payment' => $this->paymentArray($payment),
             'fee'     => $this->feeArray($fee->fresh()),
         ], 201);
+    }
+
+    public function restrictionStatus(Request $request): JsonResponse
+    {
+        $this->requireStudent($request);
+
+        $restriction = Restriction::where('user_id', $request->user()->id)
+            ->where('status', 'active')
+            ->latest()
+            ->first();
+
+        return response()->json([
+            'restricted'       => $restriction !== null,
+            'restriction_type' => $restriction?->restriction_type,
+            'applied_date'     => $restriction?->applied_date?->toDateString(),
+        ]);
     }
 
     public function history(Request $request): JsonResponse

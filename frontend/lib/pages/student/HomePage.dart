@@ -6,8 +6,9 @@ import '../../models/app_user.dart';
 import 'EditProfilePage.dart';
 import 'ModuleBookingPage.dart';
 import 'CurriculumActivityPage.dart';
-import 'student_fees_page.dart';
+import 'fees/manage_fees_dashboard_page.dart';
 import 'StudentNotificationsPage.dart';
+import '../../utils/restriction_checker.dart';
 
 class StudentHomePage extends StatefulWidget {
   const StudentHomePage({super.key, required this.controller});
@@ -21,7 +22,6 @@ class StudentHomePage extends StatefulWidget {
 class _StudentHomePageState extends State<StudentHomePage> {
   int _selectedIndex = 0;
   bool _showCurriculum = false;
-  bool _showFees = false;
   bool _showKoQ = false;
   Set<int> _koqRegisteredIds = {};
   int _notifUnreadCount = 0;
@@ -71,13 +71,11 @@ class _StudentHomePageState extends State<StudentHomePage> {
     final user = widget.controller.currentUser!;
 
     return PopScope(
-      canPop: !_showCurriculum && !_showFees && !_showKoQ,
+      canPop: !_showCurriculum && !_showKoQ,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) {
           if (_showKoQ) {
             _closeKoQ();
-          } else if (_showFees) {
-            setState(() => _showFees = false);
           } else if (_showCurriculum) {
             setState(() => _showCurriculum = false);
           }
@@ -98,7 +96,6 @@ class _StudentHomePageState extends State<StudentHomePage> {
             setState(() {
               _selectedIndex = index;
               _showCurriculum = false;
-              _showFees = false;
               _showKoQ = false;
               if (index == 1) _notifUnreadCount = 0;
             });
@@ -179,11 +176,6 @@ class _StudentHomePageState extends State<StudentHomePage> {
                         controller: widget.controller,
                         lastViewed: _sLastNotifViewed,
                       )
-                    : _showFees
-                    ? StudentFeesContent(
-                        controller: widget.controller,
-                        onBack: () => setState(() => _showFees = false),
-                      )
                     : _showKoQ
                     ? KoQBookingContent(
                         controller: widget.controller,
@@ -239,19 +231,41 @@ class _StudentHomePageState extends State<StudentHomePage> {
                 title: 'Mark Attendance',
                 icon: Icons.calendar_month_outlined,
                 color: const Color(0xFF22C55E),
-                onTap: () => _showSoon('Mark Attendance is coming soon.'),
+                onTap: () async {
+                  final restricted = await checkAndShowRestriction(
+                    context: context,
+                    controller: widget.controller,
+                    onPayNow: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => ManageFeesDashboardPage(controller: widget.controller),
+                    )),
+                  );
+                  if (restricted || !mounted) return;
+                  _showSoon('Mark Attendance is coming soon.');
+                },
               ),
               _ActionCard(
                 title: 'Curriculum Activity',
                 icon: Icons.trending_up_outlined,
                 color: const Color(0xFFA855F7),
-                onTap: () => setState(() => _showCurriculum = true),
+                onTap: () async {
+                  final restricted = await checkAndShowRestriction(
+                    context: context,
+                    controller: widget.controller,
+                    onPayNow: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => ManageFeesDashboardPage(controller: widget.controller),
+                    )),
+                  );
+                  if (restricted || !mounted) return;
+                  setState(() => _showCurriculum = true);
+                },
               ),
               _ActionCard(
                 title: 'Pay Fees',
                 icon: Icons.attach_money_outlined,
                 color: const Color(0xFFF97316),
-                onTap: () => setState(() => _showFees = true),
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => ManageFeesDashboardPage(controller: widget.controller),
+                )),
               ),
             ],
           ),

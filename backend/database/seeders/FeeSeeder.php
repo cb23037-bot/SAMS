@@ -4,109 +4,393 @@ namespace Database\Seeders;
 
 use App\Models\Fee;
 use App\Models\Payment;
+use App\Models\Restriction;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class FeeSeeder extends Seeder
 {
     public function run(): void
     {
-        $records = [
+        // ── Settings ────────────────────────────────────────────────────────
+        DB::table('settings')->upsert([
+            ['key' => 'semester_start_date', 'value' => '2026-01-06', 'updated_at' => now()],
+            ['key' => 'week5_auto_enforce',  'value' => 'true',       'updated_at' => now()],
+        ], ['key'], ['value', 'updated_at']);
+
+        // ── Treasury user ────────────────────────────────────────────────────
+        User::query()->updateOrCreate(
+            ['email' => 'treasury@adab.umpsa.edu.my'],
             [
-                'email'       => 'cb23037@adab.umpsa.edu.my',
-                'semester'    => '2025/2026-1',
-                'description' => 'Semester Tuition and Services Fee',
-                'amount'      => 8450.00,
-                'paid'        => 6940.00,
-                'due_date'    => '2025-10-15',
-                'method'      => 'online_banking',
-                'reference'   => 'TEST-CB23037-001',
-                'paid_at'     => '2025-09-20 10:15:00',
+                'name'             => 'Treasury Office',
+                'role'             => 'treasury',
+                'student_id'       => null,
+                'current_semester' => null,
+                'password'         => Hash::make('123456'),
+            ]
+        );
+
+        // ── Students ─────────────────────────────────────────────────────────
+        $studentData = [
+            // CB23037 already in UserSeeder — update so fee data attaches
+            [
+                'name'             => 'Muhammad Ammar bin Azizan',
+                'email'            => 'cb23037@adab.umpsa.edu.my',
+                'student_id'       => 'CB23037',
+                'course'           => 'Bachelor of Computer Science',
+                'current_semester' => 'Semester 6',
+                'phone_number'     => '017 5744235',
+                'personal_advisor' => 'Dr Jamaludin bin Abdullah',
+                'address'          => '162A, Jalan Nilam 3, Taman Delima, 08000 Sungai Petani, Kedah',
             ],
             [
-                'email'       => 'cb23022@adab.umpsa.edu.my',
-                'semester'    => '2025/2026-1',
-                'description' => 'Semester Tuition Fee',
-                'amount'      => 3200.00,
-                'paid'        => 0.00,
-                'due_date'    => '2025-10-15',
+                'name'             => 'Ahmad Farhan bin Zulkifli',
+                'email'            => 'cb23201@adab.umpsa.edu.my',
+                'student_id'       => 'CB23201',
+                'course'           => 'Bachelor of Computer Science',
+                'current_semester' => 'Semester 4',
             ],
             [
-                'email'       => 'cb23065@adab.umpsa.edu.my',
-                'semester'    => '2025/2026-1',
-                'description' => 'Semester Tuition and Accommodation Fee',
-                'amount'      => 8450.00,
-                'paid'        => 8450.00,
-                'due_date'    => '2025-10-15',
-                'method'      => 'card',
-                'reference'   => 'TEST-CB23065-001',
-                'paid_at'     => '2025-09-12 14:30:00',
+                'name'             => 'Nurul Aina binti Hashim',
+                'email'            => 'cb23202@adab.umpsa.edu.my',
+                'student_id'       => 'CB23202',
+                'course'           => 'Bachelor of Computer Science',
+                'current_semester' => 'Semester 4',
             ],
             [
-                'email'       => 'cb23111@adab.umpsa.edu.my',
-                'semester'    => '2025/2026-1',
-                'description' => 'Semester Tuition Fee',
-                'amount'      => 4100.00,
-                'paid'        => 1500.00,
-                'due_date'    => '2025-10-30',
-                'method'      => 'ewallet',
-                'reference'   => 'TEST-CB23111-001',
-                'paid_at'     => '2025-09-28 09:45:00',
+                'name'             => 'Haziq bin Mohd Roslan',
+                'email'            => 'cb23203@adab.umpsa.edu.my',
+                'student_id'       => 'CB23203',
+                'course'           => 'Bachelor of Computer Science',
+                'current_semester' => 'Semester 4',
             ],
             [
-                'email'       => 'cb23111@adab.umpsa.edu.my',
-                'semester'    => '2025/2026-2',
-                'description' => 'Lab and Resource Fee',
-                'amount'      => 650.00,
-                'paid'        => 0.00,
-                'due_date'    => '2026-03-15',
+                'name'             => 'Siti Zulaikha binti Kamarudin',
+                'email'            => 'cb22015@adab.umpsa.edu.my',
+                'student_id'       => 'CB22015',
+                'course'           => 'Bachelor of Computer Science',
+                'current_semester' => 'Semester 8',
+                'phone_number'     => '011 7823456',
+                'personal_advisor' => 'Dr Siti Noor binti Ahmad',
+                'address'          => 'No. 5, Lorong Mawar 2, Taman Pelangi, 25200 Kuantan, Pahang',
+            ],
+            [
+                'name'             => 'Mohd Izzat bin Nordin',
+                'email'            => 'cb23088@adab.umpsa.edu.my',
+                'student_id'       => 'CB23088',
+                'course'           => 'Bachelor of Computer Science',
+                'current_semester' => 'Semester 4',
+                'phone_number'     => '019 2345678',
+                'personal_advisor' => 'Dr Faizal bin Hamid',
+            ],
+            [
+                'name'             => 'Wan Nur Izzah binti Wan Ismail',
+                'email'            => 'cb24001@adab.umpsa.edu.my',
+                'student_id'       => 'CB24001',
+                'course'           => 'Bachelor of Computer Science',
+                'current_semester' => 'Semester 2',
+                'phone_number'     => '013 9876543',
+            ],
+            [
+                'name'             => 'Azrul Hakim bin Mohd Fauzi',
+                'email'            => 'cb24055@adab.umpsa.edu.my',
+                'student_id'       => 'CB24055',
+                'course'           => 'Bachelor of Information Technology',
+                'current_semester' => 'Semester 2',
             ],
         ];
 
-        foreach ($records as $record) {
-            $student = User::where('email', $record['email'])->first();
-            if (!$student) {
-                continue;
-            }
-
-            $fee = Fee::updateOrCreate(
-                [
-                    'user_id'     => $student->id,
-                    'semester'    => $record['semester'],
-                    'description' => $record['description'],
-                ],
-                [
-                    'amount'      => $record['amount'],
-                    'amount_paid' => $record['paid'],
-                    'due_date'    => $record['due_date'],
-                    'status'      => $this->statusFor($record['amount'], $record['paid']),
-                ],
-            );
-
-            if ($record['paid'] <= 0) {
-                $fee->payments()->delete();
-                continue;
-            }
-
-            Payment::updateOrCreate(
-                ['reference_no' => $record['reference']],
-                [
-                    'fee_id'         => $fee->id,
-                    'user_id'        => $student->id,
-                    'amount'         => $record['paid'],
-                    'payment_method' => $record['method'],
-                    'paid_at'        => $record['paid_at'],
-                ],
+        $students = [];
+        foreach ($studentData as $data) {
+            $students[$data['student_id']] = User::query()->updateOrCreate(
+                ['email' => $data['email']],
+                array_merge($data, ['role' => 'student', 'password' => Hash::make('123456')])
             );
         }
-    }
 
-    private function statusFor(float $amount, float $paid): string
-    {
-        return match (true) {
-            $paid <= 0       => 'unpaid',
-            $paid >= $amount => 'paid',
-            default          => 'partial',
-        };
+        // Wipe existing fee & restriction data for these students
+        $ids = collect($students)->pluck('id');
+        Fee::whereIn('user_id', $ids)->each(function ($fee) {
+            Payment::where('fee_id', $fee->id)->delete();
+            $fee->delete();
+        });
+        Restriction::whereIn('user_id', $ids)->delete();
+
+        $sem4 = 'Semester 4 (2025/2026)';
+        $sem6 = 'Semester 6 (2025/2026)';
+        $sem8 = 'Semester 8 (2024/2025)';
+        $sem2 = 'Semester 2 (2025/2026)';
+
+        // ────────────────────────────────────────────────────────────────────
+        // CB23037 Muhammad Ammar — fully paid tuition, partial accommodation
+        // ────────────────────────────────────────────────────────────────────
+        $feeA1 = Fee::create([
+            'user_id'     => $students['CB23037']->id,
+            'semester'    => $sem6,
+            'description' => 'Tuition Fee',
+            'amount'      => 1500.00,
+            'amount_paid' => 0,
+            'due_date'    => '2026-03-15',
+            'status'      => 'unpaid',
+        ]);
+        Payment::create([
+            'fee_id'         => $feeA1->id,
+            'user_id'        => $students['CB23037']->id,
+            'amount'         => 1500.00,
+            'payment_method' => 'online_banking',
+            'reference_no'   => 'OB' . strtoupper(Str::random(10)),
+            'paid_at'        => now()->subDays(30),
+        ]);
+        $feeA1->recalculate();
+
+        $feeA2 = Fee::create([
+            'user_id'     => $students['CB23037']->id,
+            'semester'    => $sem6,
+            'description' => 'Accommodation Fee',
+            'amount'      => 800.00,
+            'amount_paid' => 0,
+            'due_date'    => '2026-03-15',
+            'status'      => 'unpaid',
+        ]);
+        Payment::create([
+            'fee_id'         => $feeA2->id,
+            'user_id'        => $students['CB23037']->id,
+            'amount'         => 400.00,
+            'payment_method' => 'ewallet',
+            'reference_no'   => 'EW' . strtoupper(Str::random(10)),
+            'paid_at'        => now()->subDays(15),
+        ]);
+        $feeA2->recalculate();
+
+        // ────────────────────────────────────────────────────────────────────
+        // CB23201 Ahmad Farhan — partial tuition + unpaid activity fee
+        // ────────────────────────────────────────────────────────────────────
+        $feeB1 = Fee::create([
+            'user_id'     => $students['CB23201']->id,
+            'semester'    => $sem4,
+            'description' => 'Tuition Fee',
+            'amount'      => 1200.00,
+            'amount_paid' => 0,
+            'due_date'    => '2026-03-15',
+            'status'      => 'unpaid',
+        ]);
+        Payment::create([
+            'fee_id'         => $feeB1->id,
+            'user_id'        => $students['CB23201']->id,
+            'amount'         => 600.00,
+            'payment_method' => 'online_banking',
+            'reference_no'   => 'OB' . strtoupper(Str::random(10)),
+            'paid_at'        => now()->subDays(10),
+        ]);
+        $feeB1->recalculate();
+
+        Fee::create([
+            'user_id'     => $students['CB23201']->id,
+            'semester'    => $sem4,
+            'description' => 'Activity & Sports Fee',
+            'amount'      => 150.00,
+            'amount_paid' => 0,
+            'due_date'    => '2026-03-15',
+            'status'      => 'unpaid',
+        ]);
+
+        // ────────────────────────────────────────────────────────────────────
+        // CB23202 Nurul Aina — fully unpaid + ACTIVE restriction
+        // ────────────────────────────────────────────────────────────────────
+        Fee::create([
+            'user_id'     => $students['CB23202']->id,
+            'semester'    => $sem4,
+            'description' => 'Tuition Fee',
+            'amount'      => 1200.00,
+            'amount_paid' => 0,
+            'due_date'    => '2026-03-15',
+            'status'      => 'unpaid',
+        ]);
+        Fee::create([
+            'user_id'     => $students['CB23202']->id,
+            'semester'    => $sem4,
+            'description' => 'Accommodation Fee',
+            'amount'      => 800.00,
+            'amount_paid' => 0,
+            'due_date'    => '2026-03-15',
+            'status'      => 'unpaid',
+        ]);
+        Restriction::create([
+            'user_id'          => $students['CB23202']->id,
+            'restriction_type' => 'financial_bar',
+            'status'           => 'active',
+            'applied_date'     => Carbon::today()->subDays(5)->toDateString(),
+        ]);
+
+        // ────────────────────────────────────────────────────────────────────
+        // CB23203 Haziq — all fees fully paid
+        // ────────────────────────────────────────────────────────────────────
+        $feeD1 = Fee::create([
+            'user_id'     => $students['CB23203']->id,
+            'semester'    => $sem4,
+            'description' => 'Tuition Fee',
+            'amount'      => 1200.00,
+            'amount_paid' => 0,
+            'due_date'    => '2026-03-15',
+            'status'      => 'unpaid',
+        ]);
+        Payment::create([
+            'fee_id'         => $feeD1->id,
+            'user_id'        => $students['CB23203']->id,
+            'amount'         => 1200.00,
+            'payment_method' => 'ewallet',
+            'reference_no'   => 'EW' . strtoupper(Str::random(10)),
+            'paid_at'        => now()->subDays(20),
+        ]);
+        $feeD1->recalculate();
+
+        $feeD2 = Fee::create([
+            'user_id'     => $students['CB23203']->id,
+            'semester'    => $sem4,
+            'description' => 'Activity & Sports Fee',
+            'amount'      => 150.00,
+            'amount_paid' => 0,
+            'due_date'    => '2026-03-15',
+            'status'      => 'unpaid',
+        ]);
+        Payment::create([
+            'fee_id'         => $feeD2->id,
+            'user_id'        => $students['CB23203']->id,
+            'amount'         => 150.00,
+            'payment_method' => 'cash',
+            'reference_no'   => 'CA' . strtoupper(Str::random(10)),
+            'paid_at'        => now()->subDays(18),
+        ]);
+        $feeD2->recalculate();
+
+        // ────────────────────────────────────────────────────────────────────
+        // CB22015 Siti Zulaikha — partial tuition (no restriction yet)
+        // ────────────────────────────────────────────────────────────────────
+        $feeE1 = Fee::create([
+            'user_id'     => $students['CB22015']->id,
+            'semester'    => $sem8,
+            'description' => 'Tuition Fee',
+            'amount'      => 1800.00,
+            'amount_paid' => 0,
+            'due_date'    => '2026-02-28',
+            'status'      => 'unpaid',
+        ]);
+        Payment::create([
+            'fee_id'         => $feeE1->id,
+            'user_id'        => $students['CB22015']->id,
+            'amount'         => 900.00,
+            'payment_method' => 'card',
+            'reference_no'   => 'CD' . strtoupper(Str::random(10)),
+            'paid_at'        => now()->subDays(45),
+        ]);
+        Payment::create([
+            'fee_id'         => $feeE1->id,
+            'user_id'        => $students['CB22015']->id,
+            'amount'         => 300.00,
+            'payment_method' => 'online_banking',
+            'reference_no'   => 'OB' . strtoupper(Str::random(10)),
+            'paid_at'        => now()->subDays(14),
+        ]);
+        $feeE1->recalculate();
+
+        $feeE2 = Fee::create([
+            'user_id'     => $students['CB22015']->id,
+            'semester'    => $sem8,
+            'description' => 'Lab & Equipment Fee',
+            'amount'      => 200.00,
+            'amount_paid' => 0,
+            'due_date'    => '2026-02-28',
+            'status'      => 'unpaid',
+        ]);
+        Payment::create([
+            'fee_id'         => $feeE2->id,
+            'user_id'        => $students['CB22015']->id,
+            'amount'         => 200.00,
+            'payment_method' => 'ewallet',
+            'reference_no'   => 'EW' . strtoupper(Str::random(10)),
+            'paid_at'        => now()->subDays(40),
+        ]);
+        $feeE2->recalculate();
+
+        // ────────────────────────────────────────────────────────────────────
+        // CB23088 Mohd Izzat — had restriction, now LIFTED
+        // ────────────────────────────────────────────────────────────────────
+        $feeF1 = Fee::create([
+            'user_id'     => $students['CB23088']->id,
+            'semester'    => $sem4,
+            'description' => 'Tuition Fee',
+            'amount'      => 1200.00,
+            'amount_paid' => 0,
+            'due_date'    => '2026-03-15',
+            'status'      => 'unpaid',
+        ]);
+        Payment::create([
+            'fee_id'         => $feeF1->id,
+            'user_id'        => $students['CB23088']->id,
+            'amount'         => 800.00,
+            'payment_method' => 'card',
+            'reference_no'   => 'CD' . strtoupper(Str::random(10)),
+            'paid_at'        => now()->subDays(3),
+        ]);
+        $feeF1->recalculate();
+
+        // Restriction was active but then lifted
+        Restriction::create([
+            'user_id'          => $students['CB23088']->id,
+            'restriction_type' => 'financial_bar',
+            'status'           => 'lifted',
+            'applied_date'     => Carbon::today()->subDays(10)->toDateString(),
+            'lifted_date'      => Carbon::today()->subDays(3)->toDateString(),
+        ]);
+
+        // ────────────────────────────────────────────────────────────────────
+        // CB24001 Wan Nur Izzah — new student, fully paid
+        // ────────────────────────────────────────────────────────────────────
+        $feeG1 = Fee::create([
+            'user_id'     => $students['CB24001']->id,
+            'semester'    => $sem2,
+            'description' => 'Tuition Fee',
+            'amount'      => 1000.00,
+            'amount_paid' => 0,
+            'due_date'    => '2026-04-30',
+            'status'      => 'unpaid',
+        ]);
+        Payment::create([
+            'fee_id'         => $feeG1->id,
+            'user_id'        => $students['CB24001']->id,
+            'amount'         => 1000.00,
+            'payment_method' => 'online_banking',
+            'reference_no'   => 'OB' . strtoupper(Str::random(10)),
+            'paid_at'        => now()->subDays(7),
+        ]);
+        $feeG1->recalculate();
+
+        // ────────────────────────────────────────────────────────────────────
+        // CB24055 Azrul — new student, fully unpaid (no restriction)
+        // ────────────────────────────────────────────────────────────────────
+        Fee::create([
+            'user_id'     => $students['CB24055']->id,
+            'semester'    => $sem2,
+            'description' => 'Tuition Fee',
+            'amount'      => 1000.00,
+            'amount_paid' => 0,
+            'due_date'    => '2026-04-30',
+            'status'      => 'unpaid',
+        ]);
+        Fee::create([
+            'user_id'     => $students['CB24055']->id,
+            'semester'    => $sem2,
+            'description' => 'Activity & Sports Fee',
+            'amount'      => 120.00,
+            'amount_paid' => 0,
+            'due_date'    => '2026-04-30',
+            'status'      => 'unpaid',
+        ]);
+
+        $this->command->info('FeeSeeder: 8 students seeded with varied fee/payment/restriction scenarios.');
     }
 }

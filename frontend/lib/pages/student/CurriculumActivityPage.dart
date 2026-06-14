@@ -19,6 +19,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../app/app_controller.dart';
 import '../../models/activity_registration.dart';
 import '../../models/app_user.dart';
+import '../../utils/restriction_checker.dart';
+import 'fees/manage_fees_dashboard_page.dart';
 
 // ── Time-window helpers ───────────────────────────────────────────────────────
 
@@ -602,7 +604,15 @@ class _StudentCurriculumContentState extends State<StudentCurriculumContent> {
     );
   }
 
-  void _openBooking() {
+  Future<void> _openBooking() async {
+    final restricted = await checkAndShowRestriction(
+      context: context,
+      controller: widget.controller,
+      onPayNow: () => Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => ManageFeesDashboardPage(controller: widget.controller),
+      )),
+    );
+    if (restricted) return;
     widget.onBookNow(_registrations.map((r) => r.activity.id).toSet());
   }
 

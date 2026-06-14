@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../app/app_controller.dart';
+import 'unpaid_fees_monitor_page.dart';
 
 class TreasuryDashboardPage extends StatefulWidget {
   const TreasuryDashboardPage({super.key, required this.controller});
-
   final AppController controller;
 
   @override
@@ -12,688 +12,315 @@ class TreasuryDashboardPage extends StatefulWidget {
 }
 
 class _TreasuryDashboardPageState extends State<TreasuryDashboardPage> {
+  static const _teal = Color(0xFF00897B);
+
+  int _tab = 0;
   bool _loading = true;
   String? _error;
-  Map<String, dynamic> _stats = {};
-  List<Map<String, dynamic>> _fees = [];
-  List<Map<String, dynamic>> _recentPayments = [];
+  Map<String, dynamic>? _data;
+
+  bool _autoEnforce    = true;
+  bool _settingsLoaded = false;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _loadSettings();
   }
 
   Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-
+    setState(() { _loading = true; _error = null; });
     try {
-      final results = await Future.wait([
-        widget.controller.apiService.getTreasuryDashboard(
-          token: widget.controller.token!,
-        ),
-        widget.controller.apiService.getFeeRecords(
-          token: widget.controller.token!,
-        ),
-      ]);
-
-      if (!mounted) return;
-      setState(() {
-        _stats = (results[0]['stats'] as Map<String, dynamic>?) ?? {};
-        _recentPayments =
-            ((results[0]['recent_payments'] as List<dynamic>?) ?? [])
-                .whereType<Map<String, dynamic>>()
-                .toList();
-        _fees = ((results[1]['fees'] as List<dynamic>?) ?? [])
-            .whereType<Map<String, dynamic>>()
-            .toList();
-      });
+      final data = await widget.controller.apiService.getTreasuryDashboard(
+        token: widget.controller.token!,
+      );
+      setState(() { _data = data; _loading = false; });
     } catch (e) {
-      if (!mounted) return;
-      setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
-    } finally {
-      if (mounted) setState(() => _loading = false);
+      setState(() { _error = e.toString().replaceFirst('Exception: ', ''); _loading = false; });
+    }
+  }
+
+  Future<void> _loadSettings() async {
+    try {
+      final s = await widget.controller.apiService.getTreasurySettings(
+        token: widget.controller.token!,
+      );
+      setState(() {
+        _autoEnforce    = s['week5_auto_enforce'] == true;
+        _settingsLoaded = true;
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _toggleAutoEnforce(bool val) async {
+    setState(() => _autoEnforce = val);
+    try {
+      await widget.controller.apiService.updateTreasurySettings(
+        token: widget.controller.token!,
+        settings: {'week5_auto_enforce': val},
+      );
+    } catch (_) {
+      setState(() => _autoEnforce = !val);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F8FC),
-      body: SafeArea(
-        child: RefreshIndicator(
-          color: const Color(0xFF1E5BFF),
-          onRefresh: _load,
-          child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
-                sliver: SliverList(
-                  delegate: SliverChildListDelegate([
-                    _Header(controller: widget.controller, onRefresh: _load),
-                    const SizedBox(height: 18),
-                    if (_loading)
-                      const _LoadingState()
-                    else if (_error != null)
-                      _ErrorState(message: _error!, onRetry: _load)
-                    else ...[
-                      _StatsGrid(stats: _stats),
-                      const SizedBox(height: 20),
-                      _SectionHeader(
-                        title: 'Fee Records',
-                        count: _fees.length,
-                        icon: Icons.receipt_long_outlined,
-                      ),
-                      const SizedBox(height: 12),
-                      if (_fees.isEmpty)
-                        const _EmptyState(
-                          title: 'No fee records',
-                          message: 'Assigned student fees will appear here.',
-                        )
-                      else
-                        ..._fees.map(
-                          (fee) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: _FeeRecordCard(fee: fee),
-                          ),
-                        ),
-                      const SizedBox(height: 10),
-                      _SectionHeader(
-                        title: 'Recent Payments',
-                        count: _recentPayments.length,
-                        icon: Icons.payments_outlined,
-                      ),
-                      const SizedBox(height: 12),
-                      if (_recentPayments.isEmpty)
-                        const _EmptyState(
-                          title: 'No payments yet',
-                          message: 'Recent student payments will appear here.',
-                        )
-                      else
-                        ..._recentPayments.map(
-                          (payment) => Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
-                            child: _PaymentRow(payment: payment),
-                          ),
-                        ),
-                    ],
-                  ]),
-                ),
-              ),
-            ],
-          ),
-        ),
+      backgroundColor: const Color(0xFFEAF3FF),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _tab,
+        height: 72,
+        backgroundColor: Colors.white,
+        indicatorColor: const Color(0x1A00897B),
+        onDestinationSelected: (i) => setState(() => _tab = i),
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.dashboard_outlined), label: 'Dashboard'),
+          NavigationDestination(icon: Icon(Icons.warning_amber_outlined), label: 'Unpaid'),
+          NavigationDestination(icon: Icon(Icons.settings_outlined), label: 'Settings'),
+        ],
       ),
+      body: SafeArea(child: Column(children: [
+        _buildHeader(),
+        Expanded(child: IndexedStack(index: _tab, children: [
+          _buildDashboard(),
+          UnpaidFeesMonitorPage(controller: widget.controller, embedded: true),
+          _buildSettings(),
+        ])),
+      ])),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      child: Row(children: [
+        Container(
+          width: 40, height: 40,
+          decoration: BoxDecoration(color: const Color(0xFFE0F2F1), borderRadius: BorderRadius.circular(12)),
+          child: const Icon(Icons.account_balance_outlined, color: _teal, size: 22),
+        ),
+        const SizedBox(width: 10),
+        const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Treasury', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17, color: Color(0xFF111827))),
+          Text('Fee Management', style: TextStyle(color: Color(0xFF5B6B86), fontSize: 12)),
+        ])),
+        IconButton(
+          tooltip: 'Logout',
+          onPressed: widget.controller.signOut,
+          icon: const Icon(Icons.logout, color: Color(0xFFFF3B30)),
+        ),
+      ]),
+    );
+  }
+
+  Widget _buildDashboard() {
+    if (_loading) return const Center(child: CircularProgressIndicator(color: _teal));
+    if (_error != null) {
+      return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFF6B7280))),
+        const SizedBox(height: 12),
+        FilledButton(onPressed: _load,
+            style: FilledButton.styleFrom(backgroundColor: _teal), child: const Text('Retry')),
+      ]));
+    }
+
+    final stats  = _data!['stats'] as Map<String, dynamic>;
+    final recent = _data!['recent_payments'] as List<dynamic>? ?? [];
+    final week   = stats['current_week'] as int?;
+
+    return RefreshIndicator(
+      onRefresh: _load,
+      color: _teal,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+        children: [
+          if (week != null)
+            Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: week >= 5 ? const Color(0xFFFFF3E0) : const Color(0xFFE8F5E9),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: week >= 5 ? const Color(0xFFFFCC02) : const Color(0xFFA5D6A7)),
+              ),
+              child: Row(children: [
+                Icon(week >= 5 ? Icons.warning_amber_outlined : Icons.event_outlined,
+                    color: week >= 5 ? const Color(0xFFF57C00) : const Color(0xFF388E3C), size: 20),
+                const SizedBox(width: 8),
+                Text('Academic Week $week${week >= 5 ? " — Week 5 restriction active" : ""}',
+                    style: TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w600,
+                      color: week >= 5 ? const Color(0xFFE65100) : const Color(0xFF2E7D32),
+                    )),
+              ]),
+            ),
+
+          _TealStatCard(
+            title: 'Total Collected',
+            amount: (stats['total_paid'] as num).toDouble(),
+            subtitle: 'of RM ${(stats['total_fees'] as num).toStringAsFixed(2)} billed',
+            icon: Icons.account_balance_wallet_outlined,
+          ),
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(child: _SmallStat(
+              label: 'Outstanding', color: const Color(0xFFFFEBEE), textColor: const Color(0xFFDC2626),
+              value: 'RM ${(stats['total_unpaid'] as num).toStringAsFixed(2)}',
+            )),
+            const SizedBox(width: 12),
+            Expanded(child: _SmallStat(
+              label: 'Unpaid Records', color: const Color(0xFFFFF3E0), textColor: const Color(0xFFF57C00),
+              value: '${stats['unpaid_count']}',
+            )),
+            const SizedBox(width: 12),
+            Expanded(child: _SmallStat(
+              label: 'Restricted', color: const Color(0xFFFCE4EC), textColor: const Color(0xFFC62828),
+              value: '${stats['restricted'] ?? 0}',
+            )),
+          ]),
+
+          const SizedBox(height: 24),
+          const Text('Recent Payments',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
+          const SizedBox(height: 10),
+
+          if (recent.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 20),
+              child: Center(child: Text('No payments yet.', style: TextStyle(color: Color(0xFF9CA3AF)))),
+            )
+          else
+            ...recent.map((p) => _RecentPaymentRow(p: p as Map<String, dynamic>)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSettings() {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 8)],
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('Week 5 Restriction',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
+            const SizedBox(height: 4),
+            const Text(
+              'Automatically restricts academic access for students with unpaid or partial fees once Week 5 begins.',
+              style: TextStyle(fontSize: 13, color: Color(0xFF6B7280), height: 1.4),
+            ),
+            const SizedBox(height: 14),
+            Row(children: [
+              const Expanded(child: Text('Auto-enforce Week 5 Rule',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14))),
+              _settingsLoaded
+                  ? Switch(value: _autoEnforce, onChanged: _toggleAutoEnforce, activeColor: _teal)
+                  : const SizedBox(width: 40, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
+            ]),
+          ]),
+        ),
+      ],
     );
   }
 }
 
-class _Header extends StatelessWidget {
-  const _Header({required this.controller, required this.onRefresh});
+// ── Sub-widgets ───────────────────────────────────────────────────────────────
 
-  final AppController controller;
-  final VoidCallback onRefresh;
+class _TealStatCard extends StatelessWidget {
+  const _TealStatCard({required this.title, required this.amount, required this.subtitle, required this.icon});
+  final String title, subtitle;
+  final double amount;
+  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE8EDF6)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x100D1B2A),
-            blurRadius: 18,
-            offset: Offset(0, 8),
-          ),
-        ],
+        gradient: const LinearGradient(
+          colors: [Color(0xFF00897B), Color(0xFF005F56)],
+          begin: Alignment.topLeft, end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(18),
       ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEAF1FF),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: const Icon(
-                  Icons.account_balance_wallet_outlined,
-                  color: Color(0xFF1E5BFF),
-                ),
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Treasury Dashboard',
-                      style: TextStyle(
-                        color: Color(0xFF111827),
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    SizedBox(height: 3),
-                    Text(
-                      'Monitor fees and student payments',
-                      style: TextStyle(color: Color(0xFF5B6B86), fontSize: 13),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: onRefresh,
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Refresh'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF1E5BFF),
-                    side: const BorderSide(color: Color(0xFFD6E0F0)),
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: controller.isLoading ? null : controller.signOut,
-                  icon: const Icon(Icons.logout),
-                  label: const Text('Logout'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFFFF3B30),
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+      child: Row(children: [
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+          const SizedBox(height: 4),
+          Text('RM ${amount.toStringAsFixed(2)}',
+              style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800)),
+          Text(subtitle, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+        ])),
+        Icon(icon, color: Colors.white38, size: 44),
+      ]),
     );
   }
 }
 
-class _StatsGrid extends StatelessWidget {
-  const _StatsGrid({required this.stats});
-
-  final Map<String, dynamic> stats;
-
-  @override
-  Widget build(BuildContext context) {
-    return GridView.count(
-      physics: const NeverScrollableScrollPhysics(),
-      shrinkWrap: true,
-      crossAxisCount: 2,
-      crossAxisSpacing: 12,
-      mainAxisSpacing: 12,
-      childAspectRatio: 1.25,
-      children: [
-        _StatTile(
-          label: 'Total Fees',
-          value: _money(_asDouble(stats['total_fees'])),
-          icon: Icons.account_balance_outlined,
-          color: const Color(0xFF1E5BFF),
-        ),
-        _StatTile(
-          label: 'Collected',
-          value: _money(_asDouble(stats['total_paid'])),
-          icon: Icons.check_circle_outline,
-          color: const Color(0xFF16A34A),
-        ),
-        _StatTile(
-          label: 'Outstanding',
-          value: _money(_asDouble(stats['total_unpaid'])),
-          icon: Icons.warning_amber_outlined,
-          color: const Color(0xFFF97316),
-        ),
-        _StatTile(
-          label: 'Unpaid Count',
-          value: _asInt(stats['unpaid_count']).toString(),
-          icon: Icons.pending_actions_outlined,
-          color: const Color(0xFFEF4444),
-        ),
-      ],
-    );
-  }
-}
-
-class _StatTile extends StatelessWidget {
-  const _StatTile({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.color,
-  });
-
-  final String label;
-  final String value;
-  final IconData icon;
-  final Color color;
+class _SmallStat extends StatelessWidget {
+  const _SmallStat({required this.label, required this.value, required this.color, required this.textColor});
+  final String label, value;
+  final Color color, textColor;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE8EDF6)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(13),
-            ),
-            child: Icon(icon, color: color, size: 21),
-          ),
-          const Spacer(),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Color(0xFF111827),
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: Color(0xFF5B6B86), fontSize: 12),
-          ),
-        ],
-      ),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(14)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
+        const SizedBox(height: 4),
+        Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: textColor)),
+      ]),
     );
   }
 }
 
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({
-    required this.title,
-    required this.count,
-    required this.icon,
-  });
-
-  final String title;
-  final int count;
-  final IconData icon;
+class _RecentPaymentRow extends StatelessWidget {
+  const _RecentPaymentRow({required this.p});
+  final Map<String, dynamic> p;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, color: const Color(0xFF1E5BFF), size: 22),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            title,
-            style: const TextStyle(
-              color: Color(0xFF111827),
-              fontSize: 20,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ),
+    final paidAt = DateTime.tryParse(p['paid_at'] as String? ?? '');
+    final date   = paidAt != null ? '${paidAt.day}/${paidAt.month}/${paidAt.year}' : '-';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: const [BoxShadow(color: Color(0x08000000), blurRadius: 6)],
+      ),
+      child: Row(children: [
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(
-            color: const Color(0xFFEAF1FF),
-            borderRadius: BorderRadius.circular(999),
-          ),
-          child: Text(
-            '$count',
-            style: const TextStyle(
-              color: Color(0xFF1E5BFF),
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
+          width: 38, height: 38,
+          decoration: BoxDecoration(color: const Color(0xFFE0F2F1), borderRadius: BorderRadius.circular(10)),
+          child: const Icon(Icons.payments_outlined, color: Color(0xFF00897B), size: 20),
         ),
-      ],
+        const SizedBox(width: 10),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(p['student_name'] as String,
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF111827))),
+          Text('${p['student_id']} • ${p['fee_description']}',
+              style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
+        ])),
+        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          Text('RM ${(p['amount'] as num).toStringAsFixed(2)}',
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Color(0xFF00897B))),
+          Text(date, style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF))),
+        ]),
+      ]),
     );
   }
 }
-
-class _FeeRecordCard extends StatelessWidget {
-  const _FeeRecordCard({required this.fee});
-
-  final Map<String, dynamic> fee;
-
-  @override
-  Widget build(BuildContext context) {
-    final status = (fee['status'] ?? 'unpaid').toString();
-    final amount = _asDouble(fee['amount']);
-    final paid = _asDouble(fee['amount_paid']);
-    final balance = _asDouble(fee['balance']);
-
-    return Container(
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE8EDF6)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      (fee['student_name'] ?? 'Student').toString(),
-                      style: const TextStyle(
-                        color: Color(0xFF111827),
-                        fontSize: 16,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${fee['student_id'] ?? '-'} - ${fee['semester'] ?? '-'}',
-                      style: const TextStyle(
-                        color: Color(0xFF5B6B86),
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              _StatusChip(status: status),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            (fee['description'] ?? 'Fee record').toString(),
-            style: const TextStyle(color: Color(0xFF5B6B86), fontSize: 13),
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: _AmountColumn(label: 'Amount', value: amount),
-              ),
-              Expanded(
-                child: _AmountColumn(label: 'Paid', value: paid),
-              ),
-              Expanded(
-                child: _AmountColumn(label: 'Balance', value: balance),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PaymentRow extends StatelessWidget {
-  const _PaymentRow({required this.payment});
-
-  final Map<String, dynamic> payment;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE8EDF6)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: const Color(0xFFE7F9EE),
-              borderRadius: BorderRadius.circular(13),
-            ),
-            child: const Icon(
-              Icons.check_circle_outline,
-              color: Color(0xFF16A34A),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  (payment['student_name'] ?? 'Student').toString(),
-                  style: const TextStyle(
-                    color: Color(0xFF111827),
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  (payment['reference_no'] ?? '-').toString(),
-                  style: const TextStyle(
-                    color: Color(0xFF5B6B86),
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Text(
-            _money(_asDouble(payment['amount'])),
-            style: const TextStyle(
-              color: Color(0xFF111827),
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _AmountColumn extends StatelessWidget {
-  const _AmountColumn({required this.label, required this.value});
-
-  final String label;
-  final double value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(color: Color(0xFF8A96A8), fontSize: 12),
-        ),
-        const SizedBox(height: 3),
-        Text(
-          _money(value),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            color: Color(0xFF111827),
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.status});
-
-  final String status;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = _statusColor(status);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        status,
-        style: TextStyle(
-          color: color,
-          fontWeight: FontWeight.w800,
-          fontSize: 12,
-        ),
-      ),
-    );
-  }
-}
-
-class _LoadingState extends StatelessWidget {
-  const _LoadingState();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.only(top: 90),
-      child: Center(child: CircularProgressIndicator(color: Color(0xFF1E5BFF))),
-    );
-  }
-}
-
-class _ErrorState extends StatelessWidget {
-  const _ErrorState({required this.message, required this.onRetry});
-
-  final String message;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return _StatePanel(
-      icon: Icons.error_outline,
-      title: 'Unable to load treasury',
-      message: message,
-      actionLabel: 'Try Again',
-      onAction: onRetry,
-    );
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.title, required this.message});
-
-  final String title;
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return _StatePanel(
-      icon: Icons.inbox_outlined,
-      title: title,
-      message: message,
-    );
-  }
-}
-
-class _StatePanel extends StatelessWidget {
-  const _StatePanel({
-    required this.icon,
-    required this.title,
-    required this.message,
-    this.actionLabel,
-    this.onAction,
-  });
-
-  final IconData icon;
-  final String title;
-  final String message;
-  final String? actionLabel;
-  final VoidCallback? onAction;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE8EDF6)),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: const Color(0xFF1E5BFF), size: 34),
-          const SizedBox(height: 12),
-          Text(
-            title,
-            style: const TextStyle(
-              color: Color(0xFF111827),
-              fontSize: 17,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: Color(0xFF5B6B86)),
-          ),
-          if (actionLabel != null && onAction != null) ...[
-            const SizedBox(height: 16),
-            FilledButton(onPressed: onAction, child: Text(actionLabel!)),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-Color _statusColor(String status) {
-  return switch (status.toLowerCase()) {
-    'paid' => const Color(0xFF16A34A),
-    'partial' => const Color(0xFFF97316),
-    _ => const Color(0xFFEF4444),
-  };
-}
-
-double _asDouble(dynamic value) {
-  if (value is num) return value.toDouble();
-  return double.tryParse(value?.toString() ?? '') ?? 0;
-}
-
-int _asInt(dynamic value) {
-  if (value is num) return value.toInt();
-  return int.tryParse(value?.toString() ?? '') ?? 0;
-}
-
-String _money(double value) => 'RM ${value.toStringAsFixed(2)}';

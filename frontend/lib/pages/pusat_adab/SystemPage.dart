@@ -21,7 +21,11 @@ class _PusatAdabDashboardPageState extends State<PusatAdabDashboardPage> {
   int  _rejected        = 0;
   bool _loading         = true;
   bool _accessOpen      = true;
+  bool _manualAccessOpen = true;
   bool _accessToggling  = false;
+  String _accessReason = 'open';
+  String _semesterStartDate = '-';
+  String _week5Cutoff = '-';
 
   @override
   void initState() {
@@ -34,15 +38,20 @@ class _PusatAdabDashboardPageState extends State<PusatAdabDashboardPage> {
     try {
       final results = await Future.wait([
         widget.controller.apiService.getClaimsOverview(token: widget.controller.token!),
-        widget.controller.apiService.getAdabAccess(token: widget.controller.token!),
+        widget.controller.apiService.getAdabAccessState(token: widget.controller.token!),
       ]);
       final s = (results[0] as Map<String, dynamic>)['stats'] as Map<String, dynamic>;
+      final access = results[1] as Map<String, dynamic>;
       setState(() {
         _totalActivities = (s['activitiesTotal'] as num).toInt();
         _pending         = (s['pending']         as num).toInt();
         _approved        = (s['approved']         as num).toInt();
         _rejected        = (s['rejected']         as num).toInt();
-        _accessOpen      = results[1] as bool;
+        _accessOpen      = access['student_access'] == 'open';
+        _manualAccessOpen = access['manual_access'] == 'open';
+        _accessReason = (access['reason'] ?? 'open').toString();
+        _semesterStartDate = (access['semester_start_date'] ?? '-').toString();
+        _week5Cutoff = (access['week_5_cutoff'] ?? '-').toString();
       });
     } catch (_) {
       // silently keep previous values on error
@@ -63,11 +72,17 @@ class _PusatAdabDashboardPageState extends State<PusatAdabDashboardPage> {
   Future<void> _toggleAccess(bool open) async {
     setState(() => _accessToggling = true);
     try {
-      final result = await widget.controller.apiService.setAdabAccess(
+      final result = await widget.controller.apiService.setAdabAccessState(
         token: widget.controller.token!,
         open:  open,
       );
-      setState(() => _accessOpen = result);
+      setState(() {
+        _accessOpen = result['student_access'] == 'open';
+        _manualAccessOpen = result['manual_access'] == 'open';
+        _accessReason = (result['reason'] ?? 'open').toString();
+        _semesterStartDate = (result['semester_start_date'] ?? '-').toString();
+        _week5Cutoff = (result['week_5_cutoff'] ?? '-').toString();
+      });
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -130,6 +145,10 @@ class _PusatAdabDashboardPageState extends State<PusatAdabDashboardPage> {
               const SizedBox(height: 18),
               _AccessControlCard(
                 accessOpen: _accessOpen,
+                manualAccessOpen: _manualAccessOpen,
+                accessReason: _accessReason,
+                semesterStartDate: _semesterStartDate,
+                week5Cutoff: _week5Cutoff,
                 toggling:   _accessToggling,
                 onOpen:     () => _toggleAccess(true),
                 onClose:    () => _toggleAccess(false),
@@ -404,12 +423,20 @@ class _StatCard extends StatelessWidget {
 class _AccessControlCard extends StatelessWidget {
   const _AccessControlCard({
     required this.accessOpen,
+    required this.manualAccessOpen,
+    required this.accessReason,
+    required this.semesterStartDate,
+    required this.week5Cutoff,
     required this.toggling,
     required this.onOpen,
     required this.onClose,
   });
 
   final bool accessOpen;
+  final bool manualAccessOpen;
+  final String accessReason;
+  final String semesterStartDate;
+  final String week5Cutoff;
   final bool toggling;
   final VoidCallback onOpen;
   final VoidCallback onClose;
@@ -420,6 +447,11 @@ class _AccessControlCard extends StatelessWidget {
     final cardBorder = accessOpen ? const Color(0xFF86EFAC) : const Color(0xFFFCA5A5);
     final iconColor  = accessOpen ? const Color(0xFF08A53F) : const Color(0xFFDC2626);
     final iconData   = accessOpen ? Icons.lock_open_outlined : Icons.lock_outline;
+    final reasonText = switch (accessReason) {
+      'manual_closed' => 'Closed manually by Pusat Adab',
+      'week_5_closed' => 'Closed automatically after Week 5',
+      _ => 'Open before Week 5 cutoff',
+    };
 
     return Container(
       width: double.infinity,
@@ -455,7 +487,7 @@ class _AccessControlCard extends StatelessWidget {
                     ),
                     SizedBox(height: 4),
                     Text(
-                      'Control student access to module registration and credit claims',
+                      'Week 5 automatically closes module registration and credit claims',
                       style: TextStyle(
                         fontSize: 14,
                         color: Color(0xFF5B6B86),
@@ -499,7 +531,7 @@ class _AccessControlCard extends StatelessWidget {
                 Text(
                   accessOpen
                       ? 'Current Status: Students can register modules and claim credits'
-                      : 'Current Status: Access is closed. Students cannot register or claim credits',
+                      : 'Current Status: Students cannot register modules or submit credit claims',
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -507,6 +539,14 @@ class _AccessControlCard extends StatelessWidget {
                     height: 1.35,
                   ),
                 ),
+                const SizedBox(height: 10),
+                _AccessMetaRow(label: 'Reason', value: reasonText),
+                _AccessMetaRow(
+                  label: 'Manual Control',
+                  value: manualAccessOpen ? 'Open' : 'Closed',
+                ),
+                _AccessMetaRow(label: 'Semester Start', value: semesterStartDate),
+                _AccessMetaRow(label: 'Week 5 Cutoff', value: week5Cutoff),
                 const SizedBox(height: 10),
                 SizedBox(
                   width: double.infinity,
@@ -552,6 +592,42 @@ class _AccessControlCard extends StatelessWidget {
                             ),
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AccessMetaRow extends StatelessWidget {
+  const _AccessMetaRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 112,
+            child: Text(
+              label,
+              style: const TextStyle(color: Color(0xFF5B6B86), fontSize: 12),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                color: Color(0xFF111827),
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ],
