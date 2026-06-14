@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/app_controller.dart';
+import '../../../services/api_service.dart';
+import 'payment_receipt_page.dart';
 
 class MakePaymentPage extends StatefulWidget {
   const MakePaymentPage({
@@ -66,20 +68,40 @@ class _MakePaymentPageState extends State<MakePaymentPage> {
         paymentMethod: _method,
       );
       if (!mounted) return;
-      final payment = result['payment'] as Map<String, dynamic>;
-      await showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => _SuccessDialog(payment: payment, amount: amt),
-      );
-      if (!mounted) return;
-      Navigator.of(context).pop();  // back to fee details
+      final paymentId      = (result['payment'] as Map<String, dynamic>)['id'] as int;
+      final accessRestored = result['access_restored'] == true;
+      Navigator.of(context).pushReplacement(MaterialPageRoute(
+        builder: (_) => PaymentReceiptPage(
+          controller:     widget.controller,
+          paymentId:      paymentId,
+          accessRestored: accessRestored,
+          isNewPayment:   true,
+        ),
+      ));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(e.toString().replaceFirst('Exception: ', '')),
-        backgroundColor: const Color(0xFFDC2626),
-      ));
+      final code = e is ApiException ? e.code : null;
+      if (code == 'GATEWAY_UNAVAILABLE') {
+        await showDialog<void>(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('Payment Unavailable'),
+            content: const Text(
+                'The payment service is currently unavailable. Please try again later.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: const Color(0xFFDC2626),
+        ));
+      }
     } finally {
       if (mounted) setState(() => _paying = false);
     }
@@ -212,43 +234,3 @@ class _MakePaymentPageState extends State<MakePaymentPage> {
   }
 }
 
-// ── Success dialog ────────────────────────────────────────────────────────────
-
-class _SuccessDialog extends StatelessWidget {
-  const _SuccessDialog({required this.payment, required this.amount});
-  final Map<String, dynamic> payment;
-  final double amount;
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      contentPadding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
-      content: Column(mainAxisSize: MainAxisSize.min, children: [
-        Container(
-          width: 64, height: 64,
-          decoration: const BoxDecoration(color: Color(0xFFDCFCE7), shape: BoxShape.circle),
-          child: const Icon(Icons.check_circle, color: Color(0xFF16A34A), size: 38),
-        ),
-        const SizedBox(height: 16),
-        const Text('Payment Successful!',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF111827))),
-        const SizedBox(height: 8),
-        Text('RM ${amount.toStringAsFixed(2)}',
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Color(0xFF1E5BFF))),
-        const SizedBox(height: 12),
-        Text('Ref: ${payment['reference_no']}',
-            style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
-        const SizedBox(height: 20),
-        SizedBox(
-          width: double.infinity,
-          child: FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF1E5BFF)),
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Done'),
-          ),
-        ),
-      ]),
-    );
-  }
-}

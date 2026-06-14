@@ -57,8 +57,33 @@ class _FeeDetailsPageState extends State<FeeDetailsPage> {
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: _blue))
           : _error != null
-              ? Center(child: Text(_error!, style: const TextStyle(color: Color(0xFF6B7280))))
+              ? _buildError()
               : _buildBody(),
+    );
+  }
+
+  Widget _buildError() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.cloud_off_outlined, size: 52, color: Color(0xFFD1D5DB)),
+          const SizedBox(height: 12),
+          const Text('Unable to load data.',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15,
+                  color: Color(0xFF374151))),
+          const SizedBox(height: 6),
+          Text(_error!, textAlign: TextAlign.center,
+              style: const TextStyle(color: Color(0xFF6B7280))),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(backgroundColor: _blue),
+            onPressed: _load,
+            icon: const Icon(Icons.refresh, size: 18),
+            label: const Text('Retry'),
+          ),
+        ]),
+      ),
     );
   }
 

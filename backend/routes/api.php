@@ -8,7 +8,9 @@ use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CreditClaimController;
 use App\Http\Controllers\Api\FeeController;
+use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\ReceiptController;
 use App\Http\Controllers\Api\TreasuryController;
 use Illuminate\Support\Facades\Route;
 
@@ -48,6 +50,18 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/fees/{fee}', [FeeController::class, 'show']);
     Route::post('/fees/{fee}/pay', [FeeController::class, 'pay']);
     Route::get('/payments', [FeeController::class, 'history']);
+    Route::get('/payments/{payment}/receipt', [FeeController::class, 'receipt']);
+    Route::get('/student/sponsors', [FeeController::class, 'sponsors']);
+    Route::get('/student/ledger', [FeeController::class, 'ledger']);
+
+    // ── Notifications ────────────────────────────────────────────────────────
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
+    Route::put('/notifications/{notification}/read', [NotificationController::class, 'markRead']);
+    Route::put('/notifications/read-all', [NotificationController::class, 'markAllRead']);
+
+    // ── Receipt PDF download ─────────────────────────────────────────────────
+    Route::get('/receipts/{payment}/download', [ReceiptController::class, 'download']);
 
     // ── Pusat Adab ───────────────────────────────────────────────────────────
     Route::get('/adab/access', [AccessController::class, 'show']);

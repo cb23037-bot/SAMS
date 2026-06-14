@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Fee;
+use App\Models\Notification;
 use App\Models\Payment;
 use App\Models\Restriction;
 use App\Models\User;
@@ -11,6 +12,7 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class TreasuryController extends Controller
 {
@@ -21,49 +23,66 @@ class TreasuryController extends Controller
         }
     }
 
+    private function dbError(\Exception $e, string $code = 'DB_ERROR'): JsonResponse
+    {
+        Log::error("TreasuryController [{$code}]: " . $e->getMessage());
+        $message = $code === 'RESTRICTION_ERROR'
+            ? 'Failed to update access status. Please retry.'
+            : 'Failed to retrieve data. Please try again later.';
+        return response()->json([
+            'error'   => true,
+            'message' => $message,
+            'code'    => $code,
+        ], 500);
+    }
+
     // ── Dashboard ─────────────────────────────────────────────────────────────
 
     public function dashboard(Request $request): JsonResponse
     {
         $this->requireTreasury($request);
 
-        $totalFees    = Fee::sum('amount');
-        $totalPaid    = Fee::sum('amount_paid');
-        $unpaidCount  = Fee::where('status', '!=', 'paid')->count();
-        $restricted   = Restriction::where('status', 'active')->count();
+        try {
+            $totalFees   = Fee::sum('amount');
+            $totalPaid   = Fee::sum('amount_paid');
+            $unpaidCount = Fee::where('status', '!=', 'paid')->count();
+            $restricted  = Restriction::where('status', 'active')->count();
 
-        $semesterStart  = DB::table('settings')->where('key', 'semester_start_date')->value('value');
-        $currentWeek    = null;
-        if ($semesterStart) {
-            $day         = Carbon::parse($semesterStart)->startOfDay()->diffInDays(Carbon::today()) + 1;
-            $currentWeek = (int) ceil($day / 7);
+            $semesterStart = DB::table('settings')->where('key', 'semester_start_date')->value('value');
+            $currentWeek   = null;
+            if ($semesterStart) {
+                $day         = Carbon::parse($semesterStart)->startOfDay()->diffInDays(Carbon::today()) + 1;
+                $currentWeek = (int) ceil($day / 7);
+            }
+
+            $recentPayments = Payment::with(['user', 'fee'])
+                ->orderByDesc('paid_at')
+                ->limit(5)
+                ->get();
+
+            return response()->json([
+                'stats' => [
+                    'total_fees'   => $totalFees,
+                    'total_paid'   => $totalPaid,
+                    'total_unpaid' => $totalFees - $totalPaid,
+                    'unpaid_count' => $unpaidCount,
+                    'restricted'   => $restricted,
+                    'current_week' => $currentWeek,
+                ],
+                'recent_payments' => $recentPayments->map(fn($p) => [
+                    'id'              => $p->id,
+                    'amount'          => $p->amount,
+                    'payment_method'  => $p->payment_method,
+                    'reference_no'    => $p->reference_no,
+                    'paid_at'         => $p->paid_at->toISOString(),
+                    'student_name'    => $p->user->name,
+                    'student_id'      => $p->user->student_id,
+                    'fee_description' => $p->fee->description,
+                ]),
+            ]);
+        } catch (\Exception $e) {
+            return $this->dbError($e);
         }
-
-        $recentPayments = Payment::with(['user', 'fee'])
-            ->orderByDesc('paid_at')
-            ->limit(5)
-            ->get();
-
-        return response()->json([
-            'stats' => [
-                'total_fees'    => $totalFees,
-                'total_paid'    => $totalPaid,
-                'total_unpaid'  => $totalFees - $totalPaid,
-                'unpaid_count'  => $unpaidCount,
-                'restricted'    => $restricted,
-                'current_week'  => $currentWeek,
-            ],
-            'recent_payments' => $recentPayments->map(fn($p) => [
-                'id'              => $p->id,
-                'amount'          => $p->amount,
-                'payment_method'  => $p->payment_method,
-                'reference_no'    => $p->reference_no,
-                'paid_at'         => $p->paid_at->toISOString(),
-                'student_name'    => $p->user->name,
-                'student_id'      => $p->user->student_id,
-                'fee_description' => $p->fee->description,
-            ]),
-        ]);
     }
 
     // ── Fee Records ───────────────────────────────────────────────────────────
@@ -72,32 +91,40 @@ class TreasuryController extends Controller
     {
         $this->requireTreasury($request);
 
-        $fees = Fee::with('user')
-            ->orderByRaw("FIELD(status,'unpaid','partial','paid')")
-            ->orderBy('due_date')
-            ->get();
+        try {
+            $fees = Fee::with('user')
+                ->orderByRaw("FIELD(status,'unpaid','partial','paid')")
+                ->orderBy('due_date')
+                ->get();
 
-        return response()->json([
-            'fees' => $fees->map(fn($f) => $this->feeRow($f)),
-        ]);
+            return response()->json([
+                'fees' => $fees->map(fn($f) => $this->feeRow($f)),
+            ]);
+        } catch (\Exception $e) {
+            return $this->dbError($e);
+        }
     }
 
     public function feeDetail(Request $request, Fee $fee): JsonResponse
     {
         $this->requireTreasury($request);
 
-        $payments = $fee->payments()->orderByDesc('paid_at')->get();
+        try {
+            $payments = $fee->payments()->orderByDesc('paid_at')->get();
 
-        return response()->json([
-            'fee'      => $this->feeRow($fee),
-            'payments' => $payments->map(fn($p) => [
-                'id'             => $p->id,
-                'amount'         => $p->amount,
-                'payment_method' => $p->payment_method,
-                'reference_no'   => $p->reference_no,
-                'paid_at'        => $p->paid_at->toISOString(),
-            ]),
-        ]);
+            return response()->json([
+                'fee'      => $this->feeRow($fee),
+                'payments' => $payments->map(fn($p) => [
+                    'id'             => $p->id,
+                    'amount'         => $p->amount,
+                    'payment_method' => $p->payment_method,
+                    'reference_no'   => $p->reference_no,
+                    'paid_at'        => $p->paid_at->toISOString(),
+                ]),
+            ]);
+        } catch (\Exception $e) {
+            return $this->dbError($e);
+        }
     }
 
     // ── Unpaid Monitor ────────────────────────────────────────────────────────
@@ -106,19 +133,23 @@ class TreasuryController extends Controller
     {
         $this->requireTreasury($request);
 
-        $fees = Fee::with(['user', 'user.restrictions' => fn($q) => $q->where('status', 'active')])
-            ->whereIn('status', ['unpaid', 'partial'])
-            ->orderBy('due_date')
-            ->get();
+        try {
+            $fees = Fee::with(['user', 'user.restrictions' => fn($q) => $q->where('status', 'active')])
+                ->whereIn('status', ['unpaid', 'partial'])
+                ->orderBy('due_date')
+                ->get();
 
-        return response()->json([
-            'fees' => $fees->map(fn($f) => array_merge($this->feeRow($f), [
-                'is_restricted' => $f->user->restrictions->isNotEmpty(),
-            ])),
-        ]);
+            return response()->json([
+                'fees' => $fees->map(fn($f) => array_merge($this->feeRow($f), [
+                    'is_restricted' => $f->user->restrictions->isNotEmpty(),
+                ])),
+            ]);
+        } catch (\Exception $e) {
+            return $this->dbError($e);
+        }
     }
 
-    // ── Restriction Management ────────────────────────────────────────────────
+    // ── Restriction Management (GAP 2, 6) ────────────────────────────────────
 
     public function restrict(Request $request, int $userId): JsonResponse
     {
@@ -135,36 +166,74 @@ class TreasuryController extends Controller
             return response()->json(['message' => 'Student is already restricted.'], 422);
         }
 
-        $r = Restriction::create([
-            'user_id'          => $student->id,
-            'restriction_type' => 'financial_bar',
-            'status'           => 'active',
-            'applied_date'     => now()->toDateString(),
-        ]);
+        try {
+            $outstandingFee = Fee::where('user_id', $student->id)
+                ->whereIn('status', ['unpaid', 'partial'])
+                ->orderBy('due_date')
+                ->first();
 
-        return response()->json(['restriction' => $this->restrictionArray($r)], 201);
+            $r = Restriction::create([
+                'user_id'          => $student->id,
+                'restriction_type' => 'financial_bar',
+                'status'           => 'active',
+                'applied_date'     => now()->toDateString(),
+            ]);
+
+            // GAP 2: send restriction notification to student
+            $semester = $outstandingFee?->semester ?? 'current semester';
+            $balance  = $outstandingFee
+                ? number_format($outstandingFee->amount - $outstandingFee->amount_paid, 2)
+                : '0.00';
+
+            Notification::create([
+                'user_id' => $student->id,
+                'title'   => 'Academic Access Restricted',
+                'message' => "Your academic access has been restricted due to unpaid tuition fees for {$semester}. "
+                    . "Outstanding balance: RM{$balance}. Please make payment immediately to restore access.",
+                'type' => 'restriction',
+            ]);
+
+            return response()->json(['restriction' => $this->restrictionArray($r)], 201);
+
+        } catch (\Exception $e) {
+            // GAP 6: restriction error
+            return $this->dbError($e, 'RESTRICTION_ERROR');
+        }
     }
 
     public function lift(Request $request, int $userId): JsonResponse
     {
         $this->requireTreasury($request);
 
-        $student = User::where('id', $userId)->where('role', 'student')->firstOrFail();
+        try {
+            $student = User::where('id', $userId)->where('role', 'student')->firstOrFail();
 
-        $updated = Restriction::where('user_id', $student->id)
-            ->where('restriction_type', 'financial_bar')
-            ->where('status', 'active')
-            ->update([
-                'status'      => 'lifted',
-                'lifted_date' => now()->toDateString(),
-                'lifted_by'   => $request->user()->id,
+            $updated = Restriction::where('user_id', $student->id)
+                ->where('restriction_type', 'financial_bar')
+                ->where('status', 'active')
+                ->update([
+                    'status'      => 'lifted',
+                    'lifted_date' => now()->toDateString(),
+                    'lifted_by'   => $request->user()->id,
+                ]);
+
+            if ($updated === 0) {
+                return response()->json(['message' => 'No active restriction found.'], 404);
+            }
+
+            // Notify student that access was restored by treasury
+            Notification::create([
+                'user_id' => $student->id,
+                'title'   => 'Academic Access Restored',
+                'message' => 'Your academic access restriction has been lifted by the Finance Office.',
+                'type'    => 'access_restored',
             ]);
 
-        if ($updated === 0) {
-            return response()->json(['message' => 'No active restriction found.'], 404);
-        }
+            return response()->json(['message' => 'Restriction lifted.']);
 
-        return response()->json(['message' => 'Restriction lifted.']);
+        } catch (\Exception $e) {
+            return $this->dbError($e, 'RESTRICTION_ERROR');
+        }
     }
 
     // ── Settings ──────────────────────────────────────────────────────────────

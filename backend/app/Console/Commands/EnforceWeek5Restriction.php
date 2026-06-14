@@ -3,11 +3,12 @@
 namespace App\Console\Commands;
 
 use App\Models\Fee;
+use App\Models\Notification;
 use App\Models\Restriction;
-use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class EnforceWeek5Restriction extends Command
 {
@@ -28,10 +29,10 @@ class EnforceWeek5Restriction extends Command
             return self::FAILURE;
         }
 
-        $start   = Carbon::parse($semesterStart)->startOfDay();
-        $today   = Carbon::today();
-        $dayNum  = $start->diffInDays($today) + 1; // day 1 = semester start
-        $week    = (int) ceil($dayNum / 7);
+        $start  = Carbon::parse($semesterStart)->startOfDay();
+        $today  = Carbon::today();
+        $dayNum = $start->diffInDays($today) + 1;
+        $week   = (int) ceil($dayNum / 7);
 
         if ($week < 5) {
             $this->info("Currently Week {$week} — restriction not yet applicable.");
@@ -40,7 +41,6 @@ class EnforceWeek5Restriction extends Command
 
         $this->info("Week {$week} detected. Enforcing Week 5 financial bar...");
 
-        // Students with at least one unpaid or partial fee
         $restrictedUserIds = Fee::whereIn('status', ['unpaid', 'partial'])
             ->pluck('user_id')
             ->unique();
@@ -53,13 +53,39 @@ class EnforceWeek5Restriction extends Command
                 ->exists();
 
             if (!$already) {
-                Restriction::create([
-                    'user_id'          => $userId,
-                    'restriction_type' => 'financial_bar',
-                    'status'           => 'active',
-                    'applied_date'     => $today->toDateString(),
-                ]);
-                $applied++;
+                // GAP 6: wrap each restriction creation in try-catch
+                try {
+                    Restriction::create([
+                        'user_id'          => $userId,
+                        'restriction_type' => 'financial_bar',
+                        'status'           => 'active',
+                        'applied_date'     => $today->toDateString(),
+                    ]);
+
+                    // GAP 2: send restriction notification to student
+                    $outstandingFee = Fee::where('user_id', $userId)
+                        ->whereIn('status', ['unpaid', 'partial'])
+                        ->orderBy('due_date')
+                        ->first();
+
+                    $semester = $outstandingFee?->semester ?? 'current semester';
+                    $balance  = $outstandingFee
+                        ? number_format($outstandingFee->amount - $outstandingFee->amount_paid, 2)
+                        : '0.00';
+
+                    Notification::create([
+                        'user_id' => $userId,
+                        'title'   => 'Academic Access Restricted',
+                        'message' => "Your academic access has been restricted due to unpaid tuition fees for {$semester}. "
+                            . "Outstanding balance: RM{$balance}. Please make payment immediately to restore access.",
+                        'type' => 'restriction',
+                    ]);
+
+                    $applied++;
+                } catch (\Exception $e) {
+                    // GAP 6: log but continue to next student
+                    Log::error("EnforceWeek5Restriction: failed for user {$userId}: " . $e->getMessage());
+                }
             }
         }
 

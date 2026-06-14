@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/app_controller.dart';
+import '../notifications_page.dart';
 import 'make_payment_page.dart';
-import 'payment_history_page.dart';
+import 'payment_receipt_page.dart';
 
 class ManageFeesDashboardPage extends StatefulWidget {
   const ManageFeesDashboardPage({super.key, required this.controller});
@@ -12,20 +13,48 @@ class ManageFeesDashboardPage extends StatefulWidget {
   State<ManageFeesDashboardPage> createState() => _ManageFeesDashboardPageState();
 }
 
-class _ManageFeesDashboardPageState extends State<ManageFeesDashboardPage> {
-  static const _blue    = Color(0xFF1E5BFF);
-  static const _navy1   = Color(0xFF0B1D51);
-  static const _navy2   = Color(0xFF1A3A8F);
+class _ManageFeesDashboardPageState extends State<ManageFeesDashboardPage>
+    with SingleTickerProviderStateMixin {
+  static const _blue   = Color(0xFF1565C0);
+  static const _blue2  = Color(0xFF1976D2);
 
+  late final TabController _tab;
+
+  // Fees + restriction
   bool _loading = true;
   String? _error;
-  Map<String, dynamic>? _data;
+  Map<String, dynamic>? _feesData;
   bool _restricted = false;
+  int? _currentWeek;
+
+  // Sponsor
+  List<dynamic> _sponsors = [];
+
+  // Notifications
+  int _unreadCount = 0;
+  bool _hasRestrictionNotif = false;
+
+  // Ledger (lazy)
+  bool _ledgerLoading = false;
+  bool _ledgerLoaded  = false;
+  List<dynamic> _transactions = [];
 
   @override
   void initState() {
     super.initState();
+    _tab = TabController(length: 3, vsync: this);
+    _tab.addListener(() {
+      if (_tab.index == 2 && !_ledgerLoaded && !_ledgerLoading) {
+        _loadLedger();
+      }
+    });
     _load();
+  }
+
+  @override
+  void dispose() {
+    _tab.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -34,422 +63,880 @@ class _ManageFeesDashboardPageState extends State<ManageFeesDashboardPage> {
       final results = await Future.wait([
         widget.controller.apiService.getStudentFees(token: widget.controller.token!),
         widget.controller.apiService.getRestrictionStatus(token: widget.controller.token!),
+        widget.controller.apiService.getStudentSponsors(token: widget.controller.token!),
+        widget.controller.apiService.getNotifications(token: widget.controller.token!),
       ]);
+      final notifs = (results[3]['notifications'] as List? ?? [])
+          .cast<Map<String, dynamic>>();
       setState(() {
-        _data       = results[0];
-        _restricted = results[1]['restricted'] == true;
-        _loading    = false;
+        _feesData    = results[0];
+        _restricted  = results[1]['restricted'] == true;
+        _currentWeek = results[1]['current_week'] as int?;
+        _sponsors    = (results[2]['sponsors'] as List?) ?? [];
+        _unreadCount        = notifs.where((n) => n['is_read'] == false).length;
+        _hasRestrictionNotif = notifs.any(
+          (n) => n['type'] == 'restriction' && n['is_read'] == false,
+        );
+        _loading = false;
       });
     } catch (e) {
       setState(() { _error = e.toString().replaceFirst('Exception: ', ''); _loading = false; });
     }
   }
 
+  Future<void> _loadLedger() async {
+    setState(() => _ledgerLoading = true);
+    try {
+      final data = await widget.controller.apiService.getStudentLedger(
+        token: widget.controller.token!,
+      );
+      setState(() {
+        _transactions = (data['transactions'] as List?) ?? [];
+        _ledgerLoaded  = true;
+        _ledgerLoading = false;
+      });
+    } catch (_) {
+      setState(() => _ledgerLoading = false);
+    }
+  }
+
+  // All unpaid/partial fees
+  List<Map<String, dynamic>> get _unpaidFees {
+    final fees = (_feesData?['fees'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+    return fees.where((f) => f['status'] != 'paid').toList();
+  }
+
+  // Earliest unpaid due date
+  String get _deadline {
+    final unpaid = _unpaidFees;
+    if (unpaid.isEmpty) return '-';
+    unpaid.sort((a, b) => (a['due_date'] as String).compareTo(b['due_date'] as String));
+    final raw = unpaid.first['due_date'] as String;
+    try {
+      final d = DateTime.parse(raw);
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      return '${d.day} ${months[d.month - 1]} ${d.year}';
+    } catch (_) {
+      return raw;
+    }
+  }
+
+  void _goPayNow() {
+    final unpaid = _unpaidFees;
+    if (unpaid.isEmpty) return;
+
+    if (unpaid.length == 1) {
+      _navigateToPayment(unpaid.first);
+      return;
+    }
+
+    // Multiple unpaid fees — show selection sheet
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (_) => _FeeSelectionSheet(
+        fees: unpaid,
+        onSelect: (fee) {
+          Navigator.of(context).pop();
+          _navigateToPayment(fee);
+        },
+      ),
+    );
+  }
+
+  void _navigateToPayment(Map<String, dynamic> fee) {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => MakePaymentPage(
+        controller: widget.controller,
+        feeId: fee['id'] as int,
+        balance: (fee['balance'] as num).toDouble(),
+        description: fee['description'] as String,
+      ),
+    )).then((_) => _load());
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(context),
-            Expanded(
-              child: _loading
-                  ? const Center(child: CircularProgressIndicator(color: _blue))
-                  : _error != null
-                      ? _ErrorView(message: _error!, onRetry: _load)
-                      : _buildBody(),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader(BuildContext context) {
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          GestureDetector(
-            onTap: () => Navigator.of(context).pop(),
-            child: Container(
-              width: 40, height: 40,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF3F4F6),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(Icons.arrow_back, color: Color(0xFF111827), size: 20),
-            ),
-          ),
-          const SizedBox(width: 14),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Fees',
-                    style: TextStyle(
-                        fontSize: 22, fontWeight: FontWeight.w800, color: Color(0xFF111827))),
-                Text('Review balances and make payments',
-                    style: TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
-              ],
-            ),
-          ),
-          IconButton(
-            tooltip: 'Payment History',
-            icon: const Icon(Icons.receipt_long_outlined, color: Color(0xFF6B7280)),
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => PaymentHistoryPage(controller: widget.controller),
-            )),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBody() {
-    final fees    = (_data!['fees'] as List<dynamic>?) ?? [];
-    final summary = _data!['summary'] as Map<String, dynamic>? ?? {};
+    final user = widget.controller.currentUser!;
+    final summary = _feesData?['summary'] as Map<String, dynamic>? ?? {};
     final total   = (summary['total'] as num?)?.toDouble() ?? 0;
     final paid    = (summary['paid'] as num?)?.toDouble() ?? 0;
     final unpaid  = (summary['unpaid'] as num?)?.toDouble() ?? 0;
+    final hasOutstanding = _unpaidFees.isNotEmpty;
 
-    return RefreshIndicator(
-      onRefresh: _load,
-      color: _blue,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 40),
-        children: [
-          if (_restricted) ...[
-            _RestrictionBanner(),
-            const SizedBox(height: 12),
-          ],
-
-          // ── Outstanding Balance Card ──────────────────────────────
-          _BalanceCard(total: total, paid: paid, unpaid: unpaid),
-          const SizedBox(height: 24),
-
-          // ── Section header ────────────────────────────────────────
-          Row(
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: _blue,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: const Text('Manage Fees',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 18)),
+        actions: [
+          Stack(
+            clipBehavior: Clip.none,
             children: [
-              const Expanded(
-                child: Text('Manage Fees',
-                    style: TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF111827))),
+              IconButton(
+                icon: const Icon(Icons.notifications_outlined, color: Colors.white),
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => NotificationsPage(controller: widget.controller),
+                )).then((_) => _load()),
               ),
-              GestureDetector(
-                onTap: _load,
-                child: Container(
-                  width: 36, height: 36,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF3F4F6),
-                    borderRadius: BorderRadius.circular(10),
+              if (_unreadCount > 0)
+                Positioned(
+                  top: 8, right: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFE53935),
+                      shape: BoxShape.circle,
+                    ),
+                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                    child: Text(
+                      _unreadCount > 9 ? '9+' : '$_unreadCount',
+                      style: const TextStyle(color: Colors.white,
+                          fontSize: 9, fontWeight: FontWeight.w800),
+                      textAlign: TextAlign.center,
+                    ),
                   ),
-                  child: const Icon(Icons.refresh_rounded, size: 20, color: Color(0xFF6B7280)),
                 ),
-              ),
             ],
+          ),
+        ],
+      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator(color: _blue))
+          : _error != null
+              ? _ErrorView(message: _error!, onRetry: _load)
+              : Column(
+                  children: [
+                    // ── GAP 2: Restriction alert card ─────────────────────
+                    if (_hasRestrictionNotif)
+                      _RestrictionAlert(onPayNow: _goPayNow),
+
+                    // ── Blue hero section ─────────────────────────────────
+                    _HeroSection(
+                      total: total,
+                      paid: paid,
+                      unpaid: unpaid,
+                      deadline: _deadline,
+                      hasOutstanding: hasOutstanding,
+                      courseName: user.course ?? 'Bachelor of Computer Science',
+                      studentId: user.studentId ?? '-',
+                      semester: user.currentSemester ?? '-',
+                      onPayNow: hasOutstanding ? _goPayNow : null,
+                    ),
+
+                    // ── Tab bar ───────────────────────────────────────────
+                    Container(
+                      color: Colors.white,
+                      child: TabBar(
+                        controller: _tab,
+                        labelColor: _blue,
+                        unselectedLabelColor: const Color(0xFF9CA3AF),
+                        indicatorColor: _blue,
+                        indicatorWeight: 2.5,
+                        labelStyle: const TextStyle(
+                            fontWeight: FontWeight.w700, fontSize: 14),
+                        unselectedLabelStyle: const TextStyle(
+                            fontWeight: FontWeight.w500, fontSize: 14),
+                        tabs: const [
+                          Tab(text: 'Summary'),
+                          Tab(text: 'Sponsor'),
+                          Tab(text: 'History'),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1, color: Color(0xFFE5E7EB)),
+
+                    // ── Tab content ───────────────────────────────────────
+                    Expanded(
+                      child: TabBarView(
+                        controller: _tab,
+                        children: [
+                          _SummaryTab(
+                            feesData: _feesData!,
+                            sponsors: _sponsors,
+                            unpaid: unpaid,
+                          ),
+                          _SponsorTab(sponsors: _sponsors),
+                          _HistoryTab(
+                            loading: _ledgerLoading,
+                            transactions: _transactions,
+                            controller: widget.controller,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+    );
+  }
+}
+
+// ── Hero Section ──────────────────────────────────────────────────────────────
+
+class _HeroSection extends StatelessWidget {
+  const _HeroSection({
+    required this.total,
+    required this.paid,
+    required this.unpaid,
+    required this.deadline,
+    required this.hasOutstanding,
+    required this.courseName,
+    required this.studentId,
+    required this.semester,
+    required this.onPayNow,
+  });
+
+  final double total, paid, unpaid;
+  final String deadline, courseName, studentId, semester;
+  final bool hasOutstanding;
+  final VoidCallback? onPayNow;
+
+  String _fmt(double v) {
+    final parts = v.toStringAsFixed(2).split('.');
+    final whole = parts[0].replaceAllMapped(
+        RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
+    return 'RM $whole.${parts[1]}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF1565C0), Color(0xFF1976D2)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.only(
+          bottomLeft:  Radius.circular(28),
+          bottomRight: Radius.circular(28),
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Outstanding Balance label + Due badge
+          Row(children: [
+            const Text('Outstanding Balance',
+                style: TextStyle(color: Colors.white70, fontSize: 13)),
+            const Spacer(),
+            if (hasOutstanding)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE53935),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.access_time_rounded, color: Colors.white, size: 12),
+                  SizedBox(width: 4),
+                  Text('Due', style: TextStyle(
+                      color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+                ]),
+              ),
+          ]),
+          const SizedBox(height: 6),
+
+          // Amount
+          Text(_fmt(unpaid),
+              style: const TextStyle(
+                  color: Colors.white, fontSize: 30, fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5)),
+          const SizedBox(height: 3),
+          if (hasOutstanding)
+            Text('Deadline: $deadline',
+                style: const TextStyle(color: Colors.white60, fontSize: 12)),
+
+          const SizedBox(height: 16),
+          const Divider(color: Colors.white24, thickness: 0.5),
+          const SizedBox(height: 12),
+
+          // Total Invoice / Total Payment
+          Row(children: [
+            _HeroStat(label: 'Total Invoice',  value: _fmt(total)),
+            const SizedBox(width: 32),
+            _HeroStat(label: 'Total Payment',  value: _fmt(paid)),
+          ]),
+          const SizedBox(height: 16),
+
+          // Student info chip
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.black26,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(children: [
+              const Icon(Icons.school_outlined, color: Colors.white70, size: 18),
+              const SizedBox(width: 10),
+              Expanded(child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(courseName,
+                      style: const TextStyle(
+                          color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 2),
+                  Text('$studentId · $semester · UMPSA',
+                      style: const TextStyle(color: Colors.white60, fontSize: 11)),
+                ],
+              )),
+            ]),
           ),
           const SizedBox(height: 14),
 
-          // ── Fee cards ─────────────────────────────────────────────
-          if (fees.isEmpty)
-            const _EmptyState()
-          else
-            ...fees.map((f) {
-              final fee = f as Map<String, dynamic>;
-              return _FeeCard(
-                fee: fee,
-                onPay: (fee['status'] as String) != 'paid'
-                    ? () => Navigator.of(context).push(MaterialPageRoute(
-                          builder: (_) => MakePaymentPage(
-                            controller: widget.controller,
-                            feeId: fee['id'] as int,
-                            balance: (fee['balance'] as num).toDouble(),
-                            description: fee['description'] as String,
-                          ),
-                        )).then((_) => _load())
-                    : null,
-              );
-            }),
+          // Pay Now button
+          SizedBox(
+            width: double.infinity,
+            height: 46,
+            child: FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: onPayNow,
+              child: Text(
+                onPayNow != null ? 'Pay Now  →' : 'All Fees Settled',
+                style: TextStyle(
+                  color: onPayNow != null ? const Color(0xFF1565C0) : const Color(0xFF16A34A),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-// ── Restriction Banner ────────────────────────────────────────────────────────
+class _HeroStat extends StatelessWidget {
+  const _HeroStat({required this.label, required this.value});
+  final String label, value;
 
-class _RestrictionBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFEBEE),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFEF9A9A)),
-      ),
-      child: const Row(children: [
-        Icon(Icons.warning_amber_rounded, color: Color(0xFFD32F2F), size: 20),
-        SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            'Academic access restricted — settle outstanding fees to restore access.',
-            style: TextStyle(
-                color: Color(0xFFB71C1C), fontSize: 12, fontWeight: FontWeight.w600, height: 1.4),
-          ),
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(label, style: const TextStyle(color: Colors.white54, fontSize: 11)),
+      const SizedBox(height: 2),
+      Text(value,
+          style: const TextStyle(
+              color: Colors.white, fontSize: 14, fontWeight: FontWeight.w700)),
+    ]);
+  }
+}
+
+// ── Summary Tab ───────────────────────────────────────────────────────────────
+
+class _SummaryTab extends StatelessWidget {
+  const _SummaryTab({
+    required this.feesData,
+    required this.sponsors,
+    required this.unpaid,
+  });
+  final Map<String, dynamic> feesData;
+  final List<dynamic> sponsors;
+  final double unpaid;
+
+  @override
+  Widget build(BuildContext context) {
+    final fees = (feesData['fees'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+    final activeSponsors = sponsors
+        .cast<Map<String, dynamic>>()
+        .where((s) => s['status'] == 'active' && (s['amount'] as num) > 0)
+        .toList();
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
+      children: [
+        // Fee line items
+        ...fees.map((f) => _SummaryRow(
+          label: f['description'] as String,
+          amount: (f['amount'] as num).toDouble(),
+        )),
+
+        // Sponsor deductions
+        ...activeSponsors.map((s) => _SummaryRow(
+          label: '${s['name']} (${_typeLabel(s['type'] as String)})',
+          amount: -(s['amount'] as num).toDouble(),
+          green: true,
+        )),
+
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 12),
+          child: Divider(color: Color(0xFFE5E7EB)),
         ),
+
+        // Outstanding balance
+        Row(children: [
+          const Expanded(
+            child: Text('Outstanding Balance',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14,
+                    color: Color(0xFF111827))),
+          ),
+          Text(_fmt(unpaid),
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 14,
+                color: unpaid > 0 ? const Color(0xFFE53935) : const Color(0xFF16A34A),
+              )),
+        ]),
+        const SizedBox(height: 24),
+
+        // View Fee Details button
+        OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: const Color(0xFF1565C0),
+            side: const BorderSide(color: Color(0xFF1565C0)),
+            padding: const EdgeInsets.symmetric(vertical: 13),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          onPressed: () {},
+          icon: const Icon(Icons.download_outlined, size: 18),
+          label: const Text('View Fee Details',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+        ),
+
+        const SizedBox(height: 16),
+        const Text('Fee information sourced from Finance Division.',
+            style: TextStyle(color: Color(0xFF9CA3AF), fontSize: 11),
+            textAlign: TextAlign.center),
+      ],
+    );
+  }
+
+  String _typeLabel(String type) => switch (type) {
+    'scholarship' => 'Scholarship',
+    'loan'        => 'Loan',
+    'bursary'     => 'Bursary',
+    'grant'       => 'Grant',
+    _             => type,
+  };
+
+  String _fmt(double v) {
+    final parts = v.abs().toStringAsFixed(2).split('.');
+    final whole = parts[0].replaceAllMapped(
+        RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
+    return 'RM $whole.${parts[1]}';
+  }
+}
+
+class _SummaryRow extends StatelessWidget {
+  const _SummaryRow({required this.label, required this.amount, this.green = false});
+  final String label;
+  final double amount;
+  final bool green;
+
+  @override
+  Widget build(BuildContext context) {
+    final isNegative = amount < 0;
+    final display = isNegative
+        ? '- RM ${amount.abs().toStringAsFixed(2)}'
+        : 'RM ${amount.toStringAsFixed(2)}';
+    final color = green
+        ? const Color(0xFF16A34A)
+        : const Color(0xFF111827);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 9),
+      child: Row(children: [
+        Expanded(child: Text(label,
+            style: const TextStyle(fontSize: 14, color: Color(0xFF374151)))),
+        Text(display,
+            style: TextStyle(
+                fontSize: 14, fontWeight: FontWeight.w600, color: color)),
       ]),
     );
   }
 }
 
-// ── Balance Card ──────────────────────────────────────────────────────────────
+// ── Sponsor Tab ───────────────────────────────────────────────────────────────
 
-class _BalanceCard extends StatelessWidget {
-  const _BalanceCard({required this.total, required this.paid, required this.unpaid});
-  final double total, paid, unpaid;
+class _SponsorTab extends StatelessWidget {
+  const _SponsorTab({required this.sponsors});
+  final List<dynamic> sponsors;
 
   @override
   Widget build(BuildContext context) {
-    final progress = total > 0 ? (paid / total).clamp(0.0, 1.0) : 0.0;
+    if (sponsors.isEmpty) {
+      return const Center(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.account_balance_outlined, size: 48, color: Color(0xFFD1D5DB)),
+          SizedBox(height: 12),
+          Text('No sponsor records found.',
+              style: TextStyle(color: Color(0xFF9CA3AF))),
+        ]),
+      );
+    }
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(22, 22, 22, 18),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF0B1D51), Color(0xFF1A3A8F)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Outstanding Balance',
-              style: TextStyle(color: Colors.white60, fontSize: 13, fontWeight: FontWeight.w500)),
-          const SizedBox(height: 6),
-          Text('RM ${unpaid.toStringAsFixed(2)}',
-              style: const TextStyle(
-                  color: Colors.white, fontSize: 32, fontWeight: FontWeight.w800,
-                  letterSpacing: -0.5)),
-          const SizedBox(height: 14),
-          // Progress bar
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 6,
-              backgroundColor: Colors.white24,
-              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF38BDF8)),
-            ),
-          ),
-          const SizedBox(height: 14),
-          Row(children: [
-            _BalanceStat(label: 'Total',  value: total),
-            const SizedBox(width: 32),
-            _BalanceStat(label: 'Paid',   value: paid),
-          ]),
-        ],
-      ),
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
+      children: [
+        ...sponsors.cast<Map<String, dynamic>>().map((s) => _SponsorCard(sponsor: s)),
+        const SizedBox(height: 8),
+        const Text('Scholarship data sourced from Finance Division.',
+            style: TextStyle(
+                color: Color(0xFF9CA3AF), fontSize: 11,
+                fontStyle: FontStyle.italic),
+            textAlign: TextAlign.center),
+      ],
     );
   }
 }
 
-class _BalanceStat extends StatelessWidget {
-  const _BalanceStat({required this.label, required this.value});
-  final String label;
-  final double value;
+class _SponsorCard extends StatelessWidget {
+  const _SponsorCard({required this.sponsor});
+  final Map<String, dynamic> sponsor;
 
   @override
   Widget build(BuildContext context) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label, style: const TextStyle(color: Colors.white54, fontSize: 12)),
-      const SizedBox(height: 2),
-      Text('RM ${value.toStringAsFixed(2)}',
-          style: const TextStyle(
-              color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700)),
-    ]);
-  }
-}
+    final status   = sponsor['status'] as String;
+    final amount   = (sponsor['amount'] as num).toDouble();
+    final type     = sponsor['type'] as String;
+    final coverage = sponsor['coverage'] as String?;
 
-// ── Fee Card ──────────────────────────────────────────────────────────────────
-
-class _FeeCard extends StatelessWidget {
-  const _FeeCard({required this.fee, this.onPay});
-  final Map<String, dynamic> fee;
-  final VoidCallback? onPay;
-
-  @override
-  Widget build(BuildContext context) {
-    final status  = fee['status'] as String;
-    final amount  = (fee['amount'] as num).toDouble();
-    final paid    = (fee['amount_paid'] as num).toDouble();
-    final balance = (fee['balance'] as num).toDouble();
-    final progress = amount > 0 ? (paid / amount).clamp(0.0, 1.0) : 0.0;
-
-    final (label, badgeBg, badgeFg, barColor) = switch (status) {
-      'paid'    => ('Paid',    const Color(0xFFDCFCE7), const Color(0xFF16A34A), const Color(0xFF22C55E)),
-      'partial' => ('Partial', const Color(0xFFFEF3C7), const Color(0xFFD97706), const Color(0xFFF97316)),
-      _         => ('Unpaid',  const Color(0xFFFFEBEE), const Color(0xFFDC2626), const Color(0xFFEF4444)),
+    final (statusLabel, statusBg, statusFg) = switch (status) {
+      'active'      => ('Active',      const Color(0xFFDCFCE7), const Color(0xFF16A34A)),
+      'inactive'    => ('Inactive',    const Color(0xFFF3F4F6), const Color(0xFF6B7280)),
+      _             => ('Not Applied', const Color(0xFFF3F4F6), const Color(0xFF9CA3AF)),
     };
 
-    final dueDate = fee['due_date'] as String? ?? '';
-    final semester = fee['semester'] as String? ?? '';
+    final typeLabel = switch (type) {
+      'scholarship' => 'Scholarship',
+      'loan'        => 'Loan',
+      'bursary'     => 'Bursary',
+      'grant'       => 'Grant',
+      _             => type,
+    };
+
+    final coverageText = coverage != null ? '$typeLabel · $coverage' : typeLabel;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: const [
-          BoxShadow(color: Color(0x10000000), blurRadius: 16, offset: Offset(0, 4)),
+          BoxShadow(color: Color(0x0F000000), blurRadius: 12, offset: Offset(0, 3)),
         ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Top row: icon + name + badge
-            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Container(
-                width: 44, height: 44,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFF3E0),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.receipt_outlined, color: Color(0xFFF97316), size: 24),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(fee['description'] as String,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(
+            child: Text(sponsor['name'] as String,
+                style: const TextStyle(
+                    fontWeight: FontWeight.w700, fontSize: 15, color: Color(0xFF111827))),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(color: statusBg, borderRadius: BorderRadius.circular(20)),
+            child: Text(statusLabel,
+                style: TextStyle(
+                    color: statusFg, fontSize: 11, fontWeight: FontWeight.w700)),
+          ),
+        ]),
+        const SizedBox(height: 4),
+        Text(coverageText,
+            style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+        const SizedBox(height: 10),
+        Text('RM ${amount.toStringAsFixed(2)}',
+            style: const TextStyle(
+                fontSize: 20, fontWeight: FontWeight.w800, color: Color(0xFF1565C0))),
+      ]),
+    );
+  }
+}
+
+// ── History Tab ───────────────────────────────────────────────────────────────
+
+class _HistoryTab extends StatelessWidget {
+  const _HistoryTab({
+    required this.loading,
+    required this.transactions,
+    required this.controller,
+  });
+  final bool loading;
+  final List<dynamic> transactions;
+  final AppController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) {
+      return const Center(child: CircularProgressIndicator(color: Color(0xFF1565C0)));
+    }
+    if (transactions.isEmpty) {
+      return const Center(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.receipt_long_outlined, size: 48, color: Color(0xFFD1D5DB)),
+          SizedBox(height: 12),
+          Text('No transactions yet.', style: TextStyle(color: Color(0xFF9CA3AF))),
+        ]),
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+      itemCount: transactions.length,
+      separatorBuilder: (_, _) => const Divider(height: 1, color: Color(0xFFF3F4F6)),
+      itemBuilder: (_, i) {
+        final txn = transactions[i] as Map<String, dynamic>;
+        final amount = (txn['amount'] as num).toDouble();
+        final isCredit = amount > 0;
+        final absAmt = amount.abs();
+        final amtStr = isCredit
+            ? '+ RM ${absAmt.toStringAsFixed(2)}'
+            : '- RM ${absAmt.toStringAsFixed(2)}';
+
+        final dateRaw = txn['date'] as String? ?? '';
+        final dateStr = _formatDate(dateRaw);
+
+        final txnId   = txn['id'] as String? ?? '';
+        final isPayment = txn['type'] == 'payment';
+        final paymentId = isPayment
+            ? int.tryParse(txnId.replaceFirst('pay-', ''))
+            : null;
+
+        return InkWell(
+          onTap: paymentId != null
+              ? () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => PaymentReceiptPage(
+                      controller: controller,
+                      paymentId: paymentId,
+                    ),
+                  ))
+              : null,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            child: Row(children: [
+              Expanded(child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(txn['description'] as String,
                       style: const TextStyle(
-                          fontWeight: FontWeight.w700, fontSize: 14, color: Color(0xFF111827))),
+                          fontWeight: FontWeight.w600, fontSize: 14,
+                          color: Color(0xFF111827))),
                   const SizedBox(height: 3),
-                  Text('$semester  •  Due $dueDate',
-                      style: const TextStyle(fontSize: 12, color: Color(0xFF9CA3AF))),
+                  Text('$dateStr · ${txn['reference']}',
+                      style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF))),
+                ],
+              )),
+              const SizedBox(width: 12),
+              Text(amtStr,
+                  style: TextStyle(
+                      fontSize: 14, fontWeight: FontWeight.w700,
+                      color: isCredit
+                          ? const Color(0xFF16A34A)
+                          : const Color(0xFFE53935))),
+              if (paymentId != null) ...[
+                const SizedBox(width: 4),
+                const Icon(Icons.chevron_right, color: Color(0xFFD1D5DB), size: 18),
+              ],
+            ]),
+          ),
+        );
+      },
+    );
+  }
+
+  String _formatDate(String raw) {
+    try {
+      final d = DateTime.parse(raw);
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      return '${d.day} ${months[d.month - 1]} ${d.year}';
+    } catch (_) {
+      return raw;
+    }
+  }
+}
+
+// ── Fee Selection Sheet ───────────────────────────────────────────────────────
+
+class _FeeSelectionSheet extends StatelessWidget {
+  const _FeeSelectionSheet({required this.fees, required this.onSelect});
+  final List<Map<String, dynamic>> fees;
+  final void Function(Map<String, dynamic>) onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 22, 20, 36),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            const Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Select Fee to Pay',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800,
+                        color: Color(0xFF111827))),
+                SizedBox(height: 2),
+                Text('Choose which outstanding fee you want to settle.',
+                    style: TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+              ]),
+            ),
+            IconButton(
+              onPressed: () => Navigator.of(context).pop(),
+              icon: const Icon(Icons.close, color: Color(0xFF9CA3AF)),
+            ),
+          ]),
+          const SizedBox(height: 16),
+          ...fees.map((fee) {
+            final balance = (fee['balance'] as num).toDouble();
+            final status  = fee['status'] as String;
+            final (badgeBg, badgeFg) = status == 'partial'
+                ? (const Color(0xFFFEF3C7), const Color(0xFFD97706))
+                : (const Color(0xFFFFEBEE), const Color(0xFFDC2626));
+            final badgeLabel = status == 'partial' ? 'Partial' : 'Unpaid';
+
+            return GestureDetector(
+              onTap: () => onSelect(fee),
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFFE5E7EB)),
+                  boxShadow: const [
+                    BoxShadow(color: Color(0x08000000), blurRadius: 8, offset: Offset(0, 2)),
+                  ],
+                ),
+                child: Row(children: [
+                  Container(
+                    width: 40, height: 40,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEFF6FF),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.receipt_outlined,
+                        color: Color(0xFF1565C0), size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(fee['description'] as String,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w700, fontSize: 14,
+                              color: Color(0xFF111827))),
+                      const SizedBox(height: 2),
+                      Text(fee['semester'] as String,
+                          style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF))),
+                    ],
+                  )),
+                  const SizedBox(width: 8),
+                  Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                    Text('RM ${balance.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w800, fontSize: 15,
+                            color: Color(0xFF1565C0))),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(color: badgeBg,
+                          borderRadius: BorderRadius.circular(20)),
+                      child: Text(badgeLabel,
+                          style: TextStyle(color: badgeFg, fontSize: 10,
+                              fontWeight: FontWeight.w700)),
+                    ),
+                  ]),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.chevron_right, color: Color(0xFFD1D5DB), size: 20),
                 ]),
               ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(color: badgeBg, borderRadius: BorderRadius.circular(20)),
-                child: Text(label,
-                    style: TextStyle(
-                        color: badgeFg, fontSize: 11, fontWeight: FontWeight.w700)),
-              ),
-            ]),
-
-            const SizedBox(height: 12),
-
-            // Progress bar
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: progress,
-                minHeight: 5,
-                backgroundColor: const Color(0xFFF3F4F6),
-                valueColor: AlwaysStoppedAnimation<Color>(barColor),
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            // Amount / Paid / Balance
-            Row(children: [
-              _StatCol(label: 'Amount',  value: amount),
-              const SizedBox(width: 20),
-              _StatCol(label: 'Paid',    value: paid),
-              const SizedBox(width: 20),
-              _StatCol(label: 'Balance', value: balance, highlight: balance > 0),
-            ]),
-
-            if (onPay != null) ...[
-              const SizedBox(height: 14),
-              SizedBox(
-                width: double.infinity,
-                height: 44,
-                child: FilledButton.icon(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF1E5BFF),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  onPressed: onPay,
-                  icon: const Icon(Icons.credit_card_outlined, size: 18),
-                  label: const Text('Pay Balance',
-                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
-                ),
-              ),
-            ],
-          ],
-        ),
+            );
+          }),
+        ],
       ),
     );
   }
 }
 
-class _StatCol extends StatelessWidget {
-  const _StatCol({required this.label, required this.value, this.highlight = false});
-  final String label;
-  final double value;
-  final bool highlight;
+// ── Error ─────────────────────────────────────────────────────────────────────
+
+// ── GAP 2: Restriction Alert Card ────────────────────────────────────────────
+
+class _RestrictionAlert extends StatelessWidget {
+  const _RestrictionAlert({required this.onPayNow});
+  final VoidCallback onPayNow;
 
   @override
   Widget build(BuildContext context) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label, style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF))),
-      const SizedBox(height: 2),
-      Text('RM ${value.toStringAsFixed(2)}',
-          style: TextStyle(
-              fontSize: 13, fontWeight: FontWeight.w700,
-              color: highlight ? const Color(0xFFDC2626) : const Color(0xFF111827))),
-    ]);
-  }
-}
-
-// ── Empty / Error ─────────────────────────────────────────────────────────────
-
-class _EmptyState extends StatelessWidget {
-  const _EmptyState();
-  @override
-  Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.symmetric(vertical: 48),
-      child: Center(child: Column(children: [
-        Icon(Icons.receipt_long_outlined, size: 48, color: Color(0xFFD1D5DB)),
-        SizedBox(height: 12),
-        Text('No fee records found.', style: TextStyle(color: Color(0xFF9CA3AF))),
-      ])),
+    return GestureDetector(
+      onTap: onPayNow,
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(0, 0, 0, 0),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        color: const Color(0xFFDC2626),
+        child: Row(children: [
+          const Icon(Icons.warning_rounded, color: Colors.white, size: 22),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Academic Access Restricted',
+                  style: TextStyle(color: Colors.white,
+                      fontWeight: FontWeight.w800, fontSize: 13)),
+              SizedBox(height: 2),
+              Text('Tap to view details and make payment',
+                  style: TextStyle(color: Colors.white70, fontSize: 11)),
+            ]),
+          ),
+          const Icon(Icons.chevron_right, color: Colors.white70, size: 20),
+        ]),
+      ),
     );
   }
 }
+
+// ── GAP 4: Full-screen error widget ──────────────────────────────────────────
 
 class _ErrorView extends StatelessWidget {
   const _ErrorView({required this.message, required this.onRetry});
   final String message;
   final VoidCallback onRetry;
+
   @override
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Icon(Icons.wifi_off_outlined, size: 48, color: Color(0xFFD1D5DB)),
-          const SizedBox(height: 12),
-          Text(message, textAlign: TextAlign.center,
-              style: const TextStyle(color: Color(0xFF6B7280))),
+          const Icon(Icons.cloud_off_rounded, size: 56, color: Color(0xFFD1D5DB)),
           const SizedBox(height: 16),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF1E5BFF)),
+          const Text('Unable to load data.',
+              style: TextStyle(
+                  fontWeight: FontWeight.w700, fontSize: 16,
+                  color: Color(0xFF111827))),
+          const SizedBox(height: 8),
+          Text(
+            message.contains('DB_ERROR')
+                ? 'Please check your connection and try again.'
+                : message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Color(0xFF6B7280)),
+          ),
+          const SizedBox(height: 20),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF1565C0),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
             onPressed: onRetry,
-            child: const Text('Retry'),
+            icon: const Icon(Icons.refresh_rounded, size: 18),
+            label: const Text('Retry'),
           ),
         ]),
       ),

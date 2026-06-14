@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\Fee;
 use App\Models\Payment;
 use App\Models\Restriction;
+use App\Models\Sponsor;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Database\Seeder;
@@ -391,6 +392,48 @@ class FeeSeeder extends Seeder
             'status'      => 'unpaid',
         ]);
 
-        $this->command->info('FeeSeeder: 8 students seeded with varied fee/payment/restriction scenarios.');
+        // ── Sponsors ────────────────────────────────────────────────────────
+        Sponsor::whereIn('user_id', $ids)->delete();
+
+        $sponsorData = [
+            // CB23037 — JPA scholarship active, PTPTN not applied
+            ['student' => 'CB23037', 'name' => 'JPA (Jabatan Perkhidmatan Awam)', 'type' => 'scholarship', 'coverage' => 'Sem 1 – Sem 8', 'amount' => 2000.00, 'status' => 'active'],
+            ['student' => 'CB23037', 'name' => 'PTPTN',                           'type' => 'loan',        'coverage' => null,             'amount' => 0.00,    'status' => 'not_applied'],
+
+            // CB22015 — JPA scholarship active, PTPTN loan active
+            ['student' => 'CB22015', 'name' => 'JPA (Jabatan Perkhidmatan Awam)', 'type' => 'scholarship', 'coverage' => 'Sem 1 – Sem 8', 'amount' => 2000.00, 'status' => 'active'],
+            ['student' => 'CB22015', 'name' => 'PTPTN',                           'type' => 'loan',        'coverage' => 'Sem 1 – Sem 8', 'amount' => 3000.00, 'status' => 'active'],
+
+            // CB23201 — MARA scholarship active
+            ['student' => 'CB23201', 'name' => 'MARA',                            'type' => 'scholarship', 'coverage' => 'Sem 1 – Sem 6', 'amount' => 1500.00, 'status' => 'active'],
+            ['student' => 'CB23201', 'name' => 'PTPTN',                           'type' => 'loan',        'coverage' => null,             'amount' => 0.00,    'status' => 'not_applied'],
+
+            // CB23202 — PTPTN loan active, no scholarship
+            ['student' => 'CB23202', 'name' => 'PTPTN',                           'type' => 'loan',        'coverage' => 'Sem 1 – Sem 4', 'amount' => 800.00,  'status' => 'active'],
+            ['student' => 'CB23202', 'name' => 'JPA (Jabatan Perkhidmatan Awam)', 'type' => 'scholarship', 'coverage' => null,             'amount' => 0.00,    'status' => 'not_applied'],
+
+            // CB23203 — Yayasan Pahang scholarship
+            ['student' => 'CB23203', 'name' => 'Yayasan Pahang',                  'type' => 'bursary',     'coverage' => 'Sem 1 – Sem 4', 'amount' => 1200.00, 'status' => 'active'],
+            ['student' => 'CB23203', 'name' => 'PTPTN',                           'type' => 'loan',        'coverage' => null,             'amount' => 0.00,    'status' => 'not_applied'],
+
+            // CB24001 — no sponsors
+            ['student' => 'CB24001', 'name' => 'PTPTN',                           'type' => 'loan',        'coverage' => null,             'amount' => 0.00,    'status' => 'not_applied'],
+
+            // CB24055 — PTPTN applied
+            ['student' => 'CB24055', 'name' => 'PTPTN',                           'type' => 'loan',        'coverage' => 'Sem 1 – Sem 8', 'amount' => 1000.00, 'status' => 'active'],
+        ];
+
+        foreach ($sponsorData as $s) {
+            Sponsor::create([
+                'user_id'  => $students[$s['student']]->id,
+                'name'     => $s['name'],
+                'type'     => $s['type'],
+                'coverage' => $s['coverage'],
+                'amount'   => $s['amount'],
+                'status'   => $s['status'],
+            ]);
+        }
+
+        $this->command->info('FeeSeeder: 8 students, fees, restrictions, and sponsors seeded.');
     }
 }

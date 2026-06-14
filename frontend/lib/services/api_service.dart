@@ -10,6 +10,10 @@ import '../models/activity_slot.dart';
 import '../models/app_user.dart';
 
 class ApiService {
+  /// Called whenever any API request receives a 401 Unauthenticated response.
+  /// Wire this up in AppController to auto-sign-out on stale tokens.
+  static void Function()? onUnauthorized;
+
   // ── Shared request helper ──────────────────────────────────────────────────
 
   Future<Map<String, dynamic>> _request({
@@ -46,12 +50,13 @@ class ApiService {
       final json = raw.isEmpty ? <String, dynamic>{} : jsonDecode(raw) as Map<String, dynamic>;
 
       if (response.statusCode >= 200 && response.statusCode < 300) return json;
-      throw Exception(_extractMessage(json));
+      if (response.statusCode == 401) onUnauthorized?.call();
+      throw ApiException(_extractMessage(json), code: json['code'] as String?);
     } on http.ClientException catch (e) {
-      throw Exception('Unable to connect to the server. Make sure the backend is running. (${e.message})');
+      throw ApiException('Unable to connect to the server. Make sure the backend is running. (${e.message})');
     } catch (e) {
-      if (e is Exception) rethrow;
-      throw Exception('Network error: $e');
+      if (e is ApiException) rethrow;
+      throw ApiException('Network error: $e');
     }
   }
 
@@ -458,6 +463,33 @@ class ApiService {
     return _request(method: 'GET', path: '/student/restriction-status', token: token);
   }
 
+  Future<Map<String, dynamic>> getStudentSponsors({required String token}) async {
+    return _request(method: 'GET', path: '/student/sponsors', token: token);
+  }
+
+  Future<Map<String, dynamic>> getStudentLedger({required String token}) async {
+    return _request(method: 'GET', path: '/student/ledger', token: token);
+  }
+
+  // ── Notifications ──────────────────────────────────────────────────────────
+
+  Future<Map<String, dynamic>> getNotifications({required String token}) async {
+    return _request(method: 'GET', path: '/notifications', token: token);
+  }
+
+  Future<void> markNotificationRead({required String token, required int id}) async {
+    await _request(method: 'PUT', path: '/notifications/$id/read', token: token);
+  }
+
+  Future<void> markAllNotificationsRead({required String token}) async {
+    await _request(method: 'PUT', path: '/notifications/read-all', token: token);
+  }
+
+  // ── Receipt PDF download URL ───────────────────────────────────────────────
+
+  String receiptDownloadUrl(int paymentId) =>
+      '${_baseUrl()}/receipts/$paymentId/download';
+
   Future<void> applyRestriction({required String token, required int userId}) async {
     await _request(method: 'POST', path: '/treasury/restrict/$userId', token: token);
   }
@@ -499,6 +531,17 @@ class ApiService {
 }
 
 // ── Response models ────────────────────────────────────────────────────────────
+
+/// Carries an optional error [code] (e.g. DB_ERROR, GATEWAY_UNAVAILABLE)
+/// so callers can branch on specific failure types.
+class ApiException implements Exception {
+  const ApiException(this.message, {this.code});
+  final String message;
+  final String? code;
+
+  @override
+  String toString() => message;
+}
 
 class LoginResponse {
   const LoginResponse({required this.token, required this.user});

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app/app_controller.dart';
+import '../../services/api_service.dart';
 
 class UnpaidFeesMonitorPage extends StatefulWidget {
   const UnpaidFeesMonitorPage({super.key, required this.controller, this.embedded = false});
@@ -52,9 +53,19 @@ class _UnpaidFeesMonitorPageState extends State<UnpaidFeesMonitorPage> {
       await _load();
     } catch (e) {
       if (!mounted) return;
+      final isRestrictionError = e is ApiException && e.code == 'RESTRICTION_ERROR';
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(e.toString().replaceFirst('Exception: ', '')),
+        content: Text(isRestrictionError
+            ? 'Could not update restriction. Please try again.'
+            : e.toString().replaceFirst('Exception: ', '')),
         backgroundColor: const Color(0xFFDC2626),
+        action: isRestrictionError
+            ? SnackBarAction(
+                label: 'Retry',
+                textColor: Colors.white,
+                onPressed: () => _toggleRestriction(fee, isRestricted),
+              )
+            : null,
       ));
     } finally {
       if (mounted) setState(() => _processing.remove(userId));
