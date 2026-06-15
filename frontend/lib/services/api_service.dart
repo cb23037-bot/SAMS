@@ -21,6 +21,8 @@ import '../app/app_controller.dart';
 /// File uploads (proof PDF, attendance photo) use multipart/form-data manually
 /// because the http package's MultipartRequest is cleaner for this use case.
 class ApiService {
+  static void Function()? onUnauthorized;
+
   // ── Controller link ────────────────────────────────────────────────────────
 
   /// Optional back-reference to the [AppController], set via [setController].
@@ -985,4 +987,15 @@ class AttendanceResult {
   const AttendanceResult({required this.receiptId, required this.receiptHash});
   final String receiptId;
   final String receiptHash;
+}
+
+/// Carries an optional error [code] (e.g. DB_ERROR, GATEWAY_UNAVAILABLE)
+/// so callers can branch on specific failure types.
+class ApiException implements Exception {
+  const ApiException(this.message, {this.code});
+  final String message;
+  final String? code;
+
+  @override
+  String toString() => message;
 }
