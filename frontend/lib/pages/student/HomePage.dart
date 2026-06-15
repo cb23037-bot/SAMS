@@ -6,6 +6,7 @@ import '../../models/app_user.dart';
 import 'EditProfilePage.dart';
 import 'ModuleBookingPage.dart';
 import 'CurriculumActivityPage.dart';
+import 'StudentAttendancePage.dart';
 import 'StudentNotificationsPage.dart';
 import 'SubjectRegistrationPage.dart';
 import 'fees/manage_fees_dashboard_page.dart';
@@ -340,7 +341,9 @@ class _StudentHomePageState extends State<StudentHomePage> {
                     )),
                   );
                   if (restricted || !mounted) return;
-                  _showSoon('Mark Attendance is coming soon.');
+                  Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => StudentAttendancePage(controller: widget.controller),
+                  ));
                 },
               ),
               _ActionCard(

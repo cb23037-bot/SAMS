@@ -10,6 +10,10 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use App\Models\Restriction;
 use App\Models\SubjectRegistration;
+use App\Models\ClassSchedule;
+use App\Models\ClassEnrollment;
+use App\Models\AttendanceSession;
+use App\Models\ClassAttendanceSubmission;
 
 
 class User extends Authenticatable
@@ -66,5 +70,37 @@ class User extends Authenticatable
     public function restrictions(): HasMany
     {
         return $this->hasMany(Restriction::class);
+    }
+
+    /**
+     * Get the class schedules assigned to this lecturer.
+     */
+    public function lecturerClassSchedules(): HasMany
+    {
+        return $this->hasMany(ClassSchedule::class, 'lecturer_id');
+    }
+
+    /**
+     * Get the class enrollments for this student.
+     */
+    public function classEnrollments(): HasMany
+    {
+        return $this->hasMany(ClassEnrollment::class);
+    }
+
+    /**
+     * Get the attendance sessions started by this lecturer.
+     */
+    public function attendanceSessions(): HasMany
+    {
+        return $this->hasMany(AttendanceSession::class, 'lecturer_id');
+    }
+
+    /**
+     * Get the class attendance submissions made by this student.
+     */
+    public function classAttendanceSubmissions(): HasMany
+    {
+        return $this->hasMany(ClassAttendanceSubmission::class);
     }
 }

@@ -6,7 +6,10 @@ use App\Http\Controllers\Api\CreditClaimController;
 use App\Http\Controllers\Api\ActivityRegistrationController;
 use App\Http\Controllers\Api\ActivitySlotController;
 use App\Http\Controllers\Api\AttendanceController;
+use App\Http\Controllers\Api\AttendanceReportController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\LecturerAttendanceController;
+use App\Http\Controllers\Api\StudentAttendanceController;
 use App\Http\Controllers\Api\FeeController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\ProfileController;
@@ -81,6 +84,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/subject-registrations/{id}', [SubjectRegistrationController::class, 'destroy']);
         Route::post('/subject-registrations/submit', [SubjectRegistrationController::class, 'submitRegistration']);
         Route::get('/subject-registrations', [SubjectRegistrationController::class, 'index']);
+
+        // --- Class Attendance (Student) ---
+        Route::get('/attendance/schedules', [StudentAttendanceController::class, 'getSchedules']);
+        Route::get('/attendance/schedules/{scheduleId}/active-session', [StudentAttendanceController::class, 'getActiveSession']);
+        Route::post('/attendance/submit', [StudentAttendanceController::class, 'submitAttendance']);
     });
 
     Route::prefix('lecturer')->middleware('auth:sanctum')->group(function () {
@@ -95,6 +103,21 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Approve all pending registrations for a specific student
         Route::post('/student/{studentId}/approve-all', [SubjectRegistrationController::class, 'approveAll']);
+
+        // --- Class Attendance (Lecturer) ---
+        Route::get('/attendance/schedules', [LecturerAttendanceController::class, 'getSchedules']);
+        Route::get('/attendance/schedules/today', [LecturerAttendanceController::class, 'getTodaySchedules']);
+        Route::get('/attendance/schedules/{scheduleId}/enrolled-count', [LecturerAttendanceController::class, 'getEnrolledCount']);
+        Route::post('/attendance/sessions/start', [LecturerAttendanceController::class, 'startSession']);
+        Route::post('/attendance/sessions/{sessionId}/generate-code', [LecturerAttendanceController::class, 'generateCode']);
+        Route::get('/attendance/sessions/{sessionId}/live', [LecturerAttendanceController::class, 'getLiveSubmissions']);
+        Route::post('/attendance/sessions/{sessionId}/close', [LecturerAttendanceController::class, 'closeSession']);
+        Route::get('/attendance/sessions/{sessionId}/record', [LecturerAttendanceController::class, 'viewRecord']);
+
+        // --- Attendance Reports (Lecturer) ---
+        Route::get('/attendance/report/filters', [AttendanceReportController::class, 'getReportFilters']);
+        Route::get('/attendance/report', [AttendanceReportController::class, 'generateReport']);
+        Route::get('/attendance/report/download', [AttendanceReportController::class, 'downloadReport']);
     });
 
     // ── Module 3: Fees (student) ─────────────────────────────────────────────
