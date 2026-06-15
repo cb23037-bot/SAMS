@@ -82,6 +82,4 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/treasury/unpaid', [TreasuryController::class, 'unpaid']);
     Route::post('/treasury/restrict/{userId}', [TreasuryController::class, 'restrict']);
     Route::delete('/treasury/restrict/{userId}', [TreasuryController::class, 'lift']);
-    Route::get('/treasury/settings', [TreasuryController::class, 'getSettings']);
-    Route::put('/treasury/settings', [TreasuryController::class, 'updateSettings']);
 });

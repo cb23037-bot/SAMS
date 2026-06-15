@@ -225,7 +225,17 @@ class _StudentHomePageState extends State<StudentHomePage> {
                 title: 'Register Subjects',
                 icon: Icons.menu_book_outlined,
                 color: const Color(0xFF3B82F6),
-                onTap: () => _showSoon('Register Subjects is coming soon.'),
+                onTap: () async {
+                  final restricted = await checkAndShowRestriction(
+                    context: context,
+                    controller: widget.controller,
+                    onPayNow: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => ManageFeesDashboardPage(controller: widget.controller),
+                    )),
+                  );
+                  if (restricted || !mounted) return;
+                  _showSoon('Register Subjects is coming soon.');
+                },
               ),
               _ActionCard(
                 title: 'Mark Attendance',

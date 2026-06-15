@@ -352,26 +352,6 @@ class TreasuryController extends Controller
         return response()->json(['restriction' => $this->restrictionArray($r)], 201);
     }
 
-    public function applyRestriction(Request $request, int $studentId): JsonResponse
-    {
-        $this->requireTreasury($request);
-
-        $student = Student::findOrFail($studentId);
-
-        try {
-            $r = Restriction::create([
-                'student_id'       => $student->id,
-                'restriction_type' => 'financial_bar',
-                'status'           => 'Active',
-                'applied_date'     => now()->toDateString(),
-            ]);
-
-            return response()->json(['restriction' => $this->restrictionArray($r)], 201);
-        } catch (\Exception $e) {
-            return $this->dbError($e, 'RESTRICTION_ERROR');
-        }
-    }
-
     public function lift(Request $request, int $userId): JsonResponse
     {
         $this->requireTreasury($request);
@@ -408,68 +388,6 @@ class TreasuryController extends Controller
         }
 
         return response()->json(['message' => 'Restriction lifted.']);
-    }
-
-    public function liftRestriction(Request $request, int $studentId): JsonResponse
-    {
-        $this->requireTreasury($request);
-
-        $student     = Student::findOrFail($studentId);
-        $restriction = $student->restrictions()
-            ->where('status', 'Active')
-            ->latest('applied_date')
-            ->first();
-
-        if (!$restriction) {
-            return response()->json(['message' => 'No active restriction found.'], 404);
-        }
-
-        try {
-            $restriction->update([
-                'status'      => 'Lifted',
-                'lifted_date' => now()->toDateString(),
-                'lifted_by'   => $request->user()->id,
-            ]);
-
-            return response()->json(['restriction' => $this->restrictionArray($restriction->fresh())]);
-        } catch (\Exception $e) {
-            return $this->dbError($e, 'RESTRICTION_ERROR');
-        }
-    }
-
-    // ── Settings ──────────────────────────────────────────────────────────────
-
-    public function updateSettings(Request $request): JsonResponse
-    {
-        $this->requireTreasury($request);
-
-        $validated = $request->validate([
-            'week5_auto_enforce'  => ['sometimes', 'boolean'],
-            'semester_start_date' => ['sometimes', 'date'],
-        ]);
-
-        foreach ($validated as $key => $value) {
-            DB::table('settings')->updateOrInsert(
-                ['key' => $key],
-                ['value' => is_bool($value) ? ($value ? 'true' : 'false') : $value, 'updated_at' => now()]
-            );
-        }
-
-        return response()->json(['message' => 'Settings updated.']);
-    }
-
-    public function getSettings(Request $request): JsonResponse
-    {
-        $this->requireTreasury($request);
-
-        $rows = DB::table('settings')
-            ->whereIn('key', ['semester_start_date', 'week5_auto_enforce'])
-            ->pluck('value', 'key');
-
-        return response()->json([
-            'semester_start_date' => $rows['semester_start_date'] ?? null,
-            'week5_auto_enforce'  => ($rows['week5_auto_enforce'] ?? 'true') === 'true',
-        ]);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
