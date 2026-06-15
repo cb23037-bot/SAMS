@@ -1,3 +1,18 @@
+// student_class_list.dart — Boundary Screen
+// Requirement ID : SAMS-PACK-413
+// Responsibility : Displays all classes the student is enrolled in and provides
+//                  a way to navigate to the attendance submission form.
+//
+// Attributes:
+//   enrolledClasses  List<ClassSchedule>
+//   navigation       Navigation
+//
+// Methods:
+//   render()                    — Renders the list of enrolled classes.
+//   loadEnrolledClasses()       — Loads enrolled class schedules from the API.
+//   selectClass(schedule)       — Selects a class and navigates to attendance form.
+//   navigateToAttendanceForm()  — Navigates to the student attendance form screen.
+
 import 'package:flutter/material.dart';
 import '../../models/models.dart';
 import '../../services/api_service.dart';
@@ -18,9 +33,15 @@ class _StudentClassListState extends State<StudentClassList> {
   @override
   void initState() {
     super.initState();
+    // loadEnrolledClasses() — SAMS-PACK-413: fetch on init
     _load();
   }
 
+  // loadEnrolledClasses() — void
+  // SAMS-PACK-413
+  // CALL StudentAttendanceController.getEnrolledSchedules()
+  // SET enrolledClasses = response.schedules
+  // DISPLAY enrolled classes
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
@@ -36,6 +57,9 @@ class _StudentClassListState extends State<StudentClassList> {
     setState(() => _loading = false);
   }
 
+  // render() — void  (SAMS-PACK-413)
+  // Renders a list of _ClassCard widgets for each enrolled schedule.
+  // selectClass(schedule) — navigateToAttendanceForm() on tap.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -51,6 +75,7 @@ class _StudentClassListState extends State<StudentClassList> {
             : ListView.builder(
                 padding: const EdgeInsets.all(16),
                 itemCount: _schedules.length,
+                // selectClass(schedule) — SAMS-PACK-413: navigateToAttendanceForm()
                 itemBuilder: (_, i) => _ClassCard(
                   schedule: _schedules[i],
                   onTap: () => Navigator.push(context, MaterialPageRoute(
@@ -64,6 +89,7 @@ class _StudentClassListState extends State<StudentClassList> {
   }
 }
 
+// ─── Empty state ──────────────────────────────────────────────────────────────
 class _EmptyState extends StatelessWidget {
   const _EmptyState();
   @override
@@ -80,6 +106,15 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
+// ─── Class card ───────────────────────────────────────────────────────────────
+// render() — void  (SAMS-PACK-413)
+// Displays one enrolled class with status pill (Submitted / Active / none)
+// and the appropriate action button.
+//
+// selectClass(schedule) algorithm:
+//   IF alreadySubmitted   → show "Submitted" confirmation row (no button)
+//   ELSE IF activeSession → show "Submit Attendance" button → navigateToAttendanceForm()
+//   ELSE                  → show "No active session" notice
 class _ClassCard extends StatelessWidget {
   final ClassScheduleModel schedule;
   final VoidCallback onTap;
@@ -90,6 +125,7 @@ class _ClassCard extends StatelessWidget {
     final hasActive  = schedule.activeSession != null;
     final submitted  = schedule.alreadySubmitted;
 
+    // Accent colour: green = submitted, blue = active session, grey = no session
     final Color accentColor;
     if (submitted) {
       accentColor = const Color(0xFF0D6B5E);
@@ -107,6 +143,7 @@ class _ClassCard extends StatelessWidget {
         border: Border.all(color: const Color(0xFFE8ECF2)),
       ),
       child: Column(children: [
+        // Top colour bar — indicates session status
         Container(
           height: 4,
           decoration: BoxDecoration(
@@ -127,12 +164,14 @@ class _ClassCard extends StatelessWidget {
                   style: const TextStyle(fontSize: 13, color: Color(0xFF8896AB))),
               ])),
               const SizedBox(width: 10),
+              // Status pill — "Submitted" or "Active"
               if (submitted)
                 const _Pill(label: 'Submitted', color: Color(0xFF0D6B5E))
               else if (hasActive)
                 const _Pill(label: 'Active', color: Color(0xFF1A3A6B)),
             ]),
             const SizedBox(height: 12),
+            // Info chips — time, venue, date
             Wrap(spacing: 14, runSpacing: 6, children: [
               _InfoChip(icon: Icons.access_time_outlined, label: '${schedule.startTime} – ${schedule.endTime}'),
               _InfoChip(icon: Icons.place_outlined, label: schedule.venue),
@@ -140,7 +179,9 @@ class _ClassCard extends StatelessWidget {
             ]),
             const SizedBox(height: 14),
 
+            // Action row — context-sensitive per session state
             if (submitted)
+              // Already submitted: show confirmation, disable further action
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
@@ -156,6 +197,7 @@ class _ClassCard extends StatelessWidget {
                 ]),
               )
             else if (hasActive)
+              // navigateToAttendanceForm() — SAMS-PACK-413
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -168,6 +210,7 @@ class _ClassCard extends StatelessWidget {
                 ),
               )
             else
+              // No active session — display notice
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
@@ -188,6 +231,7 @@ class _ClassCard extends StatelessWidget {
   }
 }
 
+// ─── Status pill ──────────────────────────────────────────────────────────────
 class _Pill extends StatelessWidget {
   final String label;
   final Color color;
@@ -210,6 +254,7 @@ class _Pill extends StatelessWidget {
   }
 }
 
+// ─── Info chip ────────────────────────────────────────────────────────────────
 class _InfoChip extends StatelessWidget {
   final IconData icon;
   final String label;

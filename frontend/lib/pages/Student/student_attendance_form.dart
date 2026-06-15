@@ -1,3 +1,23 @@
+// student_attendance_form.dart — Boundary Screen
+// Requirement ID : SAMS-PACK-412
+// Responsibility : Allows the student to submit attendance by entering the
+//                  lecturer's attendance code and providing their GPS location
+//                  for on-campus verification.
+//
+// Attributes:
+//   attendanceCode  String
+//   gpsLocation     GPS
+//   session         AttendanceSession
+//   schedule        ClassSchedule
+//
+// Methods:
+//   render()                   — Renders the attendance submission form.
+//   loadActiveSession()        — Loads the active session for the selected class.
+//   validateAttendanceCode()   — Validates the attendance code entered by the student.
+//   requestGPSLocation()       — Requests GPS location from the device.
+//   submitAttendance()         — Submits attendance with code and GPS coordinates.
+//   displaySubmissionStatus()  — Displays success or error result to the student.
+
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
@@ -15,7 +35,7 @@ class StudentAttendanceForm extends StatefulWidget {
 
 class _StudentAttendanceFormState extends State<StudentAttendanceForm> {
   final _codeCtrl = TextEditingController();
-  // idle | verifying_gps | submitting | success | error
+  // UI state machine: idle | verifying_gps | submitting | success | error
   String _status = 'idle';
   String _errorMessage = '';
   double? _gpsLat;
@@ -27,10 +47,17 @@ class _StudentAttendanceFormState extends State<StudentAttendanceForm> {
     super.dispose();
   }
 
+  // requestGPSLocation() — bool
+  // SAMS-PACK-412
+  // CHECK if location service is enabled
+  // REQUEST location permission if not already granted
+  // CALL Geolocator.getCurrentPosition(accuracy: high, timeLimit: 15s)
+  // SET _gpsLat, _gpsLng from position
+  // IF error THEN displaySubmissionStatus(error) AND RETURN false
+  // ELSE RETURN true
   Future<bool> _getLocation() async {
     setState(() { _status = 'verifying_gps'; _errorMessage = ''; });
 
-    // Check if location service is enabled
     final serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
       setState(() {
@@ -40,7 +67,7 @@ class _StudentAttendanceFormState extends State<StudentAttendanceForm> {
       return false;
     }
 
-    // Check / request permission (works on mobile; on web the browser handles this)
+    // Check / request permission (works on mobile; browser handles this on web)
     LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
@@ -79,6 +106,12 @@ class _StudentAttendanceFormState extends State<StudentAttendanceForm> {
     }
   }
 
+  // submitAttendance() — void
+  // SAMS-PACK-412
+  // validateAttendanceCode() — IF code is empty THEN DISPLAY error AND RETURN
+  // requestGPSLocation()     — IF GPS fails THEN RETURN
+  // CALL StudentAttendanceController.submitAttendance(scheduleId, code, lat, lng)
+  // displaySubmissionStatus() — IF 201 THEN show success screen ELSE show error
   Future<void> _submit() async {
     if (_codeCtrl.text.trim().isEmpty) {
       setState(() => _errorMessage = 'Please enter the attendance code.');
@@ -96,8 +129,10 @@ class _StudentAttendanceFormState extends State<StudentAttendanceForm> {
         gpsLongitude:   _gpsLng!,
       );
       if (res['status'] == 201) {
+        // displaySubmissionStatus(success) — SAMS-PACK-412
         setState(() => _status = 'success');
       } else {
+        // displaySubmissionStatus(error) — SAMS-PACK-412
         setState(() {
           _status = 'error';
           _errorMessage = res['message'] ?? 'Submission failed.';
@@ -111,12 +146,18 @@ class _StudentAttendanceFormState extends State<StudentAttendanceForm> {
     }
   }
 
+  // render() — void  (SAMS-PACK-412)
+  // IF status == success THEN show _SuccessScreen
+  // ELSE show form: class info, session status banner, code input, verification
+  //   steps, progress indicator, error banner, and Submit button.
   @override
   Widget build(BuildContext context) {
+    // displaySubmissionStatus(success) — SAMS-PACK-412
     if (_status == 'success') {
       return _SuccessScreen(schedule: widget.schedule);
     }
 
+    // loadActiveSession() — SAMS-PACK-412: read from schedule passed by navigator
     final activeSession = widget.schedule.activeSession;
     final busy = _status == 'verifying_gps' || _status == 'submitting';
 
@@ -127,7 +168,7 @@ class _StudentAttendanceFormState extends State<StudentAttendanceForm> {
         padding: const EdgeInsets.all(16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
-          // Class info card
+          // Class info card — shows course name, code, section, time, venue
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -160,7 +201,7 @@ class _StudentAttendanceFormState extends State<StudentAttendanceForm> {
           ),
           const SizedBox(height: 10),
 
-          // Session status banner
+          // Session status banner — loadActiveSession() result indicator
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
             decoration: BoxDecoration(
@@ -200,7 +241,7 @@ class _StudentAttendanceFormState extends State<StudentAttendanceForm> {
           const SizedBox(height: 20),
 
           if (activeSession != null) ...[
-            // Code input card
+            // validateAttendanceCode() — SAMS-PACK-412: code input field
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -252,7 +293,7 @@ class _StudentAttendanceFormState extends State<StudentAttendanceForm> {
             ),
             const SizedBox(height: 12),
 
-            // Steps card
+            // Verification steps card — explains the submitAttendance() pipeline
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -265,6 +306,7 @@ class _StudentAttendanceFormState extends State<StudentAttendanceForm> {
                   style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
                       color: Color(0xFF2D3748))),
                 const SizedBox(height: 10),
+                // Steps: validateAttendanceCode → requestGPSLocation → verifyLocation → checkDuplicate
                 ...[
                   ('Verify attendance code', Icons.key_outlined),
                   ('Request your GPS location', Icons.gps_fixed_outlined),
@@ -294,7 +336,7 @@ class _StudentAttendanceFormState extends State<StudentAttendanceForm> {
             ),
             const SizedBox(height: 12),
 
-            // Progress indicator
+            // displaySubmissionStatus(progress) — requestGPSLocation / submitting spinner
             if (_status == 'verifying_gps' || _status == 'submitting')
               Container(
                 margin: const EdgeInsets.only(bottom: 12),
@@ -318,7 +360,7 @@ class _StudentAttendanceFormState extends State<StudentAttendanceForm> {
                 ]),
               ),
 
-            // Error message
+            // displaySubmissionStatus(error) — SAMS-PACK-412: error banner
             if (_errorMessage.isNotEmpty)
               Container(
                 margin: const EdgeInsets.only(bottom: 12),
@@ -336,6 +378,7 @@ class _StudentAttendanceFormState extends State<StudentAttendanceForm> {
                 ]),
               ),
 
+            // submitAttendance() trigger — SAMS-PACK-412
             SizedBox(
               width: double.infinity,
               height: 50,
@@ -350,7 +393,7 @@ class _StudentAttendanceFormState extends State<StudentAttendanceForm> {
             ),
 
           ] else ...[
-            // No active session
+            // No active session — loadActiveSession() returned null
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(28),
@@ -404,6 +447,10 @@ extension _Tuple2<A, B> on (A, B) {
   B get item2 => $2;
 }
 
+// ─── Success screen ───────────────────────────────────────────────────────────
+// displaySubmissionStatus(success) — SAMS-PACK-412
+// Shown when StudentAttendanceController returns HTTP 201.
+// Displays course name, confirmation message, and Back to Classes button.
 class _SuccessScreen extends StatelessWidget {
   final ClassScheduleModel schedule;
   const _SuccessScreen({required this.schedule});

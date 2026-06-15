@@ -1,3 +1,18 @@
+// student_dashboard.dart — Boundary Screen
+// Requirement ID : SAMS-PACK-411
+// Responsibility : Displays student dashboard and provides access to attendance submission.
+//                  Shows active session notification if a session is available.
+//
+// Attributes:
+//   studentData    User
+//   activeSession  AttendanceSession
+//   navigation     Navigation
+//
+// Methods:
+//   render()                          — Renders student dashboard interface.
+//   checkActiveAttendance(student_id) — Checks active attendance session for student.
+//   navigateToAttendanceForm()        — Navigates to student attendance form.
+
 import 'package:flutter/material.dart';
 import '../../models/models.dart';
 import '../../services/api_service.dart';
@@ -20,9 +35,16 @@ class _StudentDashboardState extends State<StudentDashboard> {
   @override
   void initState() {
     super.initState();
+    // checkActiveAttendance() — SAMS-PACK-411: load schedules on init
     _load();
   }
 
+  // checkActiveAttendance(student_id) — AttendanceSession
+  // SAMS-PACK-411
+  // GET student_id from session
+  // CALL StudentAttendanceController.getActiveSession(student_id)
+  // IF active session exists THEN DISPLAY "Active attendance session available"
+  // ELSE DISPLAY "No active attendance session"
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
@@ -38,6 +60,8 @@ class _StudentDashboardState extends State<StudentDashboard> {
     setState(() => _loading = false);
   }
 
+  // logout() — void
+  // Terminates the current user session and navigates back to the login screen.
   Future<void> _logout() async {
     await ApiService.logout();
     if (!mounted) return;
@@ -52,13 +76,19 @@ class _StudentDashboardState extends State<StudentDashboard> {
     return 'Good evening';
   }
 
+  // navigateToAttendanceForm() — void
+  // SAMS-PACK-411
+  // NAVIGATE to StudentClassList screen, then reload on return.
   void _navigate(Widget page) {
     Navigator.push(context, SlideUpRoute(page: page)).then((_) => _load());
   }
 
+  // render() — void  (SAMS-PACK-411)
+  // Displays student name, active session banner (if any), stat cards, and class menu.
   @override
   Widget build(BuildContext context) {
     final firstName = widget.user.name.split(' ').first;
+    // activeNow — schedules with an active session the student has not yet submitted
     final activeNow = _schedules.where((s) => s.activeSession != null && !s.alreadySubmitted).toList();
     final submitted = _schedules.where((s) => s.alreadySubmitted).length;
     final enrolled  = _schedules.length;
@@ -168,6 +198,8 @@ class _Skeleton extends StatelessWidget {
 }
 
 // ─── Loaded body ──────────────────────────────────────────────────────────────
+// render() — void  (SAMS-PACK-411)
+// Displays active session banner, enrolled/attended stat cards, and Submit Attendance menu tile.
 class _Body extends StatelessWidget {
   final List<ClassScheduleModel> activeNow;
   final int enrolled;
@@ -187,7 +219,8 @@ class _Body extends StatelessWidget {
   Widget build(BuildContext context) {
     return StaggerList(
       children: [
-        // Active session banner
+        // Active session banner — shown when student has an unsubmitted active session
+        // navigateToAttendanceForm() — SAMS-PACK-411
         if (activeNow.isNotEmpty) ...[
           FadeSlideIn(
             duration: kDurationMedium,
@@ -199,7 +232,7 @@ class _Body extends StatelessWidget {
           const SizedBox(height: 16),
         ],
 
-        // Stats row
+        // Stats row — Enrolled classes and Attended count
         Row(children: [
           _StatCard(
             icon: Icons.menu_book_outlined,
@@ -223,6 +256,8 @@ class _Body extends StatelessWidget {
 
         const SizedBox(height: 12),
 
+        // navigateToAttendanceForm() — SAMS-PACK-411
+        // Badge shows count of classes with active unsubmitted sessions
         _MenuTile(
           icon: Icons.fact_check_outlined,
           title: 'Submit Attendance',
@@ -238,6 +273,8 @@ class _Body extends StatelessWidget {
 }
 
 // ─── Active session banner ────────────────────────────────────────────────────
+// Shown when there is at least one active session the student has not submitted.
+// Tapping navigates to the class list — SAMS-PACK-411: navigateToAttendanceForm()
 class _ActiveBanner extends StatelessWidget {
   final ClassScheduleModel session;
   final VoidCallback onTap;
@@ -383,6 +420,7 @@ class _MenuTile extends StatelessWidget {
             Text(subtitle,
               style: const TextStyle(fontSize: 12, color: Color(0xFF8896AB))),
           ])),
+          // Badge — shows number of active unsubmitted sessions
           if (badgeCount > 0)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
