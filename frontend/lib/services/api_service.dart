@@ -795,6 +795,126 @@ class ApiService {
     );
   }
 
+  // ── Module 3: Fees (Student) ──────────────────────────────────────────────
+
+  Future<Map<String, dynamic>> getStudentFees({required String token}) async {
+    return _request(method: 'GET', path: '/fees', token: token);
+  }
+
+  Future<Map<String, dynamic>> getFeeDetails({
+    required String token,
+    required int feeId,
+  }) async {
+    return _request(method: 'GET', path: '/fees/$feeId', token: token);
+  }
+
+  Future<Map<String, dynamic>> makePayment({
+    required String token,
+    required int feeId,
+    required double amount,
+    required String paymentMethod,
+  }) async {
+    return _request(
+      method: 'POST',
+      path: '/fees/$feeId/pay',
+      token: token,
+      body: {'amount': amount, 'payment_method': paymentMethod},
+    );
+  }
+
+  Future<Map<String, dynamic>> getPaymentHistory({required String token}) async {
+    return _request(method: 'GET', path: '/payments', token: token);
+  }
+
+  Future<Map<String, dynamic>> getReceipt({
+    required String token,
+    required int paymentId,
+  }) async {
+    return _request(method: 'GET', path: '/payments/$paymentId/receipt', token: token);
+  }
+
+  // ── Module 3: Fees (Treasury) ─────────────────────────────────────────────
+
+  Future<Map<String, dynamic>> getTreasuryDashboard({required String token}) async {
+    return _request(method: 'GET', path: '/treasury/dashboard', token: token);
+  }
+
+  Future<Map<String, dynamic>> getTreasuryStats({required String token}) async {
+    return _request(method: 'GET', path: '/treasury/stats', token: token);
+  }
+
+  Future<Map<String, dynamic>> getFeeRecords({
+    required String token,
+    String? search,
+    String? status,
+  }) async {
+    final params = <String>[];
+    if (search != null && search.isNotEmpty) params.add('search=${Uri.encodeComponent(search)}');
+    if (status != null && status.isNotEmpty) params.add('status=${Uri.encodeComponent(status)}');
+    final query = params.isNotEmpty ? '?${params.join('&')}' : '';
+    return _request(method: 'GET', path: '/treasury/fees$query', token: token);
+  }
+
+  Future<Map<String, dynamic>> getFeeRecord({
+    required String token,
+    required int feeId,
+  }) async {
+    return _request(method: 'GET', path: '/treasury/fees/$feeId', token: token);
+  }
+
+  Future<Map<String, dynamic>> getUnpaidFees({required String token}) async {
+    return _request(method: 'GET', path: '/treasury/unpaid', token: token);
+  }
+
+  Future<Map<String, dynamic>> updateFeeRecord({
+    required String token,
+    required int feeId,
+    required Map<String, dynamic> fields,
+  }) async {
+    return _request(method: 'PUT', path: '/treasury/fees/$feeId', token: token, body: fields);
+  }
+
+  // ── Module 3: Restriction ─────────────────────────────────────────────────
+
+  Future<Map<String, dynamic>> getRestrictionStatus({required String token}) async {
+    return _request(method: 'GET', path: '/student/restriction-status', token: token);
+  }
+
+  Future<Map<String, dynamic>> getStudentSponsors({required String token}) async {
+    return _request(method: 'GET', path: '/student/sponsors', token: token);
+  }
+
+  Future<Map<String, dynamic>> getStudentLedger({required String token}) async {
+    return _request(method: 'GET', path: '/student/ledger', token: token);
+  }
+
+  Future<void> applyRestriction({required String token, required int userId}) async {
+    await _request(method: 'POST', path: '/treasury/restrict/$userId', token: token);
+  }
+
+  Future<void> liftRestriction({required String token, required int userId}) async {
+    await _request(method: 'DELETE', path: '/treasury/restrict/$userId', token: token);
+  }
+
+  // ── Module 3: Notifications ───────────────────────────────────────────────
+
+  Future<Map<String, dynamic>> getNotifications({required String token}) async {
+    return _request(method: 'GET', path: '/notifications', token: token);
+  }
+
+  Future<void> markNotificationRead({required String token, required int id}) async {
+    await _request(method: 'PUT', path: '/notifications/$id/read', token: token);
+  }
+
+  Future<void> markAllNotificationsRead({required String token}) async {
+    await _request(method: 'PUT', path: '/notifications/read-all', token: token);
+  }
+
+  // ── Module 3: Receipt PDF ─────────────────────────────────────────────────
+
+  String receiptDownloadUrl(int paymentId) =>
+      '${_baseUrl()}/receipts/$paymentId/download';
+
   // ── Private Helpers ────────────────────────────────────────────────────────
 
   /// Returns the correct base URL depending on the platform.

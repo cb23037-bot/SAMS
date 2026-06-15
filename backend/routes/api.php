@@ -7,7 +7,11 @@ use App\Http\Controllers\Api\ActivityRegistrationController;
 use App\Http\Controllers\Api\ActivitySlotController;
 use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\FeeController;
+use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\ReceiptController;
+use App\Http\Controllers\Api\TreasuryController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AcademicSessionController;
 use App\Http\Controllers\Api\SubjectController;
@@ -33,12 +37,15 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // --- Student Access & Registrations ---
     Route::get('/student/access', [AccessController::class, 'studentCheck']);
+    Route::get('/student/restriction-status', [FeeController::class, 'restrictionStatus']);
     Route::get('/student/registrations', [ActivityRegistrationController::class, 'index']);
-    Route::post('/student/registrations', [ActivityRegistrationController::class, 'store']);
+    Route::post('/student/registrations', [ActivityRegistrationController::class, 'store'])
+        ->middleware('academic.access');
     Route::delete('/student/registrations/{registration}', [ActivityRegistrationController::class, 'destroy']);
     Route::post('/student/registrations/{registration}/claim', [ActivityRegistrationController::class, 'claim']);
     Route::delete('/student/registrations/{registration}/claim', [ActivityRegistrationController::class, 'cancelClaim']);
-    Route::post('/student/attendances', [AttendanceController::class, 'store']);
+    Route::post('/student/attendances', [AttendanceController::class, 'store'])
+        ->middleware('academic.access');
 
     // --- Adab (PA/Lecturer) Management ---
     Route::prefix('adab')->group(function () {
@@ -47,6 +54,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/notifications', [CreditClaimController::class, 'notifications']);
         Route::get('/claims', [CreditClaimController::class, 'index']);
         Route::get('/claims/{activityId}', [CreditClaimController::class, 'activityClaims']);
+        Route::get('/claims/{registration}/proof', [CreditClaimController::class, 'downloadProof']);
         Route::put('/claims/{registration}/approve', [CreditClaimController::class, 'approve']);
         Route::put('/claims/{registration}/reject', [CreditClaimController::class, 'reject']);
     });
@@ -88,4 +96,32 @@ Route::middleware('auth:sanctum')->group(function () {
         // Approve all pending registrations for a specific student
         Route::post('/student/{studentId}/approve-all', [SubjectRegistrationController::class, 'approveAll']);
     });
+
+    // ── Module 3: Fees (student) ─────────────────────────────────────────────
+    Route::get('/fees', [FeeController::class, 'index']);
+    Route::get('/fees/{fee}', [FeeController::class, 'show']);
+    Route::post('/fees/{fee}/pay', [FeeController::class, 'pay']);
+    Route::get('/payments', [FeeController::class, 'history']);
+    Route::get('/payments/{payment}/receipt', [FeeController::class, 'receipt']);
+    Route::get('/student/sponsors', [FeeController::class, 'sponsors']);
+    Route::get('/student/ledger', [FeeController::class, 'ledger']);
+
+    // ── Module 3: Notifications ──────────────────────────────────────────────
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
+    Route::put('/notifications/{notification}/read', [NotificationController::class, 'markRead']);
+    Route::put('/notifications/read-all', [NotificationController::class, 'markAllRead']);
+
+    // ── Module 3: Receipt PDF download ───────────────────────────────────────
+    Route::get('/receipts/{payment}/download', [ReceiptController::class, 'download']);
+
+    // ── Module 3: Treasury ───────────────────────────────────────────────────
+    Route::get('/treasury/dashboard', [TreasuryController::class, 'dashboard']);
+    Route::get('/treasury/stats', [TreasuryController::class, 'stats']);
+    Route::get('/treasury/fees', [TreasuryController::class, 'feeRecords']);
+    Route::get('/treasury/fees/{fee}', [TreasuryController::class, 'feeDetail']);
+    Route::put('/treasury/fees/{fee}', [TreasuryController::class, 'updateRecord']);
+    Route::get('/treasury/unpaid', [TreasuryController::class, 'unpaid']);
+    Route::post('/treasury/restrict/{userId}', [TreasuryController::class, 'restrict']);
+    Route::delete('/treasury/restrict/{userId}', [TreasuryController::class, 'lift']);
 });

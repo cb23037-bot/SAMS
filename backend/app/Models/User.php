@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use App\Models\Restriction;
 use App\Models\SubjectRegistration;
 
 
@@ -60,5 +61,10 @@ class User extends Authenticatable
     public function advisees(): HasMany
     {
         return $this->hasMany(User::class, 'personal_advisor', 'name');
+    }
+
+    public function restrictions(): HasMany
+    {
+        return $this->hasMany(Restriction::class);
     }
 }

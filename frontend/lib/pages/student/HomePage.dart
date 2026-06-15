@@ -8,6 +8,8 @@ import 'ModuleBookingPage.dart';
 import 'CurriculumActivityPage.dart';
 import 'StudentNotificationsPage.dart';
 import 'SubjectRegistrationPage.dart';
+import 'fees/manage_fees_dashboard_page.dart';
+import '../../utils/restriction_checker.dart';
 
 /// Top-level home page shown to authenticated students.
 ///
@@ -309,29 +311,61 @@ class _StudentHomePageState extends State<StudentHomePage> {
                 title: 'Register Subjects',
                 icon: Icons.menu_book_outlined,
                 color: const Color(0xFF3B82F6),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => SubjectRegistrationPage(controller: widget.controller),
-                  ),
-                ),
+                onTap: () async {
+                  final restricted = await checkAndShowRestriction(
+                    context: context,
+                    controller: widget.controller,
+                    onPayNow: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => ManageFeesDashboardPage(controller: widget.controller),
+                    )),
+                  );
+                  if (restricted || !mounted) return;
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => SubjectRegistrationPage(controller: widget.controller),
+                    ),
+                  );
+                },
               ),
               _ActionCard(
                 title: 'Mark Attendance',
                 icon: Icons.calendar_month_outlined,
                 color: const Color(0xFF22C55E),
-                onTap: () => _showSoon('Mark Attendance is coming soon.'),
+                onTap: () async {
+                  final restricted = await checkAndShowRestriction(
+                    context: context,
+                    controller: widget.controller,
+                    onPayNow: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => ManageFeesDashboardPage(controller: widget.controller),
+                    )),
+                  );
+                  if (restricted || !mounted) return;
+                  _showSoon('Mark Attendance is coming soon.');
+                },
               ),
               _ActionCard(
                 title: 'Curriculum Activity',
                 icon: Icons.trending_up_outlined,
                 color: const Color(0xFFA855F7),
-                onTap: _openCurriculum,
+                onTap: () async {
+                  final restricted = await checkAndShowRestriction(
+                    context: context,
+                    controller: widget.controller,
+                    onPayNow: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => ManageFeesDashboardPage(controller: widget.controller),
+                    )),
+                  );
+                  if (restricted || !mounted) return;
+                  _openCurriculum();
+                },
               ),
               _ActionCard(
                 title: 'Pay Fees',
                 icon: Icons.attach_money_outlined,
                 color: const Color(0xFFF97316),
-                onTap: () => _showSoon('Pay Fees is coming soon.'),
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => ManageFeesDashboardPage(controller: widget.controller),
+                )),
               ),
             ],
           ),
