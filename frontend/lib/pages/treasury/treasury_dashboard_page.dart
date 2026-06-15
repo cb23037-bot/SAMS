@@ -20,14 +20,10 @@ class _TreasuryDashboardPageState extends State<TreasuryDashboardPage> {
   String? _error;
   Map<String, dynamic>? _data;
 
-  bool _autoEnforce    = true;
-  bool _settingsLoaded = false;
-
   @override
   void initState() {
     super.initState();
     _load();
-    _loadSettings();
   }
 
   Future<void> _load() async {
@@ -39,30 +35,6 @@ class _TreasuryDashboardPageState extends State<TreasuryDashboardPage> {
       setState(() { _data = data; _loading = false; });
     } catch (e) {
       setState(() { _error = e.toString().replaceFirst('Exception: ', ''); _loading = false; });
-    }
-  }
-
-  Future<void> _loadSettings() async {
-    try {
-      final s = await widget.controller.apiService.getTreasurySettings(
-        token: widget.controller.token!,
-      );
-      setState(() {
-        _autoEnforce    = s['week5_auto_enforce'] == true;
-        _settingsLoaded = true;
-      });
-    } catch (_) {}
-  }
-
-  Future<void> _toggleAutoEnforce(bool val) async {
-    setState(() => _autoEnforce = val);
-    try {
-      await widget.controller.apiService.updateTreasurySettings(
-        token: widget.controller.token!,
-        settings: {'week5_auto_enforce': val},
-      );
-    } catch (_) {
-      setState(() => _autoEnforce = !val);
     }
   }
 
@@ -201,35 +173,11 @@ class _TreasuryDashboardPageState extends State<TreasuryDashboardPage> {
   }
 
   Widget _buildSettings() {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
-      children: [
-        Container(
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 8)],
-          ),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('Week 5 Restriction',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
-            const SizedBox(height: 4),
-            const Text(
-              'Automatically restricts academic access for students with unpaid or partial fees once Week 5 begins.',
-              style: TextStyle(fontSize: 13, color: Color(0xFF6B7280), height: 1.4),
-            ),
-            const SizedBox(height: 14),
-            Row(children: [
-              const Expanded(child: Text('Auto-enforce Week 5 Rule',
-                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14))),
-              _settingsLoaded
-                  ? Switch(value: _autoEnforce, onChanged: _toggleAutoEnforce, activeColor: _teal)
-                  : const SizedBox(width: 40, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
-            ]),
-          ]),
-        ),
-      ],
+    return const Center(
+      child: Text(
+        'Settings coming soon.',
+        style: TextStyle(color: Colors.grey),
+      ),
     );
   }
 }
