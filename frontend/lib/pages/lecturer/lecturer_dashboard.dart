@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../app/app_controller.dart';
+import '../../models/class_schedule.dart';
 // Import your new approval list page here
 import 'SubjectApprovalListPage.dart';
-import 'LecturerAttendancePage.dart';
+import 'lecturer_class_list.dart';
 
 class LecturerDashboardPage extends StatefulWidget {
   const LecturerDashboardPage({super.key, required this.controller});
@@ -13,6 +14,45 @@ class LecturerDashboardPage extends StatefulWidget {
 }
 
 class _LecturerDashboardPageState extends State<LecturerDashboardPage> {
+  /// SAMS-PACK-406: loadTodaySchedule() — loads today's class schedule for the lecturer.
+  List<ClassScheduleModel> _todaySchedules = [];
+  bool _isLoadingSchedules = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTodaySchedule();
+  }
+
+  /// SAMS-PACK-406: loadTodaySchedule()
+  /// Fetches the lecturer's class schedules and filters to those scheduled today.
+  Future<void> _loadTodaySchedule() async {
+    setState(() => _isLoadingSchedules = true);
+    try {
+      final allSchedules = await widget.controller.apiService.getLecturerClassSchedules(
+        token: widget.controller.token!,
+      );
+      if (!mounted) return;
+      final today = DateTime.now();
+      final todayDate = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+      setState(() {
+        _todaySchedules = allSchedules.where((s) => s.scheduleDate == todayDate).toList();
+      });
+    } catch (_) {
+      // Silent fail — today's class card is optional UI
+    } finally {
+      if (mounted) setState(() => _isLoadingSchedules = false);
+    }
+  }
+
+  /// SAMS-PACK-406: navigateToClassList() — opens the Manage Attendance page.
+  void _navigateToClassList() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => LecturerAttendancePage(controller: widget.controller)),
+    );
+  }
+
   Future<void> _logout() async {
     await widget.controller.signOut();
   }
@@ -44,20 +84,37 @@ class _LecturerDashboardPageState extends State<LecturerDashboardPage> {
                     ),
                   ),
                   IconButton(
-                    onPressed: _logout, 
+                    onPressed: _logout,
                     icon: const Icon(Icons.logout, color: Color(0xFFFF3B30))
                   ),
                 ],
               ),
               const SizedBox(height: 24),
-              
+
               // Welcome Card
               _WelcomeCard(user: user, role: 'Lecturer'),
-              
+
               const SizedBox(height: 24),
+
+              // SAMS-PACK-406: Today's Class card — shown when schedule exists for today.
+              if (_isLoadingSchedules)
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 16),
+                  child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
+                )
+              else if (_todaySchedules.isNotEmpty) ...[
+                const Text("Today's Classes", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
+                const SizedBox(height: 10),
+                ..._todaySchedules.map((schedule) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _TodayClassCard(schedule: schedule, onTap: _navigateToClassList),
+                )),
+                const SizedBox(height: 14),
+              ],
+
               const Text('Quick Actions', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700)),
               const SizedBox(height: 16),
-              
+
               // Navigation to Approval Workflow
               _ActionCard(
                 title: 'Registration Approvals',
@@ -72,16 +129,80 @@ class _LecturerDashboardPageState extends State<LecturerDashboardPage> {
 
               // Navigation to Class Attendance Management
               _ActionCard(
-                title: 'Manage Attendance',
+                title: 'Manage Student Attendance',
                 icon: Icons.qr_code_scanner_outlined,
                 color: const Color(0xFF2E6BFF),
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => LecturerAttendancePage(controller: widget.controller)),
-                ),
+                onTap: _navigateToClassList,
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Card shown on the lecturer dashboard for each class scheduled today.
+class _TodayClassCard extends StatelessWidget {
+  const _TodayClassCard({required this.schedule, required this.onTap});
+
+  final ClassScheduleModel schedule;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasActive = schedule.activeSession?.isActive ?? false;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF0F6FF),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFBDD4FF)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: const BoxDecoration(color: Color(0xFF2E6BFF), shape: BoxShape.circle),
+              child: const Icon(Icons.class_outlined, color: Colors.white, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${schedule.courseCode} - ${schedule.courseName}',
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Color(0xFF111827)),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${schedule.startTime} - ${schedule.endTime}  •  ${schedule.venue}',
+                    style: const TextStyle(fontSize: 12, color: Color(0xFF5B6B86)),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: hasActive ? const Color(0xFF22C55E) : const Color(0xFF2E6BFF),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                hasActive ? 'Active' : 'Start',
+                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -149,7 +270,7 @@ class _ActionCard extends StatelessWidget {
             children: [
               Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: color, shape: BoxShape.circle), child: Icon(icon, color: Colors.white)),
               const SizedBox(width: 16),
-              Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+              Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16))),
             ],
           ),
         ),

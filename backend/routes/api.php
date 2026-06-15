@@ -78,7 +78,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/subject-registrations', [SubjectRegistrationController::class, 'index']);
 
         // --- Class Attendance (Student) ---
-        Route::get('/attendance/schedules', [StudentAttendanceController::class, 'getSchedules']);
+        Route::get('/attendance/schedules', [StudentAttendanceController::class, 'getEnrolledSchedules']);
         Route::get('/attendance/schedules/{scheduleId}/active-session', [StudentAttendanceController::class, 'getActiveSession']);
         Route::post('/attendance/submit', [StudentAttendanceController::class, 'submitAttendance']);
     });
@@ -97,7 +97,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/student/{studentId}/approve-all', [SubjectRegistrationController::class, 'approveAll']);
 
         // --- Class Attendance (Lecturer) ---
-        Route::get('/attendance/schedules', [LecturerAttendanceController::class, 'getSchedules']);
+        Route::get('/attendance/schedules', [LecturerAttendanceController::class, 'getAssignedSchedules']);
         Route::get('/attendance/schedules/today', [LecturerAttendanceController::class, 'getTodaySchedules']);
         Route::get('/attendance/schedules/{scheduleId}/enrolled-count', [LecturerAttendanceController::class, 'getEnrolledCount']);
         Route::post('/attendance/sessions/start', [LecturerAttendanceController::class, 'startSession']);

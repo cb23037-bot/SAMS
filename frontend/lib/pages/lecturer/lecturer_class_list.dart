@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../app/app_controller.dart';
 import '../../models/class_schedule.dart';
-import 'LecturerAttendanceReportPage.dart';
-import 'LecturerAttendanceSessionPage.dart';
+import 'lecturer_attendance_record.dart';
+import 'lecturer_attendance_report.dart';
+import 'lecturer_active_session.dart';
 
 /// Lists the class schedules assigned to the lecturer and lets them open a
 /// class to start/manage an attendance session.
@@ -22,10 +23,13 @@ class _LecturerAttendancePageState extends State<LecturerAttendancePage> {
   @override
   void initState() {
     super.initState();
-    _scheduleFuture = _load();
+    _scheduleFuture = loadLecturerSchedules();
   }
 
-  Future<List<ClassScheduleModel>> _load() {
+  /// SAMS-PACK-407: loadLecturerSchedules()
+  /// Retrieves all class schedules assigned to the authenticated lecturer.
+  /// Returns: List<ClassSchedule> — the lecturer's schedule list.
+  Future<List<ClassScheduleModel>> loadLecturerSchedules() {
     return widget.controller.apiService.getLecturerClassSchedules(
       token: widget.controller.token!,
     );
@@ -33,13 +37,17 @@ class _LecturerAttendancePageState extends State<LecturerAttendancePage> {
 
   Future<void> _refresh() async {
     setState(() {
-      _scheduleFuture = _load();
+      _scheduleFuture = loadLecturerSchedules();
     });
     await _scheduleFuture;
   }
 
-  Future<void> _openSchedule(ClassScheduleModel schedule) async {
-    await Navigator.of(context).push(
+  /// SAMS-PACK-407: startAttendanceSession(schedule_id)
+  /// Navigates to the active session page for the selected schedule, which
+  /// starts or resumes an AttendanceSession for that class.
+  /// Returns: AttendanceSession — via the active session page.
+  Future<void> startAttendanceSession(ClassScheduleModel schedule) async {
+    final closedSessionId = await Navigator.of(context).push<int>(
       MaterialPageRoute(
         builder: (_) => LecturerAttendanceSessionPage(
           controller: widget.controller,
@@ -48,8 +56,36 @@ class _LecturerAttendancePageState extends State<LecturerAttendancePage> {
       ),
     );
     _refresh();
+    // Step 14: If the session was just closed, prompt the lecturer to view the record.
+    if (closedSessionId != null && mounted) {
+      final view = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Session Closed'),
+          content: const Text('The attendance session has been closed. Would you like to view the attendance record?'),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Later')),
+            FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('View Attendance Record')),
+          ],
+        ),
+      );
+      if (view == true && mounted) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => LecturerAttendanceRecordPage(
+              controller: widget.controller,
+              sessionId: closedSessionId,
+              schedule: schedule,
+            ),
+          ),
+        );
+      }
+    }
   }
 
+  /// SAMS-PACK-407: render()
+  /// Renders the lecturer class list interface — the main Scaffold with
+  /// the schedule list and navigation to session management.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -126,7 +162,7 @@ class _LecturerAttendancePageState extends State<LecturerAttendancePage> {
                   padding: const EdgeInsets.only(bottom: 14),
                   child: _ClassScheduleCard(
                     schedule: schedule,
-                    onTap: () => _openSchedule(schedule),
+                    onTap: () => startAttendanceSession(schedule),
                   ),
                 );
               },

@@ -900,8 +900,9 @@ class ApiService {
         .toList();
   }
 
-  /// Starts (or resumes) an attendance session for a class schedule.
-  Future<AttendanceSessionModel> startAttendanceSession({
+  /// Starts an attendance session. Returns the session and whether one was
+  /// already active [A1: Active Session Already Exists].
+  Future<({AttendanceSessionModel session, bool alreadyActive})> startAttendanceSession({
     required String token,
     required int scheduleId,
   }) async {
@@ -911,7 +912,9 @@ class ApiService {
       token: token,
       body: {'schedule_id': scheduleId},
     );
-    return AttendanceSessionModel.fromJson(json['session'] as Map<String, dynamic>);
+    final session = AttendanceSessionModel.fromJson(json['session'] as Map<String, dynamic>);
+    final alreadyActive = (json['message'] as String? ?? '').contains('already active');
+    return (session: session, alreadyActive: alreadyActive);
   }
 
   /// Generates a new attendance code for an active session.

@@ -26,17 +26,16 @@ class _StudentAttendanceSubmitPageState extends State<StudentAttendanceSubmitPag
 
   bool _isLoadingSession = true;
   bool _isSubmitting = false;
-  bool _isLocating = false;
+  bool _isAcquiringLocation = false;
   String? _loadError;
   String? _submitError;
 
   AttendanceSessionModel? _session;
-  Position? _position;
 
   @override
   void initState() {
     super.initState();
-    _loadSession();
+    loadActiveSession(widget.schedule.scheduleId);
   }
 
   @override
@@ -45,7 +44,12 @@ class _StudentAttendanceSubmitPageState extends State<StudentAttendanceSubmitPag
     super.dispose();
   }
 
-  Future<void> _loadSession() async {
+  /// SAMS-PACK-412: loadActiveSession(schedule_id)
+  /// Retrieves the currently active attendance session for the given schedule.
+  /// Called on page open so the form knows whether the session is still active
+  /// and whether the student has already submitted.
+  /// Returns: AttendanceSession — stored in [_session], null if none active.
+  Future<void> loadActiveSession(int scheduleId) async {
     setState(() {
       _isLoadingSession = true;
       _loadError = null;
@@ -53,7 +57,7 @@ class _StudentAttendanceSubmitPageState extends State<StudentAttendanceSubmitPag
     try {
       final session = await widget.controller.apiService.getActiveAttendanceSession(
         token: widget.controller.token!,
-        scheduleId: widget.schedule.scheduleId,
+        scheduleId: scheduleId,
       );
       if (!mounted) return;
       setState(() => _session = session);
@@ -65,78 +69,118 @@ class _StudentAttendanceSubmitPageState extends State<StudentAttendanceSubmitPag
     }
   }
 
-  Future<void> _getLocation() async {
-    setState(() {
-      _isLocating = true;
-      _submitError = null;
-    });
+  /// SAMS-PACK-412: validateAttendanceCode(attendance_code)
+  /// Checks whether the student has entered an attendance code before submitting.
+  /// Sets [_submitError] and returns false if the field is empty.
+  /// Returns: Boolean — true if code is non-empty, false if blank.
+  bool validateAttendanceCode(String attendanceCode) {
+    if (attendanceCode.isEmpty) {
+      setState(() => _submitError = 'Attendance code is required.');
+      return false;
+    }
+    return true;
+  }
+
+  /// SAMS-PACK-412: requestGPSLocation()
+  /// Requests the student's current GPS coordinates from the device.
+  /// Checks location permission and service status before acquiring.
+  /// Sets [_submitError] if permission is denied or location is unavailable.
+  /// Returns: Location (Position) — the student's current GPS fix, or null on failure.
+  Future<Position?> requestGPSLocation() async {
     try {
       var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
       }
       if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
-        setState(() => _submitError = 'Location permission is required to mark attendance.');
-        return;
+        if (mounted) setState(() => _submitError = 'Location permission is required to mark attendance.');
+        return null;
       }
-
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        setState(() => _submitError = 'Please enable location services on your device.');
-        return;
+        if (mounted) setState(() => _submitError = 'Please enable location services on your device.');
+        return null;
       }
-
-      final position = await Geolocator.getCurrentPosition(
+      return await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.high,
           timeLimit: Duration(seconds: 15),
         ),
       );
-      if (!mounted) return;
-      setState(() => _position = position);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _submitError = 'Unable to get your current location. Please try again.');
-    } finally {
-      if (mounted) setState(() => _isLocating = false);
+    } catch (_) {
+      if (mounted) setState(() => _submitError = 'Unable to get your current location. Please try again.');
+      return null;
     }
   }
 
-  Future<void> _submit() async {
+  /// SAMS-PACK-412: submitAttendance(attendance_code, gps_latitude, gps_longitude)
+  /// Submits the student's attendance code and GPS location to the backend.
+  /// Step 1 [A3]: validates the code is non-empty via validateAttendanceCode().
+  /// Steps 7–8: captures GPS automatically via requestGPSLocation().
+  /// Steps 5–12: backend verifies code, campus boundary, and duplicate submission.
+  /// On success calls displaySubmissionStatus() with the result message.
+  /// Returns: Boolean — true if submission was accepted, false otherwise.
+  Future<void> submitAttendance(String attendanceCode, double gpsLatitude, double gpsLongitude) async {
+    final message = await widget.controller.apiService.submitClassAttendance(
+      token: widget.controller.token!,
+      scheduleId: widget.schedule.scheduleId,
+      attendanceCode: attendanceCode,
+      latitude: gpsLatitude,
+      longitude: gpsLongitude,
+    );
+    if (!mounted) return;
+    displaySubmissionStatus('success', message);
+    Navigator.of(context).pop(true);
+  }
+
+  /// SAMS-PACK-412: displaySubmissionStatus(status, message)
+  /// Displays a success or error message to the student after submission.
+  /// 'success' shows a snackbar and pops the page.
+  /// 'error' sets [_submitError] so the inline error text is shown on the form.
+  /// Returns: void
+  void displaySubmissionStatus(String status, String message) {
+    if (status == 'success') {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    } else {
+      setState(() => _submitError = message);
+    }
+  }
+
+  /// Orchestrates the full submit flow: validate → GPS → submit → display status.
+  Future<void> _onSubmitTapped() async {
     final code = _codeController.text.trim();
-    if (code.isEmpty) {
-      setState(() => _submitError = 'Please enter the attendance code given by your lecturer.');
-      return;
-    }
-    if (_position == null) {
-      setState(() => _submitError = 'Please capture your current location first.');
-      return;
-    }
+
+    // validateAttendanceCode() — step 1
+    if (!validateAttendanceCode(code)) return;
 
     setState(() {
       _isSubmitting = true;
+      _isAcquiringLocation = true;
       _submitError = null;
     });
 
     try {
-      final message = await widget.controller.apiService.submitClassAttendance(
-        token: widget.controller.token!,
-        scheduleId: widget.schedule.scheduleId,
-        attendanceCode: code,
-        latitude: _position!.latitude,
-        longitude: _position!.longitude,
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
-      Navigator.of(context).pop(true);
+      // requestGPSLocation() — steps 7–8
+      final position = await requestGPSLocation();
+      if (mounted) { setState(() => _isAcquiringLocation = false); }
+      if (position == null) return;
+
+      // submitAttendance() — steps 5–12
+      await submitAttendance(code, position.latitude, position.longitude);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _submitError = e.toString().replaceAll('Exception: ', ''));
+      displaySubmissionStatus('error', e.toString().replaceAll('Exception: ', ''));
     } finally {
-      if (mounted) setState(() => _isSubmitting = false);
+      if (mounted) setState(() {
+        _isSubmitting = false;
+        _isAcquiringLocation = false;
+      });
     }
   }
 
+  /// SAMS-PACK-412: render()
+  /// Renders the attendance submission form — class info card, session status
+  /// banners, attendance code input, GPS status indicator, and submit button.
   @override
   Widget build(BuildContext context) {
     final schedule = widget.schedule;
@@ -198,7 +242,7 @@ class _StudentAttendanceSubmitPageState extends State<StudentAttendanceSubmitPag
                     _MessageBanner(message: _loadError!, color: const Color(0xFFFF3B30))
                   else if (_session == null || !_session!.isActive)
                     const _MessageBanner(
-                      message: 'There is no active attendance session for this class right now.',
+                      message: 'Attendance session has ended.',
                       color: Color(0xFF8A96A8),
                     )
                   else if (_session!.alreadySubmitted)
@@ -237,58 +281,28 @@ class _StudentAttendanceSubmitPageState extends State<StudentAttendanceSubmitPag
           ),
         ),
 
-        const SizedBox(height: 20),
-
-        const Text(
-          'Your Location',
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF111827)),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: const [
-              BoxShadow(color: Color(0x1F0D1B2A), blurRadius: 16, offset: Offset(0, 6)),
-            ],
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: const BoxDecoration(color: Color(0xFF2E6BFF), shape: BoxShape.circle),
-                child: const Icon(Icons.my_location, color: Colors.white, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  _position == null
-                      ? 'Location not captured yet'
-                      : 'Lat: ${_position!.latitude.toStringAsFixed(6)}, Lng: ${_position!.longitude.toStringAsFixed(6)}',
-                  style: const TextStyle(fontSize: 13, color: Color(0xFF5B6B86)),
-                ),
-              ),
-              const SizedBox(width: 8),
-              OutlinedButton(
-                onPressed: _isLocating ? null : _getLocation,
-                child: _isLocating
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Get Location'),
-              ),
-            ],
-          ),
-        ),
-
         if (_submitError != null) ...[
           const SizedBox(height: 12),
           Text(_submitError!, style: const TextStyle(color: Color(0xFFFF3B30), fontSize: 13)),
+        ],
+
+        // SAMS-PACK-412: displaySubmissionStatus() — "Verifying your current location" during GPS capture.
+        if (_isAcquiringLocation) ...[
+          const SizedBox(height: 12),
+          Row(
+            children: const [
+              SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2E6BFF)),
+              ),
+              SizedBox(width: 10),
+              Text(
+                'Verifying your current location...',
+                style: TextStyle(color: Color(0xFF2E6BFF), fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
         ],
 
         const SizedBox(height: 24),
@@ -296,7 +310,7 @@ class _StudentAttendanceSubmitPageState extends State<StudentAttendanceSubmitPag
         SizedBox(
           width: double.infinity,
           child: FilledButton(
-            onPressed: _isSubmitting ? null : _submit,
+            onPressed: _isSubmitting ? null : _onSubmitTapped,
             style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFF2E6BFF),
               padding: const EdgeInsets.symmetric(vertical: 14),

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../app/app_controller.dart';
 import '../../models/class_schedule.dart';
-import 'StudentAttendanceSubmitPage.dart';
+import 'student_attendance_form.dart';
 
 /// Lists the classes the student is enrolled in and lets them open a class
 /// that currently has an active attendance session to mark their attendance.
@@ -21,10 +21,14 @@ class _StudentAttendancePageState extends State<StudentAttendancePage> {
   @override
   void initState() {
     super.initState();
-    _scheduleFuture = _load();
+    _scheduleFuture = loadEnrolledClasses();
   }
 
-  Future<List<ClassScheduleModel>> _load() {
+  /// SAMS-PACK-413: loadEnrolledClasses()
+  /// Retrieves all class schedules for the classes the student is enrolled in.
+  /// Called on page load and after returning from the attendance form.
+  /// Returns: List<ClassSchedule> — the student's enrolled class schedules.
+  Future<List<ClassScheduleModel>> loadEnrolledClasses() {
     return widget.controller.apiService.getStudentClassSchedules(
       token: widget.controller.token!,
     );
@@ -32,12 +36,27 @@ class _StudentAttendancePageState extends State<StudentAttendancePage> {
 
   Future<void> _refresh() async {
     setState(() {
-      _scheduleFuture = _load();
+      _scheduleFuture = loadEnrolledClasses();
     });
     await _scheduleFuture;
   }
 
-  Future<void> _openSchedule(ClassScheduleModel schedule) async {
+  /// SAMS-PACK-413: selectClass(schedule_id)
+  /// Selects the class schedule the student tapped and navigates to the
+  /// attendance submission form for that class.
+  /// Uses the already-resolved snapshot data passed in from the list builder
+  /// so no async gap occurs before the Navigator call.
+  /// Returns: void
+  void selectClass(ClassScheduleModel schedule) {
+    navigateToAttendanceForm(schedule.scheduleId, schedule: schedule);
+  }
+
+  /// SAMS-PACK-413: navigateToAttendanceForm(schedule_id)
+  /// Navigates to the attendance submission form for the selected class schedule.
+  /// Refreshes the class list when returning so the session status stays current.
+  /// [schedule] must be provided so no async gap occurs before the Navigator call.
+  /// Returns: void
+  Future<void> navigateToAttendanceForm(int scheduleId, {required ClassScheduleModel schedule}) async {
     final marked = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => StudentAttendanceSubmitPage(
@@ -49,6 +68,9 @@ class _StudentAttendancePageState extends State<StudentAttendancePage> {
     if (marked == true) _refresh();
   }
 
+  /// SAMS-PACK-413: render()
+  /// Renders the enrolled class list interface — a scrollable list of class
+  /// schedule cards with session status badges and tap-to-attend interaction.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -102,7 +124,7 @@ class _StudentAttendancePageState extends State<StudentAttendancePage> {
                   child: _ClassScheduleCard(
                     schedule: schedule,
                     onTap: (schedule.hasActiveSession && !schedule.alreadySubmitted)
-                        ? () => _openSchedule(schedule)
+                        ? () => navigateToAttendanceForm(schedule.scheduleId, schedule: schedule)
                         : null,
                   ),
                 );
@@ -211,9 +233,11 @@ class _ClassScheduleCard extends StatelessWidget {
                   children: [
                     Icon(status.icon, size: 14, color: status.color),
                     const SizedBox(width: 6),
-                    Text(
-                      status.label,
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: status.color),
+                    Flexible(
+                      child: Text(
+                        status.label,
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: status.color),
+                      ),
                     ),
                   ],
                 ),
@@ -232,7 +256,7 @@ class _ClassScheduleCard extends StatelessWidget {
     if (schedule.hasActiveSession) {
       return _StatusInfo('Session Active - Tap to Mark', Icons.touch_app, const Color(0xFF2E6BFF));
     }
-    return _StatusInfo('No Active Session', Icons.schedule_outlined, const Color(0xFF8A96A8));
+    return _StatusInfo('No Active Session / Attendance Session has ended.', Icons.schedule_outlined, const Color(0xFF8A96A8));
   }
 }
 

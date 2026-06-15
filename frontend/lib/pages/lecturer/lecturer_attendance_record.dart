@@ -5,6 +5,7 @@ import '../../models/class_attendance_submission.dart';
 import '../../models/class_schedule.dart';
 
 /// Shows the present/rejected/absent breakdown for an attendance session.
+/// SAMS-PACK-409: supports searchStudent(keyword) and filterByStatus(status).
 class LecturerAttendanceRecordPage extends StatefulWidget {
   const LecturerAttendanceRecordPage({
     super.key,
@@ -24,26 +25,70 @@ class LecturerAttendanceRecordPage extends StatefulWidget {
 class _LecturerAttendanceRecordPageState extends State<LecturerAttendanceRecordPage> {
   late Future<AttendanceRecordModel> _recordFuture;
 
+  /// SAMS-PACK-409: searchStudent(keyword) — filters list by name or matric no.
+  final TextEditingController _searchController = TextEditingController();
+  String _searchKeyword = '';
+
+  /// SAMS-PACK-409: filterByStatus(status) — 'all', 'present', 'rejected', 'absent'.
+  String _statusFilter = 'all';
+
   @override
   void initState() {
     super.initState();
-    _recordFuture = _load();
+    _recordFuture = loadAttendanceRecord(widget.sessionId);
+    _searchController.addListener(() {
+      setState(() => _searchKeyword = _searchController.text.toLowerCase().trim());
+    });
   }
 
-  Future<AttendanceRecordModel> _load() {
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  /// SAMS-PACK-409: loadAttendanceRecord(attendance_session_id)
+  /// Retrieves the full attendance record for a session — present, rejected,
+  /// and absent student lists — from the backend API.
+  /// Returns: List<AttendanceSubmission> (wrapped in AttendanceRecordModel).
+  Future<AttendanceRecordModel> loadAttendanceRecord(int attendanceSessionId) {
     return widget.controller.apiService.getAttendanceRecord(
       token: widget.controller.token!,
-      sessionId: widget.sessionId,
+      sessionId: attendanceSessionId,
     );
   }
 
   Future<void> _refresh() async {
     setState(() {
-      _recordFuture = _load();
+      _recordFuture = loadAttendanceRecord(widget.sessionId);
     });
     await _recordFuture;
   }
 
+  /// SAMS-PACK-409: searchStudent(keyword)
+  /// Searches the attendance record by student name or matric number.
+  /// Filters any list of student entries whose name or matric no contains [keyword].
+  /// Returns: List<AttendanceSubmission> — matching entries only.
+  List<T> searchStudent<T>(List<T> list, String Function(T) getName, String Function(T) getMatric) {
+    if (_searchKeyword.isEmpty) return list;
+    return list.where((item) {
+      return getName(item).toLowerCase().contains(_searchKeyword) ||
+          getMatric(item).toLowerCase().contains(_searchKeyword);
+    }).toList();
+  }
+
+  /// SAMS-PACK-409: filterByStatus(status)
+  /// Filters the attendance record by attendance status.
+  /// [status] is one of: 'all', 'present', 'rejected', 'absent'.
+  /// Returns: List<AttendanceSubmission> — entries matching the given status.
+  bool filterByStatus(String status) {
+    if (_statusFilter == 'all') return true;
+    return _statusFilter == status;
+  }
+
+  /// SAMS-PACK-409: render()
+  /// Renders the attendance record interface — session info card, count summary,
+  /// search bar, status filter chips, and sectioned student lists.
   @override
   Widget build(BuildContext context) {
     final schedule = widget.schedule;
@@ -88,6 +133,11 @@ class _LecturerAttendanceRecordPageState extends State<LecturerAttendanceRecordP
             }
 
             final record = snapshot.data!;
+
+            // Apply search filter to each section.
+            final filteredPresent = searchStudent<ClassAttendanceSubmissionModel>(record.present, (s) => s.studentName, (s) => s.matricNo);
+            final filteredRejected = searchStudent<ClassAttendanceSubmissionModel>(record.rejected, (s) => s.studentName, (s) => s.matricNo);
+            final filteredAbsent = searchStudent<AbsentStudentModel>(record.absent, (s) => s.name, (s) => s.matricNo);
 
             return ListView(
               padding: const EdgeInsets.all(16),
@@ -158,38 +208,134 @@ class _LecturerAttendanceRecordPageState extends State<LecturerAttendanceRecordP
                   ],
                 ),
 
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
 
-                _SectionList(
-                  title: 'Present',
-                  color: const Color(0xFF22C55E),
-                  icon: Icons.check_circle,
-                  emptyText: 'No students marked present.',
-                  children: record.present.map((s) => _StudentTile(name: s.studentName, matricNo: s.matricNo)).toList(),
+                // SAMS-PACK-409: searchStudent() — search bar
+                TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: 'Search by name or matric no...',
+                    hintStyle: const TextStyle(color: Color(0xFF8A96A8)),
+                    prefixIcon: const Icon(Icons.search, color: Color(0xFF8A96A8)),
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                // SAMS-PACK-409: filterByStatus() — status filter chips
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _FilterChip(
+                        label: 'All',
+                        selected: _statusFilter == 'all',
+                        color: const Color(0xFF2E6BFF),
+                        onTap: () => setState(() => _statusFilter = 'all'),
+                      ),
+                      const SizedBox(width: 8),
+                      _FilterChip(
+                        label: 'Present',
+                        selected: _statusFilter == 'present',
+                        color: const Color(0xFF22C55E),
+                        onTap: () => setState(() => _statusFilter = 'present'),
+                      ),
+                      const SizedBox(width: 8),
+                      _FilterChip(
+                        label: 'Rejected',
+                        selected: _statusFilter == 'rejected',
+                        color: const Color(0xFFFF3B30),
+                        onTap: () => setState(() => _statusFilter = 'rejected'),
+                      ),
+                      const SizedBox(width: 8),
+                      _FilterChip(
+                        label: 'Absent',
+                        selected: _statusFilter == 'absent',
+                        color: const Color(0xFF8A96A8),
+                        onTap: () => setState(() => _statusFilter = 'absent'),
+                      ),
+                    ],
+                  ),
                 ),
 
                 const SizedBox(height: 16),
 
-                _SectionList(
-                  title: 'Rejected',
-                  color: const Color(0xFFFF3B30),
-                  icon: Icons.cancel,
-                  emptyText: 'No rejected submissions.',
-                  children: record.rejected.map((s) => _StudentTile(name: s.studentName, matricNo: s.matricNo)).toList(),
-                ),
+                if (filterByStatus('present')) ...[
+                  _SectionList(
+                    title: 'Present',
+                    color: const Color(0xFF22C55E),
+                    icon: Icons.check_circle,
+                    emptyText: 'No students marked present.',
+                    children: filteredPresent.map((ClassAttendanceSubmissionModel s) => _StudentTile(name: s.studentName, matricNo: s.matricNo)).toList(),
+                  ),
+                  const SizedBox(height: 16),
+                ],
 
-                const SizedBox(height: 16),
+                if (filterByStatus('rejected')) ...[
+                  _SectionList(
+                    title: 'Rejected',
+                    color: const Color(0xFFFF3B30),
+                    icon: Icons.cancel,
+                    emptyText: 'No rejected submissions.',
+                    children: filteredRejected.map((ClassAttendanceSubmissionModel s) => _StudentTile(name: s.studentName, matricNo: s.matricNo)).toList(),
+                  ),
+                  const SizedBox(height: 16),
+                ],
 
-                _SectionList(
-                  title: 'Absent',
-                  color: const Color(0xFF8A96A8),
-                  icon: Icons.person_off,
-                  emptyText: 'No absent students.',
-                  children: record.absent.map((s) => _StudentTile(name: s.name, matricNo: s.matricNo)).toList(),
-                ),
+                if (filterByStatus('absent')) ...[
+                  _SectionList(
+                    title: 'Absent',
+                    color: const Color(0xFF8A96A8),
+                    icon: Icons.person_off,
+                    emptyText: 'No absent students.',
+                    children: filteredAbsent.map((AbsentStudentModel s) => _StudentTile(name: s.name, matricNo: s.matricNo)).toList(),
+                  ),
+                ],
               ],
             );
           },
+        ),
+      ),
+    );
+  }
+}
+
+class _FilterChip extends StatelessWidget {
+  const _FilterChip({required this.label, required this.selected, required this.color, required this.onTap});
+
+  final String label;
+  final bool selected;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? color : Colors.white,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: selected ? color : const Color(0xFFE2E8F0)),
+          boxShadow: selected
+              ? [BoxShadow(color: color.withValues(alpha: 0.25), blurRadius: 8, offset: const Offset(0, 2))]
+              : null,
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 13,
+            color: selected ? Colors.white : const Color(0xFF5B6B86),
+          ),
         ),
       ),
     );
