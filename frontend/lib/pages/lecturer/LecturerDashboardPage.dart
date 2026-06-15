@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../app/app_controller.dart';
 // Import your new approval list page here
-import 'SubjectApprovalListPage.dart'; 
+import 'SubjectApprovalListPage.dart';
+import 'LecturerAttendancePage.dart';
 
 class LecturerDashboardPage extends StatefulWidget {
   const LecturerDashboardPage({super.key, required this.controller});
@@ -63,8 +64,20 @@ class _LecturerDashboardPageState extends State<LecturerDashboardPage> {
                 icon: Icons.fact_check_outlined,
                 color: const Color(0xFF22C55E),
                 onTap: () => Navigator.push(
-                  context, 
+                  context,
                   MaterialPageRoute(builder: (_) => SubjectApprovalListPage(controller: widget.controller))
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // Navigation to Class Attendance Management
+              _ActionCard(
+                title: 'Manage Attendance',
+                icon: Icons.qr_code_scanner_outlined,
+                color: const Color(0xFF2E6BFF),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => LecturerAttendancePage(controller: widget.controller)),
                 ),
               ),
             ],

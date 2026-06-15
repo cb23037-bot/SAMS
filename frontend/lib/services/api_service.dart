@@ -7,6 +7,10 @@ import '../models/activity.dart';
 import '../models/activity_registration.dart';
 import '../models/activity_slot.dart';
 import '../models/app_user.dart';
+import '../models/attendance_report.dart';
+import '../models/attendance_session.dart';
+import '../models/class_attendance_submission.dart';
+import '../models/class_schedule.dart';
 import '../app/app_controller.dart';
 import 'package:http/http.dart' as http;
 
@@ -876,6 +880,150 @@ class ApiService {
       path: '/lecturer/student/$studentId/approve-all',
       token: token,
     );
+  }
+
+  // ── Class Attendance (Lecturer) ────────────────────────────────────────────
+
+  /// Fetches all class schedules assigned to the authenticated lecturer.
+  Future<List<ClassScheduleModel>> getLecturerClassSchedules({required String token}) async {
+    final json = await _request(method: 'GET', path: '/lecturer/attendance/schedules', token: token);
+    return (json['schedules'] as List<dynamic>)
+        .map((e) => ClassScheduleModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Fetches the authenticated lecturer's class schedules for today.
+  Future<List<ClassScheduleModel>> getLecturerTodaySchedules({required String token}) async {
+    final json = await _request(method: 'GET', path: '/lecturer/attendance/schedules/today', token: token);
+    return (json['schedules'] as List<dynamic>)
+        .map((e) => ClassScheduleModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Starts (or resumes) an attendance session for a class schedule.
+  Future<AttendanceSessionModel> startAttendanceSession({
+    required String token,
+    required int scheduleId,
+  }) async {
+    final json = await _request(
+      method: 'POST',
+      path: '/lecturer/attendance/sessions/start',
+      token: token,
+      body: {'schedule_id': scheduleId},
+    );
+    return AttendanceSessionModel.fromJson(json['session'] as Map<String, dynamic>);
+  }
+
+  /// Generates a new attendance code for an active session.
+  Future<AttendanceSessionModel> generateAttendanceCode({
+    required String token,
+    required int sessionId,
+  }) async {
+    final json = await _request(
+      method: 'POST',
+      path: '/lecturer/attendance/sessions/$sessionId/generate-code',
+      token: token,
+    );
+    return AttendanceSessionModel.fromJson(json['session'] as Map<String, dynamic>);
+  }
+
+  /// Fetches the live list of submissions for an active session (used for polling).
+  Future<LiveAttendanceModel> getLiveAttendance({
+    required String token,
+    required int sessionId,
+  }) async {
+    final json = await _request(method: 'GET', path: '/lecturer/attendance/sessions/$sessionId/live', token: token);
+    return LiveAttendanceModel.fromJson(json);
+  }
+
+  /// Closes an active attendance session.
+  Future<AttendanceSessionModel> closeAttendanceSession({
+    required String token,
+    required int sessionId,
+  }) async {
+    final json = await _request(
+      method: 'POST',
+      path: '/lecturer/attendance/sessions/$sessionId/close',
+      token: token,
+    );
+    return AttendanceSessionModel.fromJson(json['session'] as Map<String, dynamic>);
+  }
+
+  /// Fetches the full attendance record (present, rejected, absent) for a session.
+  Future<AttendanceRecordModel> getAttendanceRecord({
+    required String token,
+    required int sessionId,
+  }) async {
+    final json = await _request(method: 'GET', path: '/lecturer/attendance/sessions/$sessionId/record', token: token);
+    return AttendanceRecordModel.fromJson(json);
+  }
+
+  /// Fetches the list of classes the lecturer can generate an attendance report for.
+  Future<List<ReportClassModel>> getAttendanceReportFilters({required String token}) async {
+    final json = await _request(method: 'GET', path: '/lecturer/attendance/report/filters', token: token);
+    return (json['classes'] as List<dynamic>)
+        .map((e) => ReportClassModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Generates the attendance report summary for a class.
+  Future<ReportSummaryModel> generateAttendanceReport({
+    required String token,
+    required int classId,
+  }) async {
+    final json = await _request(
+      method: 'GET',
+      path: '/lecturer/attendance/report?class_id=$classId',
+      token: token,
+    );
+    return ReportSummaryModel.fromJson(json);
+  }
+
+  // ── Class Attendance (Student) ─────────────────────────────────────────────
+
+  /// Fetches the class schedules the authenticated student is enrolled in.
+  Future<List<ClassScheduleModel>> getStudentClassSchedules({required String token}) async {
+    final json = await _request(method: 'GET', path: '/student/attendance/schedules', token: token);
+    return (json['schedules'] as List<dynamic>)
+        .map((e) => ClassScheduleModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Checks whether a class the student is enrolled in has an active attendance session.
+  Future<AttendanceSessionModel?> getActiveAttendanceSession({
+    required String token,
+    required int scheduleId,
+  }) async {
+    final json = await _request(
+      method: 'GET',
+      path: '/student/attendance/schedules/$scheduleId/active-session',
+      token: token,
+    );
+    final session = json['session'];
+    if (session == null) return null;
+    return AttendanceSessionModel.fromJson(session as Map<String, dynamic>);
+  }
+
+  /// Submits the student's attendance code and GPS location for an active session.
+  Future<String> submitClassAttendance({
+    required String token,
+    required int scheduleId,
+    required String attendanceCode,
+    required double latitude,
+    required double longitude,
+  }) async {
+    final json = await _request(
+      method: 'POST',
+      path: '/student/attendance/submit',
+      token: token,
+      body: {
+        'schedule_id': scheduleId,
+        'attendance_code': attendanceCode,
+        'gps_latitude': latitude,
+        'gps_longitude': longitude,
+      },
+    );
+    return json['message'] as String? ?? 'Attendance marked successfully.';
   }
 
   // ── Private Helpers ────────────────────────────────────────────────────────

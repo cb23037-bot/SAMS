@@ -6,6 +6,7 @@ import '../../models/app_user.dart';
 import 'EditProfilePage.dart';
 import 'ModuleBookingPage.dart';
 import 'CurriculumActivityPage.dart';
+import 'StudentAttendancePage.dart';
 import 'StudentNotificationsPage.dart';
 import 'SubjectRegistrationPage.dart';
 
@@ -319,7 +320,11 @@ class _StudentHomePageState extends State<StudentHomePage> {
                 title: 'Mark Attendance',
                 icon: Icons.calendar_month_outlined,
                 color: const Color(0xFF22C55E),
-                onTap: () => _showSoon('Mark Attendance is coming soon.'),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => StudentAttendancePage(controller: widget.controller),
+                  ),
+                ),
               ),
               _ActionCard(
                 title: 'Curriculum Activity',
