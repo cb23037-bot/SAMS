@@ -62,7 +62,7 @@ class _AvailableSubjectsPageState extends State<AvailableSubjectsPage> {
           return ListView.separated(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
             itemCount: subjects.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            separatorBuilder: (_, _) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
               final subject = subjects[index];
               
@@ -104,7 +104,7 @@ class _AvailableSubjectsPageState extends State<AvailableSubjectsPage> {
                                 ),
                               );
 
-                              if (updatedSubject != null && mounted) {
+                              if (updatedSubject != null && context.mounted) {
                                 Navigator.of(context).pop(updatedSubject);
                               }
                             },

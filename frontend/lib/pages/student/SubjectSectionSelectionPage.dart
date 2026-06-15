@@ -180,46 +180,54 @@ class _SubjectSectionSelectionPageState extends State<SubjectSectionSelectionPag
           children: [
             Text('Lecture Sections', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
             const SizedBox(height: 12),
-            ..._lectureOptions.map((option) {
-              final clash = _clashesWithExisting(option.schedule);
-              return RadioListTile<SectionOption>(
-                value: option,
-                groupValue: _selectedLecture,
-                onChanged: (value) => setState(() => _selectedLecture = value),
-                title: Text('Section ${option.section}'),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (option.instructor != null) Text(option.instructor!),
-                    if (option.schedule != null) Text(option.schedule!, style: const TextStyle(color: Color(0xFF64748B))),
-                    if (clash)
-                      const Text('Warning: This section clashes with your current timetable.', style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 12)),
-                  ],
-                ),
-              );
-            }).toList(),
+            RadioGroup<SectionOption>(
+              groupValue: _selectedLecture,
+              onChanged: (value) => setState(() => _selectedLecture = value),
+              child: Column(
+                children: _lectureOptions.map((option) {
+                  final clash = _clashesWithExisting(option.schedule);
+                  return RadioListTile<SectionOption>(
+                    value: option,
+                    title: Text('Section ${option.section}'),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (option.instructor != null) Text(option.instructor!),
+                        if (option.schedule != null) Text(option.schedule!, style: const TextStyle(color: Color(0xFF64748B))),
+                        if (clash)
+                          const Text('Warning: This section clashes with your current timetable.', style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 12)),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
             if (_labOptions.isNotEmpty) ...[
               const SizedBox(height: 20),
               Text('Lab Sections', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
               const SizedBox(height: 12),
-              ..._labOptions.map((option) {
-                final clash = _clashesWithExisting(option.schedule);
-                return RadioListTile<SectionOption>(
-                  value: option,
-                  groupValue: _selectedLab,
-                  onChanged: (value) => setState(() => _selectedLab = value),
-                  title: Text('Lab ${option.section}'),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (option.instructor != null) Text(option.instructor!),
-                      if (option.schedule != null) Text(option.schedule!, style: const TextStyle(color: Color(0xFF64748B))),
-                      if (clash)
-                        const Text('Warning: This section clashes with your current timetable.', style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 12)),
-                    ],
-                  ),
-                );
-              }).toList(),
+              RadioGroup<SectionOption>(
+                groupValue: _selectedLab,
+                onChanged: (value) => setState(() => _selectedLab = value),
+                child: Column(
+                  children: _labOptions.map((option) {
+                    final clash = _clashesWithExisting(option.schedule);
+                    return RadioListTile<SectionOption>(
+                      value: option,
+                      title: Text('Lab ${option.section}'),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (option.instructor != null) Text(option.instructor!),
+                          if (option.schedule != null) Text(option.schedule!, style: const TextStyle(color: Color(0xFF64748B))),
+                          if (clash)
+                            const Text('Warning: This section clashes with your current timetable.', style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 12)),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
             ],
             const SizedBox(height: 24),
             ElevatedButton(

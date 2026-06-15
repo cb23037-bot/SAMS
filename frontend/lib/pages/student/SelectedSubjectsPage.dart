@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/subject.dart';
 import '../../app/app_controller.dart';
-import '../../services/api_service.dart';
 
 class SelectedSubjectsPage extends StatefulWidget {
   final List<Subject> selectedSubjects;
@@ -20,7 +19,7 @@ class SelectedSubjectsPage extends StatefulWidget {
 class _SelectedSubjectsPageState extends State<SelectedSubjectsPage> {
   late List<Subject> _subjects;
   bool _isSubmitting = false;
-  Map<int, String> _conflictMap = {};
+  final Map<int, String> _conflictMap = {};
 
   @override
   void initState() {
@@ -77,8 +76,8 @@ class _SelectedSubjectsPageState extends State<SelectedSubjectsPage> {
       for (int j = i + 1; j < _subjects.length; j++) {
         final s2 = _extractSchedules(_subjects[j]);
         if (_hasTimeConflict(s1, s2)) {
-          _conflictMap[i] = _subjects[j].name ?? 'Other Subject';
-          _conflictMap[j] = _subjects[i].name ?? 'Other Subject';
+          _conflictMap[i] = _subjects[j].name;
+          _conflictMap[j] = _subjects[i].name;
         }
       }
     }
@@ -106,8 +105,8 @@ class _SelectedSubjectsPageState extends State<SelectedSubjectsPage> {
       margin: const EdgeInsets.only(top: 8),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        border: Border.all(color: color.withOpacity(0.3)),
+        color: color.withValues(alpha: 0.1),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(

@@ -56,7 +56,7 @@ class _ManageSessionPageState extends State<ManageSessionPage> {
             onPressed: () async {
               if (nameController.text.isNotEmpty) {
                 await widget.controller.apiService.createSession(nameController.text);
-                if (mounted) Navigator.pop(ctx);
+                if (ctx.mounted) Navigator.pop(ctx);
                 _refreshSessions();
               }
             },

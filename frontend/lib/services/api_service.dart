@@ -882,11 +882,11 @@ class ApiService {
 
   /// Returns the correct base URL depending on the platform.
   ///
-  /// Android emulators use 10.0.2.2 to reach the host machine's localhost.
-  /// Web and other platforms use 127.0.0.1 directly.
+  /// For an Android emulator, change this to `http://10.0.2.2:8000/api`
+  /// (the emulator's alias for the host machine's localhost). For a
+  /// physical device over USB, run `adb reverse tcp:8000 tcp:8000` so its
+  /// 127.0.0.1 reaches the host, same as web and other platforms.
   String _baseUrl() {
-    if (kIsWeb) return 'http://127.0.0.1:8000/api';
-    if (Platform.isAndroid) return 'http://10.0.2.2:8000/api';
     return 'http://127.0.0.1:8000/api';
   }
 

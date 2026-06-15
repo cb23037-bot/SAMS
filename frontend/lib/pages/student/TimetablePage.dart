@@ -117,7 +117,7 @@ class _SubjectEventCard extends StatelessWidget {
       height: (event.durationHours * 120.0) - 2,
       width: 138,
       padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(color: event.color.withOpacity(0.2), border: Border.all(color: event.color), borderRadius: BorderRadius.circular(6)),
+      decoration: BoxDecoration(color: event.color.withValues(alpha: 0.2), border: Border.all(color: event.color), borderRadius: BorderRadius.circular(6)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(event.subjectCode, style: TextStyle(fontWeight: FontWeight.bold, color: event.color, fontSize: 10)),
         Text(event.type, style: TextStyle(fontSize: 8, color: event.color)),

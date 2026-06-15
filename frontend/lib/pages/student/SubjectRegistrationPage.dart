@@ -196,7 +196,7 @@ class _SubjectRegistrationPageState extends State<SubjectRegistrationPage> {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: _selectedSubjects.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            separatorBuilder: (_, _) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
               final subject = _selectedSubjects[index];
               return Card(

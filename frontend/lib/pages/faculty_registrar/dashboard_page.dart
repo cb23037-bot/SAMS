@@ -57,7 +57,7 @@ class FacultyRegistrarDashboard extends StatelessWidget {
                 _DashboardCard(
                   title: 'Subject Management',
                   icon: Icons.book_outlined,
-                  color: theme.AppColors.primaryGreen ?? Colors.green,
+                  color: theme.AppColors.primaryGreen,
                   onTap: () {
                     Navigator.push(
                       context,

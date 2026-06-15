@@ -66,6 +66,7 @@ class _AddSubjectPageState extends State<AddSubjectPage> {
       );
 
       if (time != null) {
+        if (!mounted) return;
         final startTime = time.format(context);
         final endHour = (time.hour + 2) % 24;
         final endTime = TimeOfDay(hour: endHour, minute: time.minute).format(context);
