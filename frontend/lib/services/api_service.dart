@@ -876,6 +876,17 @@ class ApiService {
     return _request(method: 'PUT', path: '/treasury/fees/$feeId', token: token, body: fields);
   }
 
+  Future<Map<String, dynamic>> getTreasurySettings({required String token}) async {
+    return _request(method: 'GET', path: '/treasury/settings', token: token);
+  }
+
+  Future<void> updateTreasurySettings({
+    required String token,
+    required Map<String, dynamic> settings,
+  }) async {
+    await _request(method: 'PUT', path: '/treasury/settings', token: token, body: settings);
+  }
+
   // ── Module 3: Restriction ─────────────────────────────────────────────────
 
   Future<Map<String, dynamic>> getRestrictionStatus({required String token}) async {

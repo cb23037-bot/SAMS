@@ -6,6 +6,7 @@ import 'pages/pusat_adab/SystemPage.dart';
 import 'pages/lecturer/LecturerDashboardPage.dart';
 import 'pages/faculty_registrar/dashboard_page.dart';
 import 'pages/student/HomePage.dart';
+import 'pages/treasury/treasury_dashboard_page.dart';
 import 'services/api_service.dart';
 
 /// App entry point. Boots a single [SamsApp] widget which owns the
@@ -89,6 +90,9 @@ class _SamsAppState extends State<SamsApp> {
     }
     if (user.isFacultyRegistrar) {
       return FacultyRegistrarDashboard(controller: _controller);
+    }
+    if (user.isTreasury) {
+      return TreasuryDashboardPage(controller: _controller);
     }
 
     return StudentHomePage(controller: _controller);
