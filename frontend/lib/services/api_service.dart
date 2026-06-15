@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io' show File;
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -367,7 +366,7 @@ class ApiService {
   Future<ActivityRegistration> claimWithProof({
     required String token,
     required int registrationId,
-    required String filePath,
+    required Uint8List fileBytes,
     required String fileName,
   }) async {
     try {
@@ -380,7 +379,6 @@ class ApiService {
         _               => 'application/octet-stream',
       };
 
-      final fileBytes = await File(filePath).readAsBytes();
       final request = http.MultipartRequest('POST', uri)
         ..headers['Authorization'] = 'Bearer $token'
         ..files.add(http.MultipartFile.fromBytes(
@@ -417,7 +415,7 @@ class ApiService {
     required String token,
     required int slotId,
     required String attendanceCode,
-    required String photoPath,
+    required Uint8List photoBytes,
     required String photoName,
     double? latitude,
     double? longitude,
@@ -428,7 +426,6 @@ class ApiService {
       final ext = photoName.toLowerCase().split('.').last;
       final mimeType = ext == 'png' ? 'image/png' : 'image/jpeg';
 
-      final fileBytes = await File(photoPath).readAsBytes();
       final request = http.MultipartRequest('POST', uri)
         ..headers['Authorization'] = 'Bearer $token'
         ..fields['slot_id'] = '$slotId'
@@ -439,7 +436,7 @@ class ApiService {
       if (address != null) request.fields['address'] = address;
 
       request.files.add(http.MultipartFile.fromBytes(
-        'photo', fileBytes,
+        'photo', photoBytes,
         filename: photoName,
         contentType: MediaType.parse(mimeType),
       ));
@@ -563,14 +560,14 @@ class ApiService {
 
   /// Downloads the proof document (PDF) for a claim as raw bytes.
   ///
-  /// Fetched directly from the `storage/` static path (served by Laravel's
-  /// `public/storage` symlink) instead of going through a JSON/base64
-  /// controller response — the PHP dev server truncates large JSON bodies,
-  /// but static file serving streams the full file correctly.
-  Future<Uint8List> downloadProof({required String proofPath}) async {
+  /// Fetched via the authenticated `/adab/claims/{id}/proof` API endpoint
+  /// rather than the `storage/` static path — static files are served
+  /// directly by the web server (bypassing Laravel entirely), so they never
+  /// get CORS headers and fail when called from Flutter Web.
+  Future<Uint8List> downloadProof({required String token, required int registrationId}) async {
     try {
-      final uri = Uri.parse('${_storageBaseUrl()}/storage/$proofPath');
-      final response = await http.get(uri);
+      final uri = Uri.parse('${_baseUrl()}/adab/claims/$registrationId/proof');
+      final response = await http.get(uri, headers: {'Authorization': 'Bearer $token'});
 
       if (response.statusCode != 200) {
         throw Exception('Proof document not found.');
@@ -1156,13 +1153,6 @@ class ApiService {
   /// 127.0.0.1 reaches the host, same as web and other platforms.
   String _baseUrl() {
     return 'http://127.0.0.1:8000/api';
-  }
-
-  /// Returns the server's root URL (without the `/api` suffix), used to
-  /// fetch static files served from Laravel's `public/storage` symlink.
-  String _storageBaseUrl() {
-    final base = _baseUrl();
-    return base.substring(0, base.length - '/api'.length);
   }
 
   /// Safely decodes a JSON response body.

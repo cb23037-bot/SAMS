@@ -3,12 +3,14 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
-import 'dart:ui' as ui;
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
+import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:pdf/pdf.dart';
@@ -155,13 +157,11 @@ Future<String?> _reverseGeocode(double lat, double lon) async {
     final uri = Uri.parse(
       'https://nominatim.openstreetmap.org/reverse?format=json&lat=$lat&lon=$lon&zoom=16',
     );
-    final client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
-    final req = await client.getUrl(uri);
-    req.headers.set('User-Agent', 'SAMS-App/1.0');
-    final response = await req.close();
+    final response = await http
+        .get(uri, headers: {'User-Agent': 'SAMS-App/1.0'})
+        .timeout(const Duration(seconds: 8));
     if (response.statusCode == 200) {
-      final raw  = await response.transform(utf8.decoder).join();
-      final json = jsonDecode(raw) as Map<String, dynamic>;
+      final json = jsonDecode(response.body) as Map<String, dynamic>;
       return json['display_name'] as String?;
     }
     return null;
@@ -189,24 +189,17 @@ int _tileY(double lat, int zoom) {
   return ((1 - log(tan(r) + 1 / cos(r)) / pi) / 2 * pow(2, zoom)).floor();
 }
 
-/// Downloads a single OSM tile image at ([zoom], [x], [y]).
-/// Returns `null` on any network/decode failure so the map is simply omitted
+/// Downloads a single OSM tile image at ([zoom], [x], [y]) as raw PNG bytes.
+/// Returns `null` on any network failure so the map is simply omitted
 /// from the receipt rather than crashing PDF generation.
-Future<ui.Image?> _fetchOsmTile(int zoom, int x, int y) async {
+Future<Uint8List?> _fetchOsmTile(int zoom, int x, int y) async {
   try {
-    final client = HttpClient()..connectionTimeout = const Duration(seconds: 10);
-    final req    = await client.getUrl(
-        Uri.parse('https://tile.openstreetmap.org/$zoom/$x/$y.png'));
-    req.headers.set('User-Agent', 'SAMS-App/1.0');
-    final resp = await req.close();
+    final resp = await http
+        .get(Uri.parse('https://tile.openstreetmap.org/$zoom/$x/$y.png'),
+            headers: {'User-Agent': 'SAMS-App/1.0'})
+        .timeout(const Duration(seconds: 10));
     if (resp.statusCode != 200) return null;
-    final bytes = <int>[];
-    await for (final c in resp) {
-      bytes.addAll(c);
-    }
-    client.close();
-    final codec = await ui.instantiateImageCodec(Uint8List.fromList(bytes));
-    return (await codec.getNextFrame()).image;
+    return resp.bodyBytes;
   } catch (_) {
     return null;
   }
@@ -216,6 +209,9 @@ Future<ui.Image?> _fetchOsmTile(int zoom, int x, int y) async {
 /// for embedding in the PDF receipt. Fetches a 3×3 grid of OSM tiles, stitches
 /// them into one 768×768 canvas, and draws the pin at the precise GPS pixel
 /// position. Returns `null` on any failure (map is then omitted from the PDF).
+///
+/// Built with `package:image` (pure Dart, renderer-agnostic) rather than
+/// `dart:ui`'s Canvas/Picture APIs, which don't reliably rasterize on Flutter Web.
 Future<Uint8List?> _fetchMapImage(double lat, double lon) async {
   try {
     const zoom       = 16;
@@ -235,7 +231,7 @@ Future<Uint8List?> _fetchMapImage(double lat, double lon) async {
                     (cy - gridRadius)) * tileSize;
 
     // Fetch all 9 tiles in parallel
-    final futures = <Future<ui.Image?>>[];
+    final futures = <Future<Uint8List?>>[];
     for (int dy = -gridRadius; dy <= gridRadius; dy++) {
       for (int dx = -gridRadius; dx <= gridRadius; dx++) {
         futures.add(_fetchOsmTile(zoom, cx + dx, cy + dy));
@@ -244,32 +240,29 @@ Future<Uint8List?> _fetchMapImage(double lat, double lon) async {
     final tiles = await Future.wait(futures);
 
     // Stitch tiles onto canvas
-    final recorder = ui.PictureRecorder();
-    final canvas   = Canvas(recorder);
-
-    canvas.drawRect(
-      Rect.fromLTWH(0, 0, totalPx.toDouble(), totalPx.toDouble()),
-      Paint()..color = const Color(0xFFE8E8E8),
-    );
+    final canvas = img.Image(width: totalPx, height: totalPx);
+    img.fill(canvas, color: img.ColorRgb8(0xE8, 0xE8, 0xE8));
 
     for (int i = 0; i < tiles.length; i++) {
-      final tile = tiles[i];
+      final bytes = tiles[i];
+      if (bytes == null) continue;
+      final tile = img.decodePng(bytes);
       if (tile == null) continue;
-      final dx = (i % gridDim) * tileSize.toDouble();
-      final dy = (i ~/ gridDim) * tileSize.toDouble();
-      canvas.drawImage(tile, Offset(dx, dy), Paint());
+      img.compositeImage(canvas, tile,
+          dstX: (i % gridDim) * tileSize, dstY: (i ~/ gridDim) * tileSize);
     }
 
     // Draw red pin at GPS location
-    final pin = Offset(pinX, pinY);
-    canvas.drawCircle(pin.translate(0, 2), 13, Paint()..color = const Color(0x55000000));
-    canvas.drawCircle(pin, 13, Paint()..color = const Color(0xFFFF3B30));
-    canvas.drawCircle(pin, 5,  Paint()..color = Colors.white);
+    final pinXi = pinX.round();
+    final pinYi = pinY.round();
+    img.fillCircle(canvas,
+        x: pinXi, y: pinYi + 2, radius: 13, color: img.ColorRgba8(0, 0, 0, 0x55));
+    img.fillCircle(canvas,
+        x: pinXi, y: pinYi, radius: 13, color: img.ColorRgb8(0xFF, 0x3B, 0x30));
+    img.fillCircle(canvas,
+        x: pinXi, y: pinYi, radius: 5, color: img.ColorRgb8(0xFF, 0xFF, 0xFF));
 
-    final picture  = recorder.endRecording();
-    final image    = await picture.toImage(totalPx, totalPx);
-    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-    return byteData?.buffer.asUint8List();
+    return img.encodePng(canvas);
   } catch (_) {
     return null;
   }
@@ -628,7 +621,7 @@ class _StudentCurriculumContentState extends State<StudentCurriculumContent> {
         token:          widget.controller.token!,
         slotId:         reg.slot.id,
         attendanceCode: attendData.code,
-        photoPath:      attendData.photo.path,
+        photoBytes:     photoBytes,
         photoName:      attendData.photo.name,
         latitude:       pos?.latitude,
         longitude:      pos?.longitude,
@@ -681,7 +674,7 @@ class _StudentCurriculumContentState extends State<StudentCurriculumContent> {
       final updated = await widget.controller.apiService.claimWithProof(
         token:          widget.controller.token!,
         registrationId: reg.id,
-        filePath:       result.path!,
+        fileBytes:      result.bytes!,
         fileName:       result.name,
       );
       if (!mounted) return;
@@ -1462,12 +1455,19 @@ class _AttendDialogState extends State<_AttendDialog> {
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(10),
-                    child: Image.file(
-                      File(_photo!.path),
-                      height: 160,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                    ),
+                    child: kIsWeb
+                        ? Image.network(
+                            _photo!.path,
+                            height: 160,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                          )
+                        : Image.file(
+                            File(_photo!.path),
+                            height: 160,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                          ),
                   ),
                   const SizedBox(height: 8),
                   TextButton.icon(
@@ -1907,7 +1907,7 @@ class _ClaimCreditDialogState extends State<_ClaimCreditDialog> {
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf'],
-      withData: false,
+      withData: true,
       withReadStream: false,
     );
     if (result != null && result.files.isNotEmpty) {

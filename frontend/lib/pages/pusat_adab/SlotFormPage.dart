@@ -185,6 +185,7 @@ class _SlotFormPageState extends State<SlotFormPage> {
   ///  - A date must be selected.
   ///  - Capacity must be a positive integer.
   ///  - Both start and end time must be selected.
+  ///  - End time must be after start time.
   ///
   /// On success, appends the new slot to [_activity], clears the form, and
   /// shows [_AttendanceCodeDialog] so Pusat Adab can note down the generated
@@ -200,9 +201,14 @@ class _SlotFormPageState extends State<SlotFormPage> {
           : (capacity == null || capacity <= 0)
               ? 'Invalid input'
               : null;
-      _timeError = (_startTime == null || _endTime == null)
-          ? 'Please select both start and end time.'
-          : null;
+      if (_startTime == null || _endTime == null) {
+        _timeError = 'Please select both start and end time.';
+      } else if (_endTime!.hour * 60 + _endTime!.minute <=
+          _startTime!.hour * 60 + _startTime!.minute) {
+        _timeError = 'End time must be after start time.';
+      } else {
+        _timeError = null;
+      }
     });
 
     // Stop here if any validation error was set above.
