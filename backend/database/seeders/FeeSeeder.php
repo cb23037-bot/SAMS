@@ -6,6 +6,7 @@ use App\Models\Fee;
 use App\Models\Payment;
 use App\Models\Restriction;
 use App\Models\Sponsor;
+use App\Models\Student;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Database\Seeder;
@@ -37,7 +38,6 @@ class FeeSeeder extends Seeder
 
         // ── Students ─────────────────────────────────────────────────────────
         $studentData = [
-            // CB23037 already in UserSeeder — update so fee data attaches
             [
                 'name'             => 'Muhammad Ammar bin Azizan',
                 'email'            => 'cb23037@adab.umpsa.edu.my',
@@ -105,21 +105,35 @@ class FeeSeeder extends Seeder
             ],
         ];
 
+        // Create/update users and their Student records
+        $users    = [];
         $students = [];
         foreach ($studentData as $data) {
-            $students[$data['student_id']] = User::query()->updateOrCreate(
+            $matric = $data['student_id'];
+            $user   = User::query()->updateOrCreate(
                 ['email' => $data['email']],
                 array_merge($data, ['role' => 'student', 'password' => Hash::make('123456')])
             );
+            $users[$matric] = $user;
+
+            $student = Student::updateOrCreate(
+                ['user_id' => $user->id],
+                [
+                    'matric_number'    => $matric,
+                    'program_code'     => 'BCS',
+                    'current_semester' => (int) filter_var($data['current_semester'], FILTER_SANITIZE_NUMBER_INT),
+                ]
+            );
+            $students[$matric] = $student;
         }
 
         // Wipe existing fee & restriction data for these students
-        $ids = collect($students)->pluck('id');
-        Fee::whereIn('user_id', $ids)->each(function ($fee) {
+        $studentIds = collect($students)->pluck('id');
+        Fee::whereIn('student_id', $studentIds)->each(function ($fee) {
             Payment::where('fee_id', $fee->id)->delete();
             $fee->delete();
         });
-        Restriction::whereIn('user_id', $ids)->delete();
+        Restriction::whereIn('student_id', $studentIds)->delete();
 
         $sem4 = 'Semester 4 (2025/2026)';
         $sem6 = 'Semester 6 (2025/2026)';
@@ -130,38 +144,38 @@ class FeeSeeder extends Seeder
         // CB23037 Muhammad Ammar — fully paid tuition, partial accommodation
         // ────────────────────────────────────────────────────────────────────
         $feeA1 = Fee::create([
-            'user_id'     => $students['CB23037']->id,
-            'semester'    => $sem6,
-            'description' => 'Tuition Fee',
-            'amount'      => 1500.00,
-            'amount_paid' => 0,
-            'due_date'    => '2026-03-15',
-            'status'      => 'unpaid',
+            'student_id'         => $students['CB23037']->id,
+            'semester'           => $sem6,
+            'description'        => 'Tuition Fee',
+            'total_amount'       => 1500.00,
+            'outstanding_amount' => 1500.00,
+            'due_date'           => '2026-03-15',
+            'status'             => 'Unpaid',
         ]);
         Payment::create([
             'fee_id'         => $feeA1->id,
-            'user_id'        => $students['CB23037']->id,
             'amount'         => 1500.00,
             'payment_method' => 'online_banking',
+            'status'         => 'Success',
             'reference_no'   => 'OB' . strtoupper(Str::random(10)),
             'paid_at'        => now()->subDays(30),
         ]);
         $feeA1->recalculate();
 
         $feeA2 = Fee::create([
-            'user_id'     => $students['CB23037']->id,
-            'semester'    => $sem6,
-            'description' => 'Accommodation Fee',
-            'amount'      => 800.00,
-            'amount_paid' => 0,
-            'due_date'    => '2026-03-15',
-            'status'      => 'unpaid',
+            'student_id'         => $students['CB23037']->id,
+            'semester'           => $sem6,
+            'description'        => 'Accommodation Fee',
+            'total_amount'       => 800.00,
+            'outstanding_amount' => 800.00,
+            'due_date'           => '2026-03-15',
+            'status'             => 'Unpaid',
         ]);
         Payment::create([
             'fee_id'         => $feeA2->id,
-            'user_id'        => $students['CB23037']->id,
             'amount'         => 400.00,
             'payment_method' => 'ewallet',
+            'status'         => 'Success',
             'reference_no'   => 'EW' . strtoupper(Str::random(10)),
             'paid_at'        => now()->subDays(15),
         ]);
@@ -171,59 +185,59 @@ class FeeSeeder extends Seeder
         // CB23201 Ahmad Farhan — partial tuition + unpaid activity fee
         // ────────────────────────────────────────────────────────────────────
         $feeB1 = Fee::create([
-            'user_id'     => $students['CB23201']->id,
-            'semester'    => $sem4,
-            'description' => 'Tuition Fee',
-            'amount'      => 1200.00,
-            'amount_paid' => 0,
-            'due_date'    => '2026-03-15',
-            'status'      => 'unpaid',
+            'student_id'         => $students['CB23201']->id,
+            'semester'           => $sem4,
+            'description'        => 'Tuition Fee',
+            'total_amount'       => 1200.00,
+            'outstanding_amount' => 1200.00,
+            'due_date'           => '2026-03-15',
+            'status'             => 'Unpaid',
         ]);
         Payment::create([
             'fee_id'         => $feeB1->id,
-            'user_id'        => $students['CB23201']->id,
             'amount'         => 600.00,
             'payment_method' => 'online_banking',
+            'status'         => 'Success',
             'reference_no'   => 'OB' . strtoupper(Str::random(10)),
             'paid_at'        => now()->subDays(10),
         ]);
         $feeB1->recalculate();
 
         Fee::create([
-            'user_id'     => $students['CB23201']->id,
-            'semester'    => $sem4,
-            'description' => 'Activity & Sports Fee',
-            'amount'      => 150.00,
-            'amount_paid' => 0,
-            'due_date'    => '2026-03-15',
-            'status'      => 'unpaid',
+            'student_id'         => $students['CB23201']->id,
+            'semester'           => $sem4,
+            'description'        => 'Activity & Sports Fee',
+            'total_amount'       => 150.00,
+            'outstanding_amount' => 150.00,
+            'due_date'           => '2026-03-15',
+            'status'             => 'Unpaid',
         ]);
 
         // ────────────────────────────────────────────────────────────────────
         // CB23202 Nurul Aina — fully unpaid + ACTIVE restriction
         // ────────────────────────────────────────────────────────────────────
         Fee::create([
-            'user_id'     => $students['CB23202']->id,
-            'semester'    => $sem4,
-            'description' => 'Tuition Fee',
-            'amount'      => 1200.00,
-            'amount_paid' => 0,
-            'due_date'    => '2026-03-15',
-            'status'      => 'unpaid',
+            'student_id'         => $students['CB23202']->id,
+            'semester'           => $sem4,
+            'description'        => 'Tuition Fee',
+            'total_amount'       => 1200.00,
+            'outstanding_amount' => 1200.00,
+            'due_date'           => '2026-03-15',
+            'status'             => 'Unpaid',
         ]);
         Fee::create([
-            'user_id'     => $students['CB23202']->id,
-            'semester'    => $sem4,
-            'description' => 'Accommodation Fee',
-            'amount'      => 800.00,
-            'amount_paid' => 0,
-            'due_date'    => '2026-03-15',
-            'status'      => 'unpaid',
+            'student_id'         => $students['CB23202']->id,
+            'semester'           => $sem4,
+            'description'        => 'Accommodation Fee',
+            'total_amount'       => 800.00,
+            'outstanding_amount' => 800.00,
+            'due_date'           => '2026-03-15',
+            'status'             => 'Unpaid',
         ]);
         Restriction::create([
-            'user_id'          => $students['CB23202']->id,
+            'student_id'       => $students['CB23202']->id,
             'restriction_type' => 'financial_bar',
-            'status'           => 'active',
+            'status'           => 'Active',
             'applied_date'     => Carbon::today()->subDays(5)->toDateString(),
         ]);
 
@@ -231,87 +245,87 @@ class FeeSeeder extends Seeder
         // CB23203 Haziq — all fees fully paid
         // ────────────────────────────────────────────────────────────────────
         $feeD1 = Fee::create([
-            'user_id'     => $students['CB23203']->id,
-            'semester'    => $sem4,
-            'description' => 'Tuition Fee',
-            'amount'      => 1200.00,
-            'amount_paid' => 0,
-            'due_date'    => '2026-03-15',
-            'status'      => 'unpaid',
+            'student_id'         => $students['CB23203']->id,
+            'semester'           => $sem4,
+            'description'        => 'Tuition Fee',
+            'total_amount'       => 1200.00,
+            'outstanding_amount' => 1200.00,
+            'due_date'           => '2026-03-15',
+            'status'             => 'Unpaid',
         ]);
         Payment::create([
             'fee_id'         => $feeD1->id,
-            'user_id'        => $students['CB23203']->id,
             'amount'         => 1200.00,
             'payment_method' => 'ewallet',
+            'status'         => 'Success',
             'reference_no'   => 'EW' . strtoupper(Str::random(10)),
             'paid_at'        => now()->subDays(20),
         ]);
         $feeD1->recalculate();
 
         $feeD2 = Fee::create([
-            'user_id'     => $students['CB23203']->id,
-            'semester'    => $sem4,
-            'description' => 'Activity & Sports Fee',
-            'amount'      => 150.00,
-            'amount_paid' => 0,
-            'due_date'    => '2026-03-15',
-            'status'      => 'unpaid',
+            'student_id'         => $students['CB23203']->id,
+            'semester'           => $sem4,
+            'description'        => 'Activity & Sports Fee',
+            'total_amount'       => 150.00,
+            'outstanding_amount' => 150.00,
+            'due_date'           => '2026-03-15',
+            'status'             => 'Unpaid',
         ]);
         Payment::create([
             'fee_id'         => $feeD2->id,
-            'user_id'        => $students['CB23203']->id,
             'amount'         => 150.00,
             'payment_method' => 'cash',
+            'status'         => 'Success',
             'reference_no'   => 'CA' . strtoupper(Str::random(10)),
             'paid_at'        => now()->subDays(18),
         ]);
         $feeD2->recalculate();
 
         // ────────────────────────────────────────────────────────────────────
-        // CB22015 Siti Zulaikha — partial tuition (no restriction yet)
+        // CB22015 Siti Zulaikha — partial tuition, paid lab fee
         // ────────────────────────────────────────────────────────────────────
         $feeE1 = Fee::create([
-            'user_id'     => $students['CB22015']->id,
-            'semester'    => $sem8,
-            'description' => 'Tuition Fee',
-            'amount'      => 1800.00,
-            'amount_paid' => 0,
-            'due_date'    => '2026-02-28',
-            'status'      => 'unpaid',
+            'student_id'         => $students['CB22015']->id,
+            'semester'           => $sem8,
+            'description'        => 'Tuition Fee',
+            'total_amount'       => 1800.00,
+            'outstanding_amount' => 1800.00,
+            'due_date'           => '2026-02-28',
+            'status'             => 'Unpaid',
         ]);
         Payment::create([
             'fee_id'         => $feeE1->id,
-            'user_id'        => $students['CB22015']->id,
             'amount'         => 900.00,
             'payment_method' => 'card',
+            'status'         => 'Success',
             'reference_no'   => 'CD' . strtoupper(Str::random(10)),
             'paid_at'        => now()->subDays(45),
         ]);
         Payment::create([
             'fee_id'         => $feeE1->id,
-            'user_id'        => $students['CB22015']->id,
             'amount'         => 300.00,
             'payment_method' => 'online_banking',
+            'status'         => 'Success',
             'reference_no'   => 'OB' . strtoupper(Str::random(10)),
             'paid_at'        => now()->subDays(14),
         ]);
         $feeE1->recalculate();
 
         $feeE2 = Fee::create([
-            'user_id'     => $students['CB22015']->id,
-            'semester'    => $sem8,
-            'description' => 'Lab & Equipment Fee',
-            'amount'      => 200.00,
-            'amount_paid' => 0,
-            'due_date'    => '2026-02-28',
-            'status'      => 'unpaid',
+            'student_id'         => $students['CB22015']->id,
+            'semester'           => $sem8,
+            'description'        => 'Lab & Equipment Fee',
+            'total_amount'       => 200.00,
+            'outstanding_amount' => 200.00,
+            'due_date'           => '2026-02-28',
+            'status'             => 'Unpaid',
         ]);
         Payment::create([
             'fee_id'         => $feeE2->id,
-            'user_id'        => $students['CB22015']->id,
             'amount'         => 200.00,
             'payment_method' => 'ewallet',
+            'status'         => 'Success',
             'reference_no'   => 'EW' . strtoupper(Str::random(10)),
             'paid_at'        => now()->subDays(40),
         ]);
@@ -321,111 +335,104 @@ class FeeSeeder extends Seeder
         // CB23088 Mohd Izzat — had restriction, now LIFTED
         // ────────────────────────────────────────────────────────────────────
         $feeF1 = Fee::create([
-            'user_id'     => $students['CB23088']->id,
-            'semester'    => $sem4,
-            'description' => 'Tuition Fee',
-            'amount'      => 1200.00,
-            'amount_paid' => 0,
-            'due_date'    => '2026-03-15',
-            'status'      => 'unpaid',
+            'student_id'         => $students['CB23088']->id,
+            'semester'           => $sem4,
+            'description'        => 'Tuition Fee',
+            'total_amount'       => 1200.00,
+            'outstanding_amount' => 1200.00,
+            'due_date'           => '2026-03-15',
+            'status'             => 'Unpaid',
         ]);
         Payment::create([
             'fee_id'         => $feeF1->id,
-            'user_id'        => $students['CB23088']->id,
             'amount'         => 800.00,
             'payment_method' => 'card',
+            'status'         => 'Success',
             'reference_no'   => 'CD' . strtoupper(Str::random(10)),
             'paid_at'        => now()->subDays(3),
         ]);
         $feeF1->recalculate();
 
-        // Restriction was active but then lifted
         Restriction::create([
-            'user_id'          => $students['CB23088']->id,
+            'student_id'       => $students['CB23088']->id,
             'restriction_type' => 'financial_bar',
-            'status'           => 'lifted',
+            'status'           => 'Lifted',
             'applied_date'     => Carbon::today()->subDays(10)->toDateString(),
             'lifted_date'      => Carbon::today()->subDays(3)->toDateString(),
         ]);
 
         // ────────────────────────────────────────────────────────────────────
-        // CB24001 Wan Nur Izzah — new student, fully paid
+        // CB24001 Wan Nur Izzah — fully paid
         // ────────────────────────────────────────────────────────────────────
         $feeG1 = Fee::create([
-            'user_id'     => $students['CB24001']->id,
-            'semester'    => $sem2,
-            'description' => 'Tuition Fee',
-            'amount'      => 1000.00,
-            'amount_paid' => 0,
-            'due_date'    => '2026-04-30',
-            'status'      => 'unpaid',
+            'student_id'         => $students['CB24001']->id,
+            'semester'           => $sem2,
+            'description'        => 'Tuition Fee',
+            'total_amount'       => 1000.00,
+            'outstanding_amount' => 1000.00,
+            'due_date'           => '2026-04-30',
+            'status'             => 'Unpaid',
         ]);
         Payment::create([
             'fee_id'         => $feeG1->id,
-            'user_id'        => $students['CB24001']->id,
             'amount'         => 1000.00,
             'payment_method' => 'online_banking',
+            'status'         => 'Success',
             'reference_no'   => 'OB' . strtoupper(Str::random(10)),
             'paid_at'        => now()->subDays(7),
         ]);
         $feeG1->recalculate();
 
         // ────────────────────────────────────────────────────────────────────
-        // CB24055 Azrul — new student, fully unpaid (no restriction)
+        // CB24055 Azrul — new student, fully unpaid
         // ────────────────────────────────────────────────────────────────────
         Fee::create([
-            'user_id'     => $students['CB24055']->id,
-            'semester'    => $sem2,
-            'description' => 'Tuition Fee',
-            'amount'      => 1000.00,
-            'amount_paid' => 0,
-            'due_date'    => '2026-04-30',
-            'status'      => 'unpaid',
+            'student_id'         => $students['CB24055']->id,
+            'semester'           => $sem2,
+            'description'        => 'Tuition Fee',
+            'total_amount'       => 1000.00,
+            'outstanding_amount' => 1000.00,
+            'due_date'           => '2026-04-30',
+            'status'             => 'Unpaid',
         ]);
         Fee::create([
-            'user_id'     => $students['CB24055']->id,
-            'semester'    => $sem2,
-            'description' => 'Activity & Sports Fee',
-            'amount'      => 120.00,
-            'amount_paid' => 0,
-            'due_date'    => '2026-04-30',
-            'status'      => 'unpaid',
+            'student_id'         => $students['CB24055']->id,
+            'semester'           => $sem2,
+            'description'        => 'Activity & Sports Fee',
+            'total_amount'       => 120.00,
+            'outstanding_amount' => 120.00,
+            'due_date'           => '2026-04-30',
+            'status'             => 'Unpaid',
         ]);
 
         // ── Sponsors ────────────────────────────────────────────────────────
-        Sponsor::whereIn('user_id', $ids)->delete();
+        $userIds = collect($users)->pluck('id');
+        Sponsor::whereIn('user_id', $userIds)->delete();
 
         $sponsorData = [
-            // CB23037 — JPA scholarship active, PTPTN not applied
             ['student' => 'CB23037', 'name' => 'JPA (Jabatan Perkhidmatan Awam)', 'type' => 'scholarship', 'coverage' => 'Sem 1 – Sem 8', 'amount' => 2000.00, 'status' => 'active'],
             ['student' => 'CB23037', 'name' => 'PTPTN',                           'type' => 'loan',        'coverage' => null,             'amount' => 0.00,    'status' => 'not_applied'],
 
-            // CB22015 — JPA scholarship active, PTPTN loan active
             ['student' => 'CB22015', 'name' => 'JPA (Jabatan Perkhidmatan Awam)', 'type' => 'scholarship', 'coverage' => 'Sem 1 – Sem 8', 'amount' => 2000.00, 'status' => 'active'],
             ['student' => 'CB22015', 'name' => 'PTPTN',                           'type' => 'loan',        'coverage' => 'Sem 1 – Sem 8', 'amount' => 3000.00, 'status' => 'active'],
 
-            // CB23201 — MARA scholarship active
             ['student' => 'CB23201', 'name' => 'MARA',                            'type' => 'scholarship', 'coverage' => 'Sem 1 – Sem 6', 'amount' => 1500.00, 'status' => 'active'],
             ['student' => 'CB23201', 'name' => 'PTPTN',                           'type' => 'loan',        'coverage' => null,             'amount' => 0.00,    'status' => 'not_applied'],
 
-            // CB23202 — PTPTN loan active, no scholarship
             ['student' => 'CB23202', 'name' => 'PTPTN',                           'type' => 'loan',        'coverage' => 'Sem 1 – Sem 4', 'amount' => 800.00,  'status' => 'active'],
             ['student' => 'CB23202', 'name' => 'JPA (Jabatan Perkhidmatan Awam)', 'type' => 'scholarship', 'coverage' => null,             'amount' => 0.00,    'status' => 'not_applied'],
 
-            // CB23203 — Yayasan Pahang scholarship
             ['student' => 'CB23203', 'name' => 'Yayasan Pahang',                  'type' => 'bursary',     'coverage' => 'Sem 1 – Sem 4', 'amount' => 1200.00, 'status' => 'active'],
             ['student' => 'CB23203', 'name' => 'PTPTN',                           'type' => 'loan',        'coverage' => null,             'amount' => 0.00,    'status' => 'not_applied'],
 
-            // CB24001 — no sponsors
             ['student' => 'CB24001', 'name' => 'PTPTN',                           'type' => 'loan',        'coverage' => null,             'amount' => 0.00,    'status' => 'not_applied'],
 
-            // CB24055 — PTPTN applied
             ['student' => 'CB24055', 'name' => 'PTPTN',                           'type' => 'loan',        'coverage' => 'Sem 1 – Sem 8', 'amount' => 1000.00, 'status' => 'active'],
         ];
 
         foreach ($sponsorData as $s) {
             Sponsor::create([
-                'user_id'  => $students[$s['student']]->id,
+                'user_id'  => $users[$s['student']]->id,
                 'name'     => $s['name'],
                 'type'     => $s['type'],
                 'coverage' => $s['coverage'],
@@ -434,6 +441,6 @@ class FeeSeeder extends Seeder
             ]);
         }
 
-        $this->command->info('FeeSeeder: 8 students, fees, restrictions, and sponsors seeded.');
+        $this->command->info('FeeSeeder: 8 students, Student records, fees, restrictions, and sponsors seeded.');
     }
 }

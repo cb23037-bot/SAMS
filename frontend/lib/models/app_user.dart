@@ -49,11 +49,7 @@ class AppUser {
 
   // ── Computed properties ────────────────────────────────────────────────────
 
-  /// Returns true if this user is a Pusat Adab staff member.
-  /// Used to conditionally show admin-only UI elements.
   bool get isPusatAdab => role == 'adab';
-
-  /// Returns true if this user is a treasury staff member.
   bool get isTreasury => role == 'treasury';
 
   // ── Factory constructor ────────────────────────────────────────────────────

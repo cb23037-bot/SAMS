@@ -156,7 +156,7 @@ class _UnpaidFeeCard extends StatelessWidget {
         ? semesters.first
         : '${semesters.length} semesters';
     final feesSuffix = feeCount > 1 ? ' • $feeCount fees' : '';
-    final subtitle   = '${fee['student_id']} • $semLabel$feesSuffix';
+    final subtitle   = '${fee['matric_number']} • $semLabel$feesSuffix';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),

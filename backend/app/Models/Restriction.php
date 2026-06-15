@@ -8,7 +8,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Restriction extends Model
 {
     protected $fillable = [
-        'user_id', 'restriction_type', 'status', 'applied_date', 'lifted_date', 'lifted_by',
+        'student_id', 'restriction_type', 'status',
+        'applied_date', 'lifted_date', 'lifted_by',
     ];
 
     protected $casts = [
@@ -16,13 +17,18 @@ class Restriction extends Model
         'lifted_date'  => 'date',
     ];
 
-    public function user(): BelongsTo
+    public function student(): BelongsTo
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(Student::class);
     }
 
     public static function isRestricted(int $userId): bool
     {
-        return self::where('user_id', $userId)->where('status', 'active')->exists();
+        $student = Student::where('user_id', $userId)->first();
+        if (!$student) return false;
+
+        return self::where('student_id', $student->id)
+            ->where('status', 'Active')
+            ->exists();
     }
 }

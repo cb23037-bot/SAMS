@@ -1,5 +1,7 @@
 {
   "java.import.gradle.enabled": false,
   "java.configuration.updateBuildConfiguration": "disabled",
-  "java.project.sourcePaths": []
+  "java.project.sourcePaths": [],
+    "dart.flutterSdkPath": "C:\\Users\\hizbu\\.puro\\envs\\stable\\flutter",
+    "dart.sdkPath": "C:\\Users\\hizbu\\.puro\\envs\\stable\\flutter\\bin\\cache\\dart-sdk"
 }

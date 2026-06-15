@@ -75,8 +75,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // ── Treasury ─────────────────────────────────────────────────────────────
     Route::get('/treasury/dashboard', [TreasuryController::class, 'dashboard']);
+    Route::get('/treasury/stats', [TreasuryController::class, 'stats']);
     Route::get('/treasury/fees', [TreasuryController::class, 'feeRecords']);
     Route::get('/treasury/fees/{fee}', [TreasuryController::class, 'feeDetail']);
+    Route::put('/treasury/fees/{fee}', [TreasuryController::class, 'updateRecord']);
     Route::get('/treasury/unpaid', [TreasuryController::class, 'unpaid']);
     Route::post('/treasury/restrict/{userId}', [TreasuryController::class, 'restrict']);
     Route::delete('/treasury/restrict/{userId}', [TreasuryController::class, 'lift']);

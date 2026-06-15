@@ -9,33 +9,41 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Fee extends Model
 {
     protected $fillable = [
-        'user_id', 'semester', 'description', 'amount', 'amount_paid', 'due_date', 'status',
+        'student_id', 'semester', 'description',
+        'total_amount', 'outstanding_amount', 'due_date', 'status',
     ];
 
     protected $casts = [
-        'amount'      => 'float',
-        'amount_paid' => 'float',
-        'due_date'    => 'date',
+        'total_amount'       => 'float',
+        'outstanding_amount' => 'float',
+        'due_date'           => 'date',
     ];
 
-    public function user(): BelongsTo
+    public function student(): BelongsTo
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(Student::class);
     }
 
     public function payments(): HasMany
     {
-        return $this->hasMany(Payment::class);
+        return $this->hasMany(Payment::class)->orderByDesc('created_at');
+    }
+
+    // Convenience accessor so existing code can still read ->amount_paid
+    public function getAmountPaidAttribute(): float
+    {
+        return max(0.0, $this->total_amount - $this->outstanding_amount);
     }
 
     public function recalculate(): void
     {
-        $paid = $this->payments()->sum('amount');
-        $this->amount_paid = $paid;
+        $paid = (float) $this->payments()->where('status', 'Success')->sum('amount');
+
+        $this->outstanding_amount = max(0.0, $this->total_amount - $paid);
         $this->status = match (true) {
-            $paid <= 0             => 'unpaid',
-            $paid >= $this->amount => 'paid',
-            default                => 'partial',
+            $paid >= $this->total_amount => 'Paid',
+            $paid > 0                   => 'Partial',
+            default                     => 'Unpaid',
         };
         $this->save();
     }

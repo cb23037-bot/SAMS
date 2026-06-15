@@ -4,60 +4,62 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Payment;
+use App\Models\Receipt;
 use App\Models\Sponsor;
+use App\Models\Student;
 use Illuminate\Http\Request;
 
 class ReceiptController extends Controller
 {
     /**
-     * Generate and download a PDF receipt for a payment.
-     *
-     * Requires: composer require barryvdh/laravel-dompdf
-     * Falls back to a print-ready HTML page if DomPDF is not installed.
-     *
      * GET /api/receipts/{payment}/download
+     * Generates a PDF (or HTML fallback) receipt for a payment.
+     *
+     * Students may only download their own receipts; treasury can download any.
      */
     public function download(Request $request, Payment $payment): mixed
     {
         $user = $request->user();
 
-        // Students can only access their own receipts; treasury can access all
-        if ($user->role === 'student' && $payment->user_id !== $user->id) {
-            abort(403);
+        if ($user->role === 'student') {
+            $student = Student::where('user_id', $user->id)->firstOrFail();
+            if ($payment->fee->student_id !== $student->id) {
+                abort(403);
+            }
         }
 
-        $fee      = $payment->fee;
-        $student  = $payment->user;
+        $fee         = $payment->fee;
+        $studentUser = $fee->student->user;
 
-        $sponsors = Sponsor::where('user_id', $student->id)
+        $sponsors = Sponsor::where('user_id', $studentUser->id)
             ->where('status', 'active')
             ->where('amount', '>', 0)
             ->get();
 
-        $sponsorTotal = $sponsors->sum('amount');
-
-        $netAfterSponsor = (float) $fee->amount - (float) $sponsorTotal;
+        $sponsorTotal    = (float) $sponsors->sum('amount');
+        $netAfterSponsor = (float) $fee->total_amount - $sponsorTotal;
         $displayTotal    = $sponsorTotal > 0 ? $netAfterSponsor : (float) $payment->amount;
+        $paidAt          = $payment->paid_at ?? $payment->created_at;
 
         $data = [
             'transaction_id'  => $payment->reference_no,
-            'invoice_no'      => 'INV-' . $payment->paid_at->format('Y') . '-' . str_pad($payment->id, 5, '0', STR_PAD_LEFT),
-            'paid_at'         => $payment->paid_at,
+            'invoice_no'      => 'INV-' . $paidAt->format('Y') . '-' . str_pad($payment->id, 5, '0', STR_PAD_LEFT),
+            'paid_at'         => $paidAt,
             'method'          => $payment->payment_method,
             'amount'          => (float) $payment->amount,
-            'student' => [
-                'name'       => $student->name,
-                'student_id' => $student->student_id,
-                'programme'  => $student->course,
-                'semester'   => $student->current_semester,
+            'student'         => [
+                'name'       => $studentUser->name,
+                'student_id' => $studentUser->student_id,
+                'programme'  => $studentUser->course,
+                'semester'   => $studentUser->current_semester,
             ],
-            'fee' => [
+            'fee'             => [
                 'description' => $fee->description,
-                'amount'      => (float) $fee->amount,
+                'amount'      => (float) $fee->total_amount,
                 'semester'    => $fee->semester,
             ],
             'sponsors'          => $sponsors,
-            'sponsor_total'     => (float) $sponsorTotal,
+            'sponsor_total'     => $sponsorTotal,
             'net_after_sponsor' => $netAfterSponsor,
             'display_total'     => $displayTotal,
             'amount_in_words'   => $this->numToWords((int) abs(round($displayTotal))),
@@ -65,16 +67,38 @@ class ReceiptController extends Controller
 
         $filename = "UMPSA-Receipt-{$data['transaction_id']}.pdf";
 
-        // Use DomPDF if available, otherwise return print-ready HTML
         if (class_exists(\Barryvdh\DomPDF\Facade\Pdf::class)) {
             $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('receipts.payment_receipt', $data);
             return $pdf->download($filename);
         }
 
-        // Fallback: return HTML with print styles (browser → Save as PDF)
         return response()
             ->view('receipts.payment_receipt', $data)
             ->header('Content-Type', 'text/html; charset=UTF-8');
+    }
+
+    /**
+     * GET /api/receipts/{receiptId}/json
+     * Returns receipt metadata as JSON (for mobile clients that render their own UI).
+     */
+    public function show(Request $request, int $receiptId): \Illuminate\Http\JsonResponse
+    {
+        $receipt = Receipt::with(['payment.fee.student'])->findOrFail($receiptId);
+        $user    = $request->user();
+
+        if ($user->role === 'student') {
+            $student = Student::where('user_id', $user->id)->firstOrFail();
+            if ($receipt->payment->fee->student_id !== $student->id) {
+                return response()->json(['message' => 'Forbidden.'], 403);
+            }
+        }
+
+        return response()->json([
+            'receipt'        => $receipt,
+            'receipt_number' => $receipt->receipt_number,
+            'file_path'      => $receipt->file_path,
+            'receipt_hash'   => $receipt->receipt_hash,
+        ]);
     }
 
     private function numToWords(int $n): string

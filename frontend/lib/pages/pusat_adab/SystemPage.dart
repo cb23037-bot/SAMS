@@ -40,8 +40,8 @@ class _PusatAdabDashboardPageState extends State<PusatAdabDashboardPage> {
         widget.controller.apiService.getClaimsOverview(token: widget.controller.token!),
         widget.controller.apiService.getAdabAccessState(token: widget.controller.token!),
       ]);
-      final s = (results[0] as Map<String, dynamic>)['stats'] as Map<String, dynamic>;
-      final access = results[1] as Map<String, dynamic>;
+      final s = results[0]['stats'] as Map<String, dynamic>;
+      final access = results[1];
       setState(() {
         _totalActivities = (s['activitiesTotal'] as num).toInt();
         _pending         = (s['pending']         as num).toInt();

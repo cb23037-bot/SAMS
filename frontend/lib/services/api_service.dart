@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -434,8 +433,20 @@ class ApiService {
     return _request(method: 'GET', path: '/treasury/dashboard', token: token);
   }
 
-  Future<Map<String, dynamic>> getFeeRecords({required String token}) async {
-    return _request(method: 'GET', path: '/treasury/fees', token: token);
+  Future<Map<String, dynamic>> getTreasuryStats({required String token}) async {
+    return _request(method: 'GET', path: '/treasury/stats', token: token);
+  }
+
+  Future<Map<String, dynamic>> getFeeRecords({
+    required String token,
+    String? search,
+    String? status,
+  }) async {
+    final params = <String>[];
+    if (search != null && search.isNotEmpty) params.add('search=${Uri.encodeComponent(search)}');
+    if (status != null && status.isNotEmpty) params.add('status=${Uri.encodeComponent(status)}');
+    final query = params.isNotEmpty ? '?${params.join('&')}' : '';
+    return _request(method: 'GET', path: '/treasury/fees$query', token: token);
   }
 
   Future<Map<String, dynamic>> getFeeRecord({

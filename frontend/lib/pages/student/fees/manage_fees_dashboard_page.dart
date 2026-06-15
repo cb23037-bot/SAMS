@@ -18,7 +18,6 @@ class ManageFeesDashboardPage extends StatefulWidget {
 class _ManageFeesDashboardPageState extends State<ManageFeesDashboardPage>
     with SingleTickerProviderStateMixin {
   static const _blue   = Color(0xFF1565C0);
-  static const _blue2  = Color(0xFF1976D2);
 
   late final TabController _tab;
 
@@ -26,8 +25,6 @@ class _ManageFeesDashboardPageState extends State<ManageFeesDashboardPage>
   bool _loading = true;
   String? _error;
   Map<String, dynamic>? _feesData;
-  bool _restricted = false;
-  int? _currentWeek;
 
   // Sponsor
   List<dynamic> _sponsors = [];
@@ -71,10 +68,8 @@ class _ManageFeesDashboardPageState extends State<ManageFeesDashboardPage>
       final notifs = (results[3]['notifications'] as List? ?? [])
           .cast<Map<String, dynamic>>();
       setState(() {
-        _feesData    = results[0];
-        _restricted  = results[1]['restricted'] == true;
-        _currentWeek = results[1]['current_week'] as int?;
-        _sponsors    = (results[2]['sponsors'] as List?) ?? [];
+        _feesData = results[0];
+        _sponsors = (results[2]['sponsors'] as List?) ?? [];
         _unreadCount        = notifs.where((n) => n['is_read'] == false).length;
         _hasRestrictionNotif = notifs.any(
           (n) => n['type'] == 'restriction' && n['is_read'] == false,

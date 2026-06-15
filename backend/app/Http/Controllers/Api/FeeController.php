@@ -8,6 +8,7 @@ use App\Models\Notification;
 use App\Models\Payment;
 use App\Models\Restriction;
 use App\Models\Sponsor;
+use App\Models\Student;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -33,20 +34,24 @@ class FeeController extends Controller
         ], 500);
     }
 
-    // ── GAP 4: all read methods wrapped in try-catch ───────────────────────────
+    private function getStudent(Request $request): Student
+    {
+        return Student::where('user_id', $request->user()->id)->firstOrFail();
+    }
 
     public function index(Request $request): JsonResponse
     {
         $this->requireStudent($request);
 
         try {
-            $fees = Fee::where('user_id', $request->user()->id)
+            $student = $this->getStudent($request);
+            $fees    = Fee::where('student_id', $student->id)
                 ->orderBy('due_date')
                 ->get();
 
-            $total  = (float) $fees->sum('amount');
-            $paid   = (float) $fees->sum('amount_paid');
-            $unpaid = $total - $paid;
+            $total  = (float) $fees->sum('total_amount');
+            $unpaid = (float) $fees->sum('outstanding_amount');
+            $paid   = $total - $unpaid;
 
             return response()->json([
                 'summary' => [
@@ -66,11 +71,10 @@ class FeeController extends Controller
     {
         $this->requireStudent($request);
 
-        if ($fee->user_id !== $request->user()->id) {
-            abort(403);
-        }
-
         try {
+            $student = $this->getStudent($request);
+            if ($fee->student_id !== $student->id) abort(403);
+
             $payments = $fee->payments()->orderByDesc('paid_at')->get();
 
             return response()->json([
@@ -82,17 +86,18 @@ class FeeController extends Controller
         }
     }
 
-    // ── GAP 1, 3, 4, 5: payment processing ───────────────────────────────────
-
     public function pay(Request $request, Fee $fee): JsonResponse
     {
         $this->requireStudent($request);
 
-        if ($fee->user_id !== $request->user()->id) {
-            abort(403);
+        try {
+            $student = $this->getStudent($request);
+        } catch (\Exception $e) {
+            return $this->dbError($e);
         }
+        if ($fee->student_id !== $student->id) abort(403);
 
-        if ($fee->status === 'paid') {
+        if ($fee->status === 'Paid') {
             return response()->json(['message' => 'This fee has already been fully paid.'], 422);
         }
 
@@ -101,22 +106,20 @@ class FeeController extends Controller
             'payment_method' => ['required', 'string', 'in:online_banking,card,ewallet,cash'],
         ]);
 
-        $remaining = $fee->amount - $fee->amount_paid;
-        if ($validated['amount'] > $remaining) {
+        if ($validated['amount'] > $fee->outstanding_amount) {
             return response()->json([
-                'message' => "Amount exceeds remaining balance of RM " . number_format($remaining, 2) . ".",
+                'message' => 'Amount exceeds remaining balance of RM '
+                    . number_format($fee->outstanding_amount, 2) . '.',
             ], 422);
         }
 
         try {
-            // GAP 5: only the critical writes are inside the transaction.
-            // Notifications are non-critical and handled separately below.
-            $result = DB::transaction(function () use ($request, $fee, $validated) {
+            $result = DB::transaction(function () use ($request, $fee, $validated, $student) {
                 $payment = Payment::create([
                     'fee_id'         => $fee->id,
-                    'user_id'        => $request->user()->id,
                     'amount'         => $validated['amount'],
                     'payment_method' => $validated['payment_method'],
+                    'status'         => 'Success',
                     'reference_no'   => strtoupper(Str::random(12)),
                     'paid_at'        => now(),
                 ]);
@@ -126,24 +129,21 @@ class FeeController extends Controller
 
                 $accessRestored = false;
 
-                // GAP 3: auto-lift restriction when all fees settled
-                if ($freshFee->status === 'paid') {
-                    $hasRemainingUnpaid = Fee::where('user_id', $request->user()->id)
-                        ->whereIn('status', ['unpaid', 'partial'])
+                if ($freshFee->status === 'Paid') {
+                    $hasRemainingUnpaid = Fee::where('student_id', $student->id)
+                        ->whereIn('status', ['Unpaid', 'Partial'])
                         ->exists();
 
                     if (!$hasRemainingUnpaid) {
-                        $lifted = Restriction::where('user_id', $request->user()->id)
-                            ->where('status', 'active')
+                        $lifted = Restriction::where('student_id', $student->id)
+                            ->where('status', 'Active')
                             ->update([
-                                'status'      => 'lifted',
+                                'status'      => 'Lifted',
                                 'lifted_date' => now()->toDateString(),
                                 'lifted_by'   => $request->user()->id,
                             ]);
 
-                        if ($lifted > 0) {
-                            $accessRestored = true;
-                        }
+                        if ($lifted > 0) $accessRestored = true;
                     }
                 }
 
@@ -154,7 +154,6 @@ class FeeController extends Controller
                 ];
             });
         } catch (\Exception $e) {
-            // GAP 5: payment write failure → 503
             Log::error('Payment processing failed: ' . $e->getMessage());
             return response()->json([
                 'error'   => true,
@@ -163,10 +162,10 @@ class FeeController extends Controller
             ], 503);
         }
 
-        // GAP 1: payment success notification (non-critical, never blocks response).
         try {
+            $user = $request->user();
             Notification::create([
-                'user_id' => $request->user()->id,
+                'user_id' => $user->id,
                 'title'   => 'Payment Successful',
                 'message' => 'Your payment of RM ' . number_format($validated['amount'], 2)
                     . ' for ' . $fee->semester . ' has been received. Transaction ID: '
@@ -176,10 +175,10 @@ class FeeController extends Controller
 
             if ($result['access_restored']) {
                 Notification::create([
-                    'user_id' => $request->user()->id,
+                    'user_id' => $user->id,
                     'title'   => 'Academic Access Restored',
-                    'message' => 'Your academic access has been restored. Thank you for settling your tuition fees for '
-                        . $fee->semester . '.',
+                    'message' => 'Your academic access has been restored. Thank you for settling '
+                        . 'your fees for ' . $fee->semester . '.',
                     'type' => 'access_restored',
                 ]);
             }
@@ -199,8 +198,9 @@ class FeeController extends Controller
         $this->requireStudent($request);
 
         try {
-            $restriction = Restriction::where('user_id', $request->user()->id)
-                ->where('status', 'active')
+            $student     = $this->getStudent($request);
+            $restriction = Restriction::where('student_id', $student->id)
+                ->where('status', 'Active')
                 ->latest()
                 ->first();
 
@@ -208,7 +208,8 @@ class FeeController extends Controller
                 ->where('key', 'semester_start_date')->value('value');
             $currentWeek = null;
             if ($semesterStart) {
-                $day         = \Carbon\Carbon::parse($semesterStart)->startOfDay()->diffInDays(\Carbon\Carbon::today()) + 1;
+                $day         = \Carbon\Carbon::parse($semesterStart)->startOfDay()
+                    ->diffInDays(\Carbon\Carbon::today()) + 1;
                 $currentWeek = (int) ceil($day / 7);
             }
 
@@ -228,8 +229,10 @@ class FeeController extends Controller
         $this->requireStudent($request);
 
         try {
+            $student  = $this->getStudent($request);
             $payments = Payment::with('fee')
-                ->where('user_id', $request->user()->id)
+                ->whereHas('fee', fn($q) => $q->where('student_id', $student->id))
+                ->where('status', 'Success')
                 ->orderByDesc('paid_at')
                 ->get();
 
@@ -274,23 +277,29 @@ class FeeController extends Controller
         $userId = $request->user()->id;
 
         try {
-            $charges = Fee::where('user_id', $userId)->get()->map(fn($f) => [
+            $student = $this->getStudent($request);
+
+            $charges = Fee::where('student_id', $student->id)->get()->map(fn($f) => [
                 'id'          => 'fee-' . $f->id,
                 'type'        => 'charge',
                 'description' => $f->description,
-                'amount'      => -(float) $f->amount,
+                'amount'      => -(float) $f->total_amount,
                 'reference'   => 'TXN-' . $f->created_at->format('Y') . '-' . str_pad($f->id, 4, '0', STR_PAD_LEFT),
                 'date'        => $f->created_at->toDateString(),
             ]);
 
-            $payments = Payment::with('fee')->where('user_id', $userId)->get()->map(fn($p) => [
-                'id'          => 'pay-' . $p->id,
-                'type'        => 'payment',
-                'description' => $p->fee->description . ' Payment',
-                'amount'      => (float) $p->amount,
-                'reference'   => $p->reference_no,
-                'date'        => $p->paid_at->toDateString(),
-            ]);
+            $payments = Payment::with('fee')
+                ->whereHas('fee', fn($q) => $q->where('student_id', $student->id))
+                ->where('status', 'Success')
+                ->get()
+                ->map(fn($p) => [
+                    'id'          => 'pay-' . $p->id,
+                    'type'        => 'payment',
+                    'description' => ($p->fee->description ?? $p->fee->semester) . ' Payment',
+                    'amount'      => (float) $p->amount,
+                    'reference'   => $p->reference_no,
+                    'date'        => ($p->paid_at ?? $p->created_at)->toDateString(),
+                ]);
 
             $disbursements = Sponsor::where('user_id', $userId)
                 ->where('status', 'active')
@@ -319,11 +328,10 @@ class FeeController extends Controller
     {
         $this->requireStudent($request);
 
-        if ($payment->user_id !== $request->user()->id) {
-            abort(403);
-        }
-
         try {
+            $student = $this->getStudent($request);
+            if ($payment->fee->student_id !== $student->id) abort(403);
+
             $fee  = $payment->fee;
             $user = $request->user();
 
@@ -332,12 +340,13 @@ class FeeController extends Controller
                 ->where('amount', '>', 0)
                 ->get();
 
-            $sponsorTotal = $sponsors->sum('amount');
+            $sponsorTotal = (float) $sponsors->sum('amount');
 
             return response()->json([
                 'receipt' => [
                     'transaction_id' => $payment->reference_no,
-                    'invoice_no'     => 'INV-' . $payment->paid_at->format('Y') . '-' . str_pad($payment->id, 5, '0', STR_PAD_LEFT),
+                    'invoice_no'     => 'INV-' . ($payment->paid_at ?? $payment->created_at)->format('Y')
+                        . '-' . str_pad($payment->id, 5, '0', STR_PAD_LEFT),
                     'student' => [
                         'name'       => $user->name,
                         'student_id' => $user->student_id,
@@ -345,14 +354,14 @@ class FeeController extends Controller
                         'semester'   => $user->current_semester,
                     ],
                     'payment' => [
-                        'date'   => $payment->paid_at->toDateString(),
-                        'time'   => $payment->paid_at->format('H:i'),
+                        'date'   => ($payment->paid_at ?? $payment->created_at)->toDateString(),
+                        'time'   => ($payment->paid_at ?? $payment->created_at)->format('H:i'),
                         'method' => $payment->payment_method,
                         'amount' => (float) $payment->amount,
                     ],
                     'fee' => [
                         'description' => $fee->description,
-                        'amount'      => (float) $fee->amount,
+                        'amount'      => (float) $fee->total_amount,
                         'semester'    => $fee->semester,
                     ],
                     'sponsors' => $sponsors->map(fn($s) => [
@@ -360,8 +369,8 @@ class FeeController extends Controller
                         'amount' => (float) $s->amount,
                         'type'   => $s->type,
                     ]),
-                    'sponsor_total'     => (float) $sponsorTotal,
-                    'net_after_sponsor' => (float) $fee->amount - (float) $sponsorTotal,
+                    'sponsor_total'     => $sponsorTotal,
+                    'net_after_sponsor' => (float) $fee->total_amount - $sponsorTotal,
                 ],
             ]);
         } catch (\Exception $e) {
@@ -375,11 +384,11 @@ class FeeController extends Controller
             'id'          => $fee->id,
             'semester'    => $fee->semester,
             'description' => $fee->description,
-            'amount'      => $fee->amount,
-            'amount_paid' => $fee->amount_paid,
-            'balance'     => $fee->amount - $fee->amount_paid,
+            'amount'      => $fee->total_amount,
+            'amount_paid' => $fee->amount_paid,        // uses getAmountPaidAttribute accessor
+            'balance'     => $fee->outstanding_amount,
             'due_date'    => $fee->due_date->toDateString(),
-            'status'      => $fee->status,
+            'status'      => strtolower($fee->status), // normalize Titlecase → lowercase for Flutter
         ];
     }
 
@@ -391,7 +400,7 @@ class FeeController extends Controller
             'amount'         => $payment->amount,
             'payment_method' => $payment->payment_method,
             'reference_no'   => $payment->reference_no,
-            'paid_at'        => $payment->paid_at->toISOString(),
+            'paid_at'        => ($payment->paid_at ?? $payment->created_at)->toISOString(),
         ];
     }
 }
