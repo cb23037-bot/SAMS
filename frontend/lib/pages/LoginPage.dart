@@ -23,8 +23,9 @@ class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
-  /// Selected user type: 'student' or 'adab'. Must match the role stored
-  /// in the database for the account, or [AppController.signIn] will reject it.
+  /// Selected user type: 'student', 'adab', 'lecturer', or 'faculty_registrar'.
+  /// Must match the role stored in the database for the account, or
+  /// [AppController.signIn] will reject it.
   String? _role;
 
   /// Toggles whether the password field shows plain text or dots.
@@ -151,6 +152,14 @@ class _LoginPageState extends State<LoginPage> {
                           DropdownMenuItem(
                             value: 'adab',
                             child: Text('Pusat Adab'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'lecturer',
+                            child: Text('Lecturer'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'faculty_registrar',
+                            child: Text('Faculty Registrar'),
                           ),
                         ],
                         decoration: _inputDecoration(

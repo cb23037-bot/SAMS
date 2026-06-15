@@ -7,6 +7,7 @@ import 'EditProfilePage.dart';
 import 'ModuleBookingPage.dart';
 import 'CurriculumActivityPage.dart';
 import 'StudentNotificationsPage.dart';
+import 'SubjectRegistrationPage.dart';
 
 /// Top-level home page shown to authenticated students.
 ///
@@ -308,7 +309,11 @@ class _StudentHomePageState extends State<StudentHomePage> {
                 title: 'Register Subjects',
                 icon: Icons.menu_book_outlined,
                 color: const Color(0xFF3B82F6),
-                onTap: () => _showSoon('Register Subjects is coming soon.'),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => SubjectRegistrationPage(controller: widget.controller),
+                  ),
+                ),
               ),
               _ActionCard(
                 title: 'Mark Attendance',

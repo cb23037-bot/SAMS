@@ -66,6 +66,28 @@ class UserSeeder extends Seeder
                 'personal_advisor' => null,
                 'address'          => null,
             ],
+            [
+                'name'             => 'Dr Jamaludin bin Abdullah',
+                'email'            => 'lecturer@adab.umpsa.edu.my',
+                'role'             => 'lecturer',
+                'student_id'       => null,
+                'course'           => null,
+                'phone_number'     => null,
+                'current_semester' => null,
+                'personal_advisor' => null,
+                'address'          => null,
+            ],
+            [
+                'name'             => 'Faculty Registrar',
+                'email'            => 'registrar@adab.umpsa.edu.my',
+                'role'             => 'faculty_registrar',
+                'student_id'       => null,
+                'course'           => null,
+                'phone_number'     => null,
+                'current_semester' => null,
+                'personal_advisor' => null,
+                'address'          => null,
+            ],
         ];
 
         foreach ($users as $data) {

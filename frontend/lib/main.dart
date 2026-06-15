@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'app/app_controller.dart';
 import 'pages/LoginPage.dart';
 import 'pages/pusat_adab/SystemPage.dart';
+import 'pages/lecturer/LecturerDashboardPage.dart';
+import 'pages/faculty_registrar/dashboard_page.dart';
 import 'pages/student/HomePage.dart';
 import 'services/api_service.dart';
 
@@ -70,14 +72,23 @@ class _SamsAppState extends State<SamsApp> {
   /// Decides which top-level page to show based on auth state and role:
   /// - Not logged in → [LoginPage]
   /// - Logged in as Pusat Adab staff → [PusatAdabDashboardPage]
+  /// - Logged in as lecturer → [LecturerDashboardPage]
+  /// - Logged in as Faculty Registrar staff → [FacultyRegistrarDashboard]
   /// - Logged in as student → [StudentHomePage]
   Widget _buildHome() {
     if (!_controller.isAuthenticated || _controller.currentUser == null) {
       return LoginPage(controller: _controller);
     }
 
-    if (_controller.currentUser!.isPusatAdab) {
+    final user = _controller.currentUser!;
+    if (user.isPusatAdab) {
       return PusatAdabDashboardPage(controller: _controller);
+    }
+    if (user.isLecturer) {
+      return LecturerDashboardPage(controller: _controller);
+    }
+    if (user.isFacultyRegistrar) {
+      return FacultyRegistrarDashboard(controller: _controller);
     }
 
     return StudentHomePage(controller: _controller);

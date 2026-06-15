@@ -1,8 +1,9 @@
-/// Represents the authenticated user (either a student or Pusat Adab staff).
+/// Represents the authenticated user: a student, Pusat Adab staff, lecturer,
+/// or faculty registrar.
 ///
 /// This model is populated after a successful login and stored inside
 /// [AppController]. It is used throughout the app to display user info
-/// and to determine which screens to show (student vs. Pusat Adab).
+/// and to determine which screens to show based on [role].
 class AppUser {
   const AppUser({
     required this.id,
@@ -26,7 +27,8 @@ class AppUser {
   /// Login email address.
   final String email;
 
-  /// Role determines access level: 'student' or 'adab' (Pusat Adab staff).
+  /// Role determines access level: 'student', 'adab' (Pusat Adab staff),
+  /// 'lecturer', or 'faculty_registrar'.
   final String role;
 
   /// University student ID (e.g. CB21110). Null for Pusat Adab accounts.
@@ -52,6 +54,12 @@ class AppUser {
   /// Returns true if this user is a Pusat Adab staff member.
   /// Used to conditionally show admin-only UI elements.
   bool get isPusatAdab => role == 'adab';
+
+  /// Returns true if this user is a lecturer.
+  bool get isLecturer => role == 'lecturer';
+
+  /// Returns true if this user is Faculty Registrar staff.
+  bool get isFacultyRegistrar => role == 'faculty_registrar';
 
   // ── Factory constructor ────────────────────────────────────────────────────
 
