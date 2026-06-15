@@ -1,3 +1,20 @@
+// login_screen.dart — Boundary Screen
+// Requirement ID : SAMS-PACK-401
+// Responsibility : Entry point for all users. Authenticates the user by email
+//                  and password, then routes to the correct dashboard based on role.
+//
+// Attributes:
+//   email       String
+//   password    String
+//   userRole    String
+//   authToken   String
+//
+// Methods:
+//   render()              — Renders the login form with email and password fields.
+//   validateCredentials() — Validates that email and password fields are not empty.
+//   login(email,password) — Sends credentials to AuthController and receives token.
+//   navigateToDashboard() — Routes lecturer → LecturerDashboard, student → StudentDashboard.
+
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../models/models.dart';
@@ -45,6 +62,15 @@ class _LoginScreenState extends State<LoginScreen>
     super.dispose();
   }
 
+  // login(email, password) — void
+  // SAMS-PACK-401
+  // validateCredentials() — IF email or password empty THEN DISPLAY error AND RETURN
+  // CALL AuthController.login(email, password)
+  // IF status == 200 THEN
+  //   SAVE token via ApiService.saveToken()
+  //   navigateToDashboard() — IF role == 'lecturer' THEN LecturerDashboard
+  //                           ELSE IF role == 'student' THEN StudentDashboard
+  // ELSE DISPLAY error message
   Future<void> _login() async {
     final email    = _emailCtrl.text.trim();
     final password = _passwordCtrl.text.trim();
@@ -59,6 +85,7 @@ class _LoginScreenState extends State<LoginScreen>
         await ApiService.saveToken(res['token']);
         final user = UserModel.fromJson(res['user'] as Map<String, dynamic>);
         if (!mounted) return;
+        // navigateToDashboard() — SAMS-PACK-401: role-based routing
         if (user.role == 'lecturer') {
           Navigator.pushReplacement(context,
             MaterialPageRoute(builder: (_) => LecturerDashboard(user: user)));
