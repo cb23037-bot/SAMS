@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app/app_controller.dart';
+import '../../utils/parse.dart';
 import 'unpaid_fees_monitor_page.dart';
 
 class TreasuryDashboardPage extends StatefulWidget {
@@ -160,15 +161,15 @@ class _TreasuryDashboardPageState extends State<TreasuryDashboardPage> {
 
           _TealStatCard(
             title: 'Total Collected',
-            amount: (stats['total_paid'] as num).toDouble(),
-            subtitle: 'of RM ${(stats['total_fees'] as num).toStringAsFixed(2)} billed',
+            amount: parseDouble(stats['total_paid']),
+            subtitle: 'of RM ${parseDouble(stats['total_fees']).toStringAsFixed(2)} billed',
             icon: Icons.account_balance_wallet_outlined,
           ),
           const SizedBox(height: 12),
           Row(children: [
             Expanded(child: _SmallStat(
               label: 'Outstanding', color: const Color(0xFFFFEBEE), textColor: const Color(0xFFDC2626),
-              value: 'RM ${(stats['total_unpaid'] as num).toStringAsFixed(2)}',
+              value: 'RM ${parseDouble(stats['total_unpaid']).toStringAsFixed(2)}',
             )),
             const SizedBox(width: 12),
             Expanded(child: _SmallStat(
@@ -316,7 +317,7 @@ class _RecentPaymentRow extends StatelessWidget {
               style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
         ])),
         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          Text('RM ${(p['amount'] as num).toStringAsFixed(2)}',
+          Text('RM ${parseDouble(p['amount']).toStringAsFixed(2)}',
               style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Color(0xFF00897B))),
           Text(date, style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF))),
         ]),

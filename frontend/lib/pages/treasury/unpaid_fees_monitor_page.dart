@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../app/app_controller.dart';
 import '../../services/api_service.dart';
+import '../../utils/parse.dart';
 
 class UnpaidFeesMonitorPage extends StatefulWidget {
   const UnpaidFeesMonitorPage({super.key, required this.controller, this.embedded = false});
@@ -53,7 +54,12 @@ class _UnpaidFeesMonitorPageState extends State<UnpaidFeesMonitorPage> {
       await _load();
     } catch (e) {
       if (!mounted) return;
-      final isRestrictionError = e is ApiException && e.code == 'RESTRICTION_ERROR';
+      final code = e is ApiException ? e.code : null;
+      // Stale list — the restriction state already changed. Refresh silently.
+      if (code == 'ALREADY_RESTRICTED') { await _load(); return; }
+      final msg = e.toString().replaceFirst('Exception: ', '');
+      if (msg.contains('No active restriction')) { await _load(); return; }
+      final isRestrictionError = code == 'RESTRICTION_ERROR';
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(isRestrictionError
             ? 'Could not update restriction. Please try again.'
@@ -144,6 +150,14 @@ class _UnpaidFeeCard extends StatelessWidget {
         ? ('Partial', const Color(0xFFFEF3C7), const Color(0xFFD97706))
         : ('Unpaid',  const Color(0xFFFFEBEE), const Color(0xFFDC2626));
 
+    final feeCount   = fee['fee_count'] as int? ?? 1;
+    final semesters  = (fee['semesters'] as List?)?.cast<String>() ?? [];
+    final semLabel   = semesters.length == 1
+        ? semesters.first
+        : '${semesters.length} semesters';
+    final feesSuffix = feeCount > 1 ? ' • $feeCount fees' : '';
+    final subtitle   = '${fee['student_id']} • $semLabel$feesSuffix';
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -158,7 +172,7 @@ class _UnpaidFeeCard extends StatelessWidget {
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(fee['student_name'] as String,
                 style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: Color(0xFF111827))),
-            Text('${fee['student_id']} • ${fee['semester']}',
+            Text(subtitle,
                 style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
           ])),
           Container(
@@ -170,14 +184,15 @@ class _UnpaidFeeCard extends StatelessWidget {
         ]),
         const SizedBox(height: 10),
         Row(children: [
-          _AmtChip(label: 'Balance', value: (fee['balance'] as num).toDouble(), red: true),
+          _AmtChip(label: 'Balance', value: parseDouble(fee['total_balance']), red: true),
           const SizedBox(width: 16),
-          _AmtChip(label: 'Total', value: (fee['amount'] as num).toDouble(), red: false),
+          _AmtChip(label: 'Total', value: parseDouble(fee['total_amount']), red: false),
           const SizedBox(width: 16),
-          _AmtChip(label: 'Paid', value: (fee['amount_paid'] as num).toDouble(), red: false),
+          _AmtChip(label: 'Paid', value: parseDouble(fee['total_paid']), red: false),
         ]),
         const SizedBox(height: 10),
-        Text('Due: ${fee['due_date']}', style: const TextStyle(fontSize: 12, color: Color(0xFF9CA3AF))),
+        Text('Due: ${fee['earliest_due'] ?? '-'}',
+            style: const TextStyle(fontSize: 12, color: Color(0xFF9CA3AF))),
         const SizedBox(height: 12),
         Row(children: [
           if (isRestricted)

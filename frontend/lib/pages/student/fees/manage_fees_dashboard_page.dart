@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/app_controller.dart';
+import '../../../utils/parse.dart';
 import '../notifications_page.dart';
+import 'fee_details_page.dart';
 import 'make_payment_page.dart';
 import 'payment_receipt_page.dart';
 
@@ -152,19 +154,66 @@ class _ManageFeesDashboardPageState extends State<ManageFeesDashboardPage>
       builder: (_) => MakePaymentPage(
         controller: widget.controller,
         feeId: fee['id'] as int,
-        balance: (fee['balance'] as num).toDouble(),
+        balance: parseDouble(fee['balance']),
         description: fee['description'] as String,
       ),
     )).then((_) => _load());
+  }
+
+  void _goViewDetails() {
+    final allFees = (_feesData?['fees'] as List?)
+            ?.cast<Map<String, dynamic>>() ??
+        [];
+    if (allFees.isEmpty) return;
+    if (allFees.length == 1) {
+      Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => FeeDetailsPage(
+          controller: widget.controller,
+          feeId: allFees.first['id'] as int,
+        ),
+      )).then((_) => _load());
+      return;
+    }
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFFF9FAFB),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (_) => _FeeDetailsSelectionSheet(
+        fees: allFees,
+        onSelect: (fee) {
+          Navigator.of(context).pop();
+          Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => FeeDetailsPage(
+              controller: widget.controller,
+              feeId: fee['id'] as int,
+            ),
+          )).then((_) => _load());
+        },
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final user = widget.controller.currentUser!;
     final summary = _feesData?['summary'] as Map<String, dynamic>? ?? {};
-    final total   = (summary['total'] as num?)?.toDouble() ?? 0;
-    final paid    = (summary['paid'] as num?)?.toDouble() ?? 0;
-    final unpaid  = (summary['unpaid'] as num?)?.toDouble() ?? 0;
+    final total   = parseDouble(summary['total']);
+    final paid    = parseDouble(summary['paid']);
+    final unpaid  = parseDouble(summary['unpaid']);
+
+    // Compute how much of the sponsor coverage is still available.
+    // Once the student has paid 'paid' in total, the sponsor is considered
+    // used up proportionally — prevents double-counting after a fee is settled.
+    final activeSponsorTotal = _sponsors
+        .cast<Map<String, dynamic>>()
+        .where((s) => s['status'] == 'active' && parseDouble(s['amount']) > 0)
+        .fold<double>(0.0, (sum, s) => sum + parseDouble(s['amount']));
+    final effectiveSponsor = (activeSponsorTotal - paid).clamp(0.0, activeSponsorTotal);
+    final netUnpaid = (unpaid - effectiveSponsor).clamp(0.0, double.infinity);
+
     final hasOutstanding = _unpaidFees.isNotEmpty;
 
     return Scaffold(
@@ -224,7 +273,7 @@ class _ManageFeesDashboardPageState extends State<ManageFeesDashboardPage>
                     _HeroSection(
                       total: total,
                       paid: paid,
-                      unpaid: unpaid,
+                      unpaid: netUnpaid,
                       deadline: _deadline,
                       hasOutstanding: hasOutstanding,
                       courseName: user.course ?? 'Bachelor of Computer Science',
@@ -263,9 +312,16 @@ class _ManageFeesDashboardPageState extends State<ManageFeesDashboardPage>
                           _SummaryTab(
                             feesData: _feesData!,
                             sponsors: _sponsors,
-                            unpaid: unpaid,
+                            unpaid: netUnpaid,
+                            effectiveSponsor: effectiveSponsor,
+                            activeSponsorTotal: activeSponsorTotal,
+                            onViewDetails: _goViewDetails,
                           ),
-                          _SponsorTab(sponsors: _sponsors),
+                          _SponsorTab(
+                            sponsors: _sponsors,
+                            effectiveSponsor: effectiveSponsor,
+                            activeSponsorTotal: activeSponsorTotal,
+                          ),
                           _HistoryTab(
                             loading: _ledgerLoading,
                             transactions: _transactions,
@@ -444,34 +500,53 @@ class _SummaryTab extends StatelessWidget {
     required this.feesData,
     required this.sponsors,
     required this.unpaid,
+    required this.effectiveSponsor,
+    required this.activeSponsorTotal,
+    required this.onViewDetails,
   });
   final Map<String, dynamic> feesData;
   final List<dynamic> sponsors;
-  final double unpaid;
+  final double unpaid, effectiveSponsor, activeSponsorTotal;
+  final VoidCallback onViewDetails;
 
   @override
   Widget build(BuildContext context) {
     final fees = (feesData['fees'] as List?)?.cast<Map<String, dynamic>>() ?? [];
     final activeSponsors = sponsors
         .cast<Map<String, dynamic>>()
-        .where((s) => s['status'] == 'active' && (s['amount'] as num) > 0)
+        .where((s) => s['status'] == 'active' && parseDouble(s['amount']) > 0)
+        .toList();
+
+    // Only show fees that still have an outstanding balance.
+    final unpaidFees = fees
+        .where((f) => f['status'] != 'paid' && parseDouble(f['balance']) > 0)
         .toList();
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
       children: [
-        // Fee line items
-        ...fees.map((f) => _SummaryRow(
+        // Fee line items — use balance (what's left), not the full amount.
+        ...unpaidFees.map((f) => _SummaryRow(
           label: f['description'] as String,
-          amount: (f['amount'] as num).toDouble(),
+          amount: parseDouble(f['balance']),
         )),
 
-        // Sponsor deductions
-        ...activeSponsors.map((s) => _SummaryRow(
-          label: '${s['name']} (${_typeLabel(s['type'] as String)})',
-          amount: -(s['amount'] as num).toDouble(),
-          green: true,
-        )),
+        // Sponsor deductions — show only the remaining (unused) coverage.
+        // Each sponsor's effective share is proportional to its original amount.
+        ...activeSponsors
+            .map((s) {
+              final sOriginal = parseDouble(s['amount']);
+              final sEffective = activeSponsorTotal > 0
+                  ? (sOriginal / activeSponsorTotal) * effectiveSponsor
+                  : 0.0;
+              return (sponsor: s, effective: sEffective);
+            })
+            .where((r) => r.effective > 0.001)
+            .map((r) => _SummaryRow(
+              label: '${r.sponsor['name']} (${_typeLabel(r.sponsor['type'] as String)})',
+              amount: -r.effective,
+              green: true,
+            )),
 
         const Padding(
           padding: EdgeInsets.symmetric(vertical: 12),
@@ -502,8 +577,8 @@ class _SummaryTab extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 13),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
-          onPressed: () {},
-          icon: const Icon(Icons.download_outlined, size: 18),
+          onPressed: onViewDetails,
+          icon: const Icon(Icons.receipt_long_outlined, size: 18),
           label: const Text('View Fee Details',
               style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
         ),
@@ -564,8 +639,13 @@ class _SummaryRow extends StatelessWidget {
 // ── Sponsor Tab ───────────────────────────────────────────────────────────────
 
 class _SponsorTab extends StatelessWidget {
-  const _SponsorTab({required this.sponsors});
+  const _SponsorTab({
+    required this.sponsors,
+    required this.effectiveSponsor,
+    required this.activeSponsorTotal,
+  });
   final List<dynamic> sponsors;
+  final double effectiveSponsor, activeSponsorTotal;
 
   @override
   Widget build(BuildContext context) {
@@ -583,7 +663,13 @@ class _SponsorTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
       children: [
-        ...sponsors.cast<Map<String, dynamic>>().map((s) => _SponsorCard(sponsor: s)),
+        ...sponsors.cast<Map<String, dynamic>>().map((s) {
+          final sOriginal = parseDouble(s['amount']);
+          final sEffective = s['status'] == 'active' && activeSponsorTotal > 0
+              ? (sOriginal / activeSponsorTotal) * effectiveSponsor
+              : sOriginal;
+          return _SponsorCard(sponsor: s, remaining: sEffective);
+        }),
         const SizedBox(height: 8),
         const Text('Scholarship data sourced from Finance Division.',
             style: TextStyle(
@@ -596,21 +682,29 @@ class _SponsorTab extends StatelessWidget {
 }
 
 class _SponsorCard extends StatelessWidget {
-  const _SponsorCard({required this.sponsor});
+  const _SponsorCard({required this.sponsor, required this.remaining});
   final Map<String, dynamic> sponsor;
+  final double remaining;
 
   @override
   Widget build(BuildContext context) {
     final status   = sponsor['status'] as String;
-    final amount   = (sponsor['amount'] as num).toDouble();
+    final amount   = parseDouble(sponsor['amount']);
     final type     = sponsor['type'] as String;
     final coverage = sponsor['coverage'] as String?;
 
-    final (statusLabel, statusBg, statusFg) = switch (status) {
-      'active'      => ('Active',      const Color(0xFFDCFCE7), const Color(0xFF16A34A)),
-      'inactive'    => ('Inactive',    const Color(0xFFF3F4F6), const Color(0xFF6B7280)),
-      _             => ('Not Applied', const Color(0xFFF3F4F6), const Color(0xFF9CA3AF)),
-    };
+    // If the sponsor is active but all coverage has been used, show as depleted.
+    final isActive   = status == 'active';
+    final isDepleted = isActive && amount > 0 && remaining < 0.01;
+    final used       = isActive ? (amount - remaining).clamp(0.0, amount) : 0.0;
+
+    final (statusLabel, statusBg, statusFg) = isDepleted
+        ? ('Depleted',    const Color(0xFFFEF3C7), const Color(0xFFD97706))
+        : switch (status) {
+            'active'   => ('Active',      const Color(0xFFDCFCE7), const Color(0xFF16A34A)),
+            'inactive' => ('Inactive',    const Color(0xFFF3F4F6), const Color(0xFF6B7280)),
+            _          => ('Not Applied', const Color(0xFFF3F4F6), const Color(0xFF9CA3AF)),
+          };
 
     final typeLabel = switch (type) {
       'scholarship' => 'Scholarship',
@@ -650,11 +744,47 @@ class _SponsorCard extends StatelessWidget {
         const SizedBox(height: 4),
         Text(coverageText,
             style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
-        const SizedBox(height: 10),
-        Text('RM ${amount.toStringAsFixed(2)}',
-            style: const TextStyle(
-                fontSize: 20, fontWeight: FontWeight.w800, color: Color(0xFF1565C0))),
+        const SizedBox(height: 12),
+        // Show remaining prominently; show used breakdown only for active sponsors.
+        Text('RM ${remaining.toStringAsFixed(2)}',
+            style: TextStyle(
+                fontSize: 20, fontWeight: FontWeight.w800,
+                color: isDepleted ? const Color(0xFFD97706) : const Color(0xFF1565C0))),
+        if (isActive && amount > 0) ...[
+          const SizedBox(height: 6),
+          Row(children: [
+            _AmountPill(label: 'Allocated', value: amount, blue: true),
+            const SizedBox(width: 10),
+            if (used > 0) _AmountPill(label: 'Used', value: used, blue: false),
+          ]),
+        ],
       ]),
+    );
+  }
+}
+
+class _AmountPill extends StatelessWidget {
+  const _AmountPill({required this.label, required this.value, required this.blue});
+  final String label;
+  final double value;
+  final bool blue;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: blue ? const Color(0xFFEFF6FF) : const Color(0xFFF3F4F6),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        '$label: RM ${value.toStringAsFixed(2)}',
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: blue ? const Color(0xFF1565C0) : const Color(0xFF6B7280),
+        ),
+      ),
     );
   }
 }
@@ -686,37 +816,42 @@ class _HistoryTab extends StatelessWidget {
       );
     }
 
+    // Only show actual payment transactions — sponsors are not bank history.
+    final payments = transactions
+        .cast<Map<String, dynamic>>()
+        .where((t) => t['type'] == 'payment')
+        .toList();
+
+    if (payments.isEmpty) {
+      return const Center(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.receipt_long_outlined, size: 48, color: Color(0xFFD1D5DB)),
+          SizedBox(height: 12),
+          Text('No payments yet.', style: TextStyle(color: Color(0xFF9CA3AF))),
+        ]),
+      );
+    }
+
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
-      itemCount: transactions.length,
+      itemCount: payments.length,
       separatorBuilder: (_, _) => const Divider(height: 1, color: Color(0xFFF3F4F6)),
       itemBuilder: (_, i) {
-        final txn = transactions[i] as Map<String, dynamic>;
-        final amount = (txn['amount'] as num).toDouble();
-        final isCredit = amount > 0;
-        final absAmt = amount.abs();
-        final amtStr = isCredit
-            ? '+ RM ${absAmt.toStringAsFixed(2)}'
-            : '- RM ${absAmt.toStringAsFixed(2)}';
-
-        final dateRaw = txn['date'] as String? ?? '';
-        final dateStr = _formatDate(dateRaw);
-
+        final txn     = payments[i];
+        final amount  = parseDouble(txn['amount']).abs();
+        final dateStr = _formatDate(txn['date'] as String? ?? '');
         final txnId   = txn['id'] as String? ?? '';
-        final isPayment = txn['type'] == 'payment';
-        final paymentId = isPayment
-            ? int.tryParse(txnId.replaceFirst('pay-', ''))
-            : null;
+        final paymentId = int.tryParse(txnId.replaceFirst('pay-', ''));
 
         return InkWell(
-          onTap: paymentId != null
-              ? () => Navigator.of(context).push(MaterialPageRoute(
+          onTap: paymentId == null
+              ? null
+              : () => Navigator.of(context).push(MaterialPageRoute(
                     builder: (_) => PaymentReceiptPage(
                       controller: controller,
                       paymentId: paymentId,
                     ),
-                  ))
-              : null,
+                  )),
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 14),
             child: Row(children: [
@@ -733,16 +868,12 @@ class _HistoryTab extends StatelessWidget {
                 ],
               )),
               const SizedBox(width: 12),
-              Text(amtStr,
-                  style: TextStyle(
+              Text('- RM ${amount.toStringAsFixed(2)}',
+                  style: const TextStyle(
                       fontSize: 14, fontWeight: FontWeight.w700,
-                      color: isCredit
-                          ? const Color(0xFF16A34A)
-                          : const Color(0xFFE53935))),
-              if (paymentId != null) ...[
-                const SizedBox(width: 4),
-                const Icon(Icons.chevron_right, color: Color(0xFFD1D5DB), size: 18),
-              ],
+                      color: Color(0xFFE53935))),
+              const SizedBox(width: 4),
+              const Icon(Icons.chevron_right, color: Color(0xFFD1D5DB), size: 18),
             ]),
           ),
         );
@@ -794,7 +925,7 @@ class _FeeSelectionSheet extends StatelessWidget {
           ]),
           const SizedBox(height: 16),
           ...fees.map((fee) {
-            final balance = (fee['balance'] as num).toDouble();
+            final balance = parseDouble(fee['balance']);
             final status  = fee['status'] as String;
             final (badgeBg, badgeFg) = status == 'partial'
                 ? (const Color(0xFFFEF3C7), const Color(0xFFD97706))
@@ -822,6 +953,111 @@ class _FeeSelectionSheet extends StatelessWidget {
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: const Icon(Icons.receipt_outlined,
+                        color: Color(0xFF1565C0), size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(fee['description'] as String,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w700, fontSize: 14,
+                              color: Color(0xFF111827))),
+                      const SizedBox(height: 2),
+                      Text(fee['semester'] as String,
+                          style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF))),
+                    ],
+                  )),
+                  const SizedBox(width: 8),
+                  Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                    Text('RM ${balance.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w800, fontSize: 15,
+                            color: Color(0xFF1565C0))),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(color: badgeBg,
+                          borderRadius: BorderRadius.circular(20)),
+                      child: Text(badgeLabel,
+                          style: TextStyle(color: badgeFg, fontSize: 10,
+                              fontWeight: FontWeight.w700)),
+                    ),
+                  ]),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.chevron_right, color: Color(0xFFD1D5DB), size: 20),
+                ]),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Fee Details Selection Sheet ───────────────────────────────────────────────
+
+class _FeeDetailsSelectionSheet extends StatelessWidget {
+  const _FeeDetailsSelectionSheet({required this.fees, required this.onSelect});
+  final List<Map<String, dynamic>> fees;
+  final void Function(Map<String, dynamic>) onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 22, 20, 36),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            const Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Select Fee to View',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800,
+                        color: Color(0xFF111827))),
+                SizedBox(height: 2),
+                Text('Choose a fee to see its full details and payment history.',
+                    style: TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+              ]),
+            ),
+            IconButton(
+              onPressed: () => Navigator.of(context).pop(),
+              icon: const Icon(Icons.close, color: Color(0xFF9CA3AF)),
+            ),
+          ]),
+          const SizedBox(height: 16),
+          ...fees.map((fee) {
+            final balance = parseDouble(fee['balance']);
+            final status  = fee['status'] as String;
+            final (badgeBg, badgeFg, badgeLabel) = switch (status) {
+              'paid'    => (const Color(0xFFDCFCE7), const Color(0xFF16A34A), 'Paid'),
+              'partial' => (const Color(0xFFFEF3C7), const Color(0xFFD97706), 'Partial'),
+              _         => (const Color(0xFFFFEBEE), const Color(0xFFDC2626), 'Unpaid'),
+            };
+
+            return GestureDetector(
+              onTap: () => onSelect(fee),
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFFE5E7EB)),
+                  boxShadow: const [
+                    BoxShadow(color: Color(0x08000000), blurRadius: 8, offset: Offset(0, 2)),
+                  ],
+                ),
+                child: Row(children: [
+                  Container(
+                    width: 40, height: 40,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEFF6FF),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.receipt_long_outlined,
                         color: Color(0xFF1565C0), size: 20),
                   ),
                   const SizedBox(width: 12),

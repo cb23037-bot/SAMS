@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/app_controller.dart';
+import '../../../utils/parse.dart';
 import 'payment_receipt_page.dart';
 
 class PaymentHistoryPage extends StatefulWidget {
@@ -43,7 +44,7 @@ class _PaymentHistoryPageState extends State<PaymentHistoryPage> {
 
   double get _totalPaid => _payments.fold(
     0.0,
-    (sum, p) => sum + ((p as Map<String, dynamic>)['amount'] as num).toDouble(),
+    (sum, p) => sum + parseDouble((p as Map<String, dynamic>)['amount']),
   );
 
   // Group payments by "MONTH YEAR" label, preserving API order (desc)
@@ -238,7 +239,7 @@ class _PaymentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final amount = (payment['amount'] as num).toDouble();
+    final amount = parseDouble(payment['amount']);
     final ref    = payment['reference_no'] as String;
     final desc   = payment['fee_description'] as String? ?? '';
 

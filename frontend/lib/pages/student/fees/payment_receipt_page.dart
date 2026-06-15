@@ -5,6 +5,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
 import '../../../app/app_controller.dart';
+import '../../../utils/parse.dart';
 
 class PaymentReceiptPage extends StatefulWidget {
   const PaymentReceiptPage({
@@ -91,10 +92,10 @@ class _PaymentReceiptPageState extends State<PaymentReceiptPage> {
     final payment         = r['payment']  as Map<String, dynamic>;
     final fee             = r['fee']      as Map<String, dynamic>;
     final sponsors        = (r['sponsors'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-    final sponsorTotal    = (r['sponsor_total']     as num?)?.toDouble() ?? 0.0;
-    final feeAmount       = (fee['amount']           as num).toDouble();
-    final paidAmount      = (payment['amount']       as num).toDouble();
-    final netAfterSponsor = (r['net_after_sponsor']  as num?)?.toDouble() ?? feeAmount;
+    final sponsorTotal    = parseDouble(r['sponsor_total']);
+    final feeAmount       = parseDouble(fee['amount']);
+    final paidAmount      = parseDouble(payment['amount']);
+    final netAfterSponsor = parseDouble(r['net_after_sponsor'] ?? feeAmount);
     final displayTotal    = sponsorTotal > 0 ? netAfterSponsor : paidAmount;
 
     final pdfBlue   = PdfColor.fromHex('#1565C0');
@@ -197,7 +198,7 @@ class _PaymentReceiptPageState extends State<PaymentReceiptPage> {
           feeRow('Subtotal', feeAmount, bold: true),
           ...sponsors.map((s) => feeRow(
               '${s['name']} (${_typeLabel(s['type'] as String)})',
-              -(s['amount'] as num).toDouble(),
+              -parseDouble(s['amount']),
               color: pdfGreen)),
           pw.Divider(color: pdfLtGrey, thickness: 0.5),
           feeRow('Total Amount Paid', displayTotal, bold: true, color: pdfBlue),
@@ -359,10 +360,10 @@ class _PaymentReceiptPageState extends State<PaymentReceiptPage> {
     final payment   = r['payment']  as Map<String, dynamic>;
     final fee       = r['fee']      as Map<String, dynamic>;
     final sponsors  = (r['sponsors'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-    final sponsorTotal    = (r['sponsor_total']     as num?)?.toDouble() ?? 0.0;
-    final feeAmount       = (fee['amount']           as num).toDouble();
-    final paidAmount      = (payment['amount']       as num).toDouble();
-    final netAfterSponsor = (r['net_after_sponsor']  as num?)?.toDouble() ?? feeAmount;
+    final sponsorTotal    = parseDouble(r['sponsor_total']);
+    final feeAmount       = parseDouble(fee['amount']);
+    final paidAmount      = parseDouble(payment['amount']);
+    final netAfterSponsor = parseDouble(r['net_after_sponsor'] ?? feeAmount);
 
     final displayTotal = sponsorTotal > 0 ? netAfterSponsor : paidAmount;
 
@@ -517,7 +518,7 @@ class _PaymentReceiptPageState extends State<PaymentReceiptPage> {
                       padding: const EdgeInsets.only(top: 6),
                       child: _AmountRow(
                         label: '${s['name']} (${_typeLabel(s['type'] as String)})',
-                        amount: -(s['amount'] as num).toDouble(),
+                        amount: -parseDouble(s['amount']),
                         green: true,
                       ),
                     )),

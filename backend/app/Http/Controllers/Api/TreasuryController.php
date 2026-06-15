@@ -43,8 +43,8 @@ class TreasuryController extends Controller
         $this->requireTreasury($request);
 
         try {
-            $totalFees   = Fee::sum('amount');
-            $totalPaid   = Fee::sum('amount_paid');
+            $totalFees   = (float) Fee::sum('amount');
+            $totalPaid   = (float) Fee::sum('amount_paid');
             $unpaidCount = Fee::where('status', '!=', 'paid')->count();
             $restricted  = Restriction::where('status', 'active')->count();
 
@@ -134,16 +134,46 @@ class TreasuryController extends Controller
         $this->requireTreasury($request);
 
         try {
-            $fees = Fee::with(['user', 'user.restrictions' => fn($q) => $q->where('status', 'active')])
+            $fees = Fee::with('user')
                 ->whereIn('status', ['unpaid', 'partial'])
                 ->orderBy('due_date')
                 ->get();
 
-            return response()->json([
-                'fees' => $fees->map(fn($f) => array_merge($this->feeRow($f), [
-                    'is_restricted' => $f->user->restrictions->isNotEmpty(),
-                ])),
-            ]);
+            // Pre-fetch all active restriction user IDs in one query — avoids
+            // eager-load chain issues when groupBy() re-maps the collection.
+            $userIds = $fees->pluck('user_id')->unique()->values()->all();
+            $restrictedIds = Restriction::whereIn('user_id', $userIds)
+                ->where('status', 'active')
+                ->pluck('user_id')
+                ->flip()   // key-by for O(1) lookup
+                ->all();
+
+            // Group by student so each student appears exactly once.
+            $students = $fees->groupBy('user_id')->map(function ($userFees) use ($restrictedIds) {
+                $user         = $userFees->first()->user;
+                $totalBalance = (float) $userFees->sum(fn($f) => $f->amount - $f->amount_paid);
+                $totalAmount  = (float) $userFees->sum('amount');
+                $totalPaid    = (float) $userFees->sum('amount_paid');
+                $earliestDue  = $userFees->min('due_date');
+                $hasPartial   = $userFees->contains('status', 'partial');
+                $semesters    = $userFees->pluck('semester')->unique()->values()->all();
+
+                return [
+                    'user_id'       => $user->id,
+                    'student_name'  => $user->name,
+                    'student_id'    => $user->student_id ?? '',
+                    'fee_count'     => $userFees->count(),
+                    'semesters'     => $semesters,
+                    'total_balance' => $totalBalance,
+                    'total_amount'  => $totalAmount,
+                    'total_paid'    => $totalPaid,
+                    'earliest_due'  => $earliestDue?->toDateString(),
+                    'status'        => $hasPartial ? 'partial' : 'unpaid',
+                    'is_restricted' => isset($restrictedIds[$user->id]),
+                ];
+            })->values();
+
+            return response()->json(['fees' => $students]);
         } catch (\Exception $e) {
             return $this->dbError($e);
         }
@@ -163,7 +193,10 @@ class TreasuryController extends Controller
             ->exists();
 
         if ($already) {
-            return response()->json(['message' => 'Student is already restricted.'], 422);
+            return response()->json([
+                'message' => 'Student is already restricted.',
+                'code'    => 'ALREADY_RESTRICTED',
+            ], 409);
         }
 
         try {
@@ -179,12 +212,17 @@ class TreasuryController extends Controller
                 'applied_date'     => now()->toDateString(),
             ]);
 
-            // GAP 2: send restriction notification to student
+        } catch (\Exception $e) {
+            // GAP 6: restriction record creation failed
+            return $this->dbError($e, 'RESTRICTION_ERROR');
+        }
+
+        // Notification is non-critical — never let it block the response.
+        try {
             $semester = $outstandingFee?->semester ?? 'current semester';
             $balance  = $outstandingFee
                 ? number_format($outstandingFee->amount - $outstandingFee->amount_paid, 2)
                 : '0.00';
-
             Notification::create([
                 'user_id' => $student->id,
                 'title'   => 'Academic Access Restricted',
@@ -192,22 +230,20 @@ class TreasuryController extends Controller
                     . "Outstanding balance: RM{$balance}. Please make payment immediately to restore access.",
                 'type' => 'restriction',
             ]);
-
-            return response()->json(['restriction' => $this->restrictionArray($r)], 201);
-
         } catch (\Exception $e) {
-            // GAP 6: restriction error
-            return $this->dbError($e, 'RESTRICTION_ERROR');
+            Log::warning("restrict: notification failed for user {$student->id}: " . $e->getMessage());
         }
+
+        return response()->json(['restriction' => $this->restrictionArray($r)], 201);
     }
 
     public function lift(Request $request, int $userId): JsonResponse
     {
         $this->requireTreasury($request);
 
-        try {
-            $student = User::where('id', $userId)->where('role', 'student')->firstOrFail();
+        $student = User::where('id', $userId)->where('role', 'student')->firstOrFail();
 
+        try {
             $updated = Restriction::where('user_id', $student->id)
                 ->where('restriction_type', 'financial_bar')
                 ->where('status', 'active')
@@ -216,24 +252,27 @@ class TreasuryController extends Controller
                     'lifted_date' => now()->toDateString(),
                     'lifted_by'   => $request->user()->id,
                 ]);
+        } catch (\Exception $e) {
+            return $this->dbError($e, 'RESTRICTION_ERROR');
+        }
 
-            if ($updated === 0) {
-                return response()->json(['message' => 'No active restriction found.'], 404);
-            }
+        if ($updated === 0) {
+            return response()->json(['message' => 'No active restriction found.'], 404);
+        }
 
-            // Notify student that access was restored by treasury
+        // Notification is non-critical — never let it block the response.
+        try {
             Notification::create([
                 'user_id' => $student->id,
                 'title'   => 'Academic Access Restored',
                 'message' => 'Your academic access restriction has been lifted by the Finance Office.',
                 'type'    => 'access_restored',
             ]);
-
-            return response()->json(['message' => 'Restriction lifted.']);
-
         } catch (\Exception $e) {
-            return $this->dbError($e, 'RESTRICTION_ERROR');
+            Log::warning("lift: notification failed for user {$student->id}: " . $e->getMessage());
         }
+
+        return response()->json(['message' => 'Restriction lifted.']);
     }
 
     // ── Settings ──────────────────────────────────────────────────────────────

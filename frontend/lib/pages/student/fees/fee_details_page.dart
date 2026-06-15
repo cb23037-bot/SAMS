@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/app_controller.dart';
+import '../../../utils/parse.dart';
 import 'make_payment_page.dart';
 
 class FeeDetailsPage extends StatefulWidget {
@@ -125,11 +126,11 @@ class _FeeDetailsPageState extends State<FeeDetailsPage> {
               Text(fee['semester'] as String, style: const TextStyle(color: Colors.white70, fontSize: 13)),
               const SizedBox(height: 16),
               Row(children: [
-                _WhiteStatCol(label: 'Total', value: (fee['amount'] as num).toDouble()),
+                _WhiteStatCol(label: 'Total', value: parseDouble(fee['amount'])),
                 const SizedBox(width: 20),
-                _WhiteStatCol(label: 'Paid', value: (fee['amount_paid'] as num).toDouble()),
+                _WhiteStatCol(label: 'Paid', value: parseDouble(fee['amount_paid'])),
                 const SizedBox(width: 20),
-                _WhiteStatCol(label: 'Balance', value: (fee['balance'] as num).toDouble()),
+                _WhiteStatCol(label: 'Balance', value: parseDouble(fee['balance'])),
               ]),
               const SizedBox(height: 8),
               Text('Due: ${fee['due_date']}', style: const TextStyle(color: Colors.white54, fontSize: 12)),
@@ -149,7 +150,7 @@ class _FeeDetailsPageState extends State<FeeDetailsPage> {
               builder: (_) => MakePaymentPage(
                 controller: widget.controller,
                 feeId: fee['id'] as int,
-                balance: (fee['balance'] as num).toDouble(),
+                balance: parseDouble(fee['balance']),
                 description: fee['description'] as String,
               ),
             )).then((_) => _load()),
@@ -225,7 +226,7 @@ class _PaymentRow extends StatelessWidget {
         ),
         const SizedBox(width: 12),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('RM ${(payment['amount'] as num).toStringAsFixed(2)}',
+          Text('RM ${parseDouble(payment['amount']).toStringAsFixed(2)}',
               style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: Color(0xFF111827))),
           Text(_methodLabel(payment['payment_method'] as String),
               style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),

@@ -44,8 +44,8 @@ class FeeController extends Controller
                 ->orderBy('due_date')
                 ->get();
 
-            $total  = $fees->sum('amount');
-            $paid   = $fees->sum('amount_paid');
+            $total  = (float) $fees->sum('amount');
+            $paid   = (float) $fees->sum('amount_paid');
             $unpaid = $total - $paid;
 
             return response()->json([
@@ -109,7 +109,8 @@ class FeeController extends Controller
         }
 
         try {
-            // GAP 5: wrap the payment write in a transaction
+            // GAP 5: only the critical writes are inside the transaction.
+            // Notifications are non-critical and handled separately below.
             $result = DB::transaction(function () use ($request, $fee, $validated) {
                 $payment = Payment::create([
                     'fee_id'         => $fee->id,
@@ -122,16 +123,6 @@ class FeeController extends Controller
 
                 $fee->recalculate();
                 $freshFee = $fee->fresh();
-
-                // GAP 1: send payment notification
-                Notification::create([
-                    'user_id' => $request->user()->id,
-                    'title'   => 'Payment Successful',
-                    'message' => 'Your payment of RM ' . number_format($validated['amount'], 2)
-                        . ' for ' . $fee->semester . ' has been received. Transaction ID: '
-                        . $payment->reference_no,
-                    'type' => 'payment_success',
-                ]);
 
                 $accessRestored = false;
 
@@ -152,14 +143,6 @@ class FeeController extends Controller
 
                         if ($lifted > 0) {
                             $accessRestored = true;
-
-                            Notification::create([
-                                'user_id' => $request->user()->id,
-                                'title'   => 'Academic Access Restored',
-                                'message' => 'Your academic access has been restored. Thank you for settling your tuition fees for '
-                                    . $fee->semester . '.',
-                                'type' => 'access_restored',
-                            ]);
                         }
                     }
                 }
@@ -170,15 +153,8 @@ class FeeController extends Controller
                     'access_restored' => $accessRestored,
                 ];
             });
-
-            return response()->json([
-                'payment'         => $this->paymentArray($result['payment']),
-                'fee'             => $this->feeArray($result['fee']),
-                'access_restored' => $result['access_restored'],
-            ], 201);
-
         } catch (\Exception $e) {
-            // GAP 5: payment service failure → 503
+            // GAP 5: payment write failure → 503
             Log::error('Payment processing failed: ' . $e->getMessage());
             return response()->json([
                 'error'   => true,
@@ -186,6 +162,36 @@ class FeeController extends Controller
                 'code'    => 'GATEWAY_UNAVAILABLE',
             ], 503);
         }
+
+        // GAP 1: payment success notification (non-critical, never blocks response).
+        try {
+            Notification::create([
+                'user_id' => $request->user()->id,
+                'title'   => 'Payment Successful',
+                'message' => 'Your payment of RM ' . number_format($validated['amount'], 2)
+                    . ' for ' . $fee->semester . ' has been received. Transaction ID: '
+                    . $result['payment']->reference_no,
+                'type' => 'payment_success',
+            ]);
+
+            if ($result['access_restored']) {
+                Notification::create([
+                    'user_id' => $request->user()->id,
+                    'title'   => 'Academic Access Restored',
+                    'message' => 'Your academic access has been restored. Thank you for settling your tuition fees for '
+                        . $fee->semester . '.',
+                    'type' => 'access_restored',
+                ]);
+            }
+        } catch (\Exception $e) {
+            Log::warning('pay: notification failed for user ' . $request->user()->id . ': ' . $e->getMessage());
+        }
+
+        return response()->json([
+            'payment'         => $this->paymentArray($result['payment']),
+            'fee'             => $this->feeArray($result['fee']),
+            'access_restored' => $result['access_restored'],
+        ], 201);
     }
 
     public function restrictionStatus(Request $request): JsonResponse
