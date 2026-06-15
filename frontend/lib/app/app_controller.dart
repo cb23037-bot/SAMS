@@ -14,7 +14,9 @@ import '../services/api_service.dart';
 class AppController extends ChangeNotifier {
   /// Requires an [ApiService] instance to be injected — this keeps
   /// network logic separate from state logic (separation of concerns).
-  AppController({required ApiService apiService}) : _apiService = apiService;
+  AppController({required ApiService apiService}) : _apiService = apiService {
+    ApiService.onUnauthorized = signOut;
+  }
 
   // ── Private fields ──────────────────────────────────────────────────────────
 

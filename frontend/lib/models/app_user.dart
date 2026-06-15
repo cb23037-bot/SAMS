@@ -51,9 +51,8 @@ class AppUser {
 
   // ── Computed properties ────────────────────────────────────────────────────
 
-  /// Returns true if this user is a Pusat Adab staff member.
-  /// Used to conditionally show admin-only UI elements.
   bool get isPusatAdab => role == 'adab';
+  bool get isTreasury => role == 'treasury';
 
   /// Returns true if this user is a lecturer.
   bool get isLecturer => role == 'lecturer';
@@ -67,16 +66,16 @@ class AppUser {
   /// Fields that may be null in the database are cast with 'as String?'.
   factory AppUser.fromJson(Map<String, dynamic> json) {
     return AppUser(
-      id:               json['id'] as int,
-      name:             json['name'] as String,
-      email:            json['email'] as String,
-      role:             json['role'] as String,
-      studentId:        json['student_id'] as String?,
-      course:           json['course'] as String?,
-      phoneNumber:      json['phone_number'] as String?,
-      currentSemester:  json['current_semester'] as String?,
-      personalAdvisor:  json['personal_advisor'] as String?,
-      address:          json['address'] as String?,
+      id: json['id'] as int,
+      name: json['name'] as String,
+      email: json['email'] as String,
+      role: json['role'] as String,
+      studentId: json['student_id'] as String?,
+      course: json['course'] as String?,
+      phoneNumber: json['phone_number'] as String?,
+      currentSemester: json['current_semester'] as String?,
+      personalAdvisor: json['personal_advisor'] as String?,
+      address: json['address'] as String?,
     );
   }
 
@@ -92,16 +91,16 @@ class AppUser {
     String? address,
   }) {
     return AppUser(
-      id:               id,
-      name:             name,
-      email:            email,
-      role:             role,
-      studentId:        studentId,
-      course:           course,
-      phoneNumber:      phoneNumber ?? this.phoneNumber,
-      currentSemester:  currentSemester ?? this.currentSemester,
-      personalAdvisor:  personalAdvisor ?? this.personalAdvisor,
-      address:          address ?? this.address,
+      id: id,
+      name: name,
+      email: email,
+      role: role,
+      studentId: studentId,
+      course: course,
+      phoneNumber: phoneNumber ?? this.phoneNumber,
+      currentSemester: currentSemester ?? this.currentSemester,
+      personalAdvisor: personalAdvisor ?? this.personalAdvisor,
+      address: address ?? this.address,
     );
   }
 }

@@ -3,11 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Api\AccessController;
 use App\Models\ActivityRegistration;
 use App\Models\ActivitySlot;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 class ActivityRegistrationController extends Controller
@@ -62,8 +62,8 @@ class ActivityRegistrationController extends Controller
     {
         $this->requireStudent($request);
 
-        if ((DB::table('settings')->where('key', 'student_access')->value('value') ?? 'open') === 'closed') {
-            return response()->json(['message' => 'Activity registration is currently closed. Please try again later.'], 403);
+        if (AccessController::accessState()['student_access'] === 'closed') {
+            return response()->json(['message' => 'Activity registration is closed after Week 5 or by administrator control.'], 403);
         }
 
         $validated = $request->validate([
@@ -123,8 +123,8 @@ class ActivityRegistrationController extends Controller
     {
         $this->requireStudent($request);
 
-        if ((DB::table('settings')->where('key', 'student_access')->value('value') ?? 'open') === 'closed') {
-            return response()->json(['message' => 'Credit claim submission is currently closed. Please try again later.'], 403);
+        if (AccessController::accessState()['student_access'] === 'closed') {
+            return response()->json(['message' => 'Credit claim submission is closed after Week 5 or by administrator control.'], 403);
         }
 
         if ($registration->user_id !== $request->user()->id) {

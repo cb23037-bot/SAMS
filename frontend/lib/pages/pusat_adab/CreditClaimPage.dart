@@ -1190,7 +1190,8 @@ class _ClaimDetailDialogState extends State<_ClaimDetailDialog> {
     setState(() { _downloading = true; _downloadError = null; });
     try {
       final bytes = await widget.controller.apiService.downloadProof(
-        proofPath: widget.claim.proofPath!,
+        token: widget.controller.token!,
+        registrationId: widget.claim.id,
       );
       await Printing.sharePdf(bytes: bytes, filename: 'proof_${widget.claim.id}.pdf');
     } catch (e) {
@@ -1206,7 +1207,8 @@ class _ClaimDetailDialogState extends State<_ClaimDetailDialog> {
     setState(() { _viewing = true; _downloadError = null; });
     try {
       final bytes = await widget.controller.apiService.downloadProof(
-        proofPath: widget.claim.proofPath!,
+        token: widget.controller.token!,
+        registrationId: widget.claim.id,
       );
       if (!mounted) return;
       await Navigator.of(context).push(
