@@ -53,22 +53,25 @@ class AppUser {
   /// Used to conditionally show admin-only UI elements.
   bool get isPusatAdab => role == 'adab';
 
+  /// Returns true if this user is a treasury staff member.
+  bool get isTreasury => role == 'treasury';
+
   // ── Factory constructor ────────────────────────────────────────────────────
 
   /// Creates an [AppUser] from the JSON map returned by the login endpoint.
   /// Fields that may be null in the database are cast with 'as String?'.
   factory AppUser.fromJson(Map<String, dynamic> json) {
     return AppUser(
-      id:               json['id'] as int,
-      name:             json['name'] as String,
-      email:            json['email'] as String,
-      role:             json['role'] as String,
-      studentId:        json['student_id'] as String?,
-      course:           json['course'] as String?,
-      phoneNumber:      json['phone_number'] as String?,
-      currentSemester:  json['current_semester'] as String?,
-      personalAdvisor:  json['personal_advisor'] as String?,
-      address:          json['address'] as String?,
+      id: json['id'] as int,
+      name: json['name'] as String,
+      email: json['email'] as String,
+      role: json['role'] as String,
+      studentId: json['student_id'] as String?,
+      course: json['course'] as String?,
+      phoneNumber: json['phone_number'] as String?,
+      currentSemester: json['current_semester'] as String?,
+      personalAdvisor: json['personal_advisor'] as String?,
+      address: json['address'] as String?,
     );
   }
 
@@ -84,16 +87,16 @@ class AppUser {
     String? address,
   }) {
     return AppUser(
-      id:               id,
-      name:             name,
-      email:            email,
-      role:             role,
-      studentId:        studentId,
-      course:           course,
-      phoneNumber:      phoneNumber ?? this.phoneNumber,
-      currentSemester:  currentSemester ?? this.currentSemester,
-      personalAdvisor:  personalAdvisor ?? this.personalAdvisor,
-      address:          address ?? this.address,
+      id: id,
+      name: name,
+      email: email,
+      role: role,
+      studentId: studentId,
+      course: course,
+      phoneNumber: phoneNumber ?? this.phoneNumber,
+      currentSemester: currentSemester ?? this.currentSemester,
+      personalAdvisor: personalAdvisor ?? this.personalAdvisor,
+      address: address ?? this.address,
     );
   }
 }

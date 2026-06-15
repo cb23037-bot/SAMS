@@ -6,7 +6,9 @@ import '../../models/app_user.dart';
 import 'EditProfilePage.dart';
 import 'ModuleBookingPage.dart';
 import 'CurriculumActivityPage.dart';
+import 'fees/manage_fees_dashboard_page.dart';
 import 'StudentNotificationsPage.dart';
+import '../../utils/restriction_checker.dart';
 
 class StudentHomePage extends StatefulWidget {
   const StudentHomePage({super.key, required this.controller});
@@ -102,7 +104,10 @@ class _StudentHomePageState extends State<StudentHomePage> {
             }
           },
           destinations: [
-            const NavigationDestination(icon: Icon(Icons.home_outlined), label: 'Home'),
+            const NavigationDestination(
+              icon: Icon(Icons.home_outlined),
+              label: 'Home',
+            ),
             NavigationDestination(
               icon: Badge(
                 isLabelVisible: _notifUnreadCount > 0,
@@ -145,7 +150,10 @@ class _StudentHomePageState extends State<StudentHomePage> {
                           ),
                           Text(
                             'Academic System',
-                            style: TextStyle(color: Color(0xFF5B6B86), fontSize: 13),
+                            style: TextStyle(
+                              color: Color(0xFF5B6B86),
+                              fontSize: 13,
+                            ),
                           ),
                         ],
                       ),
@@ -164,22 +172,22 @@ class _StudentHomePageState extends State<StudentHomePage> {
                 child: _selectedIndex == 3
                     ? _buildProfileView(user)
                     : _selectedIndex == 1
-                        ? StudentNotificationsContent(
-                            controller: widget.controller,
-                            lastViewed: _sLastNotifViewed,
-                          )
-                        : _showKoQ
-                            ? KoQBookingContent(
-                                controller: widget.controller,
-                                registeredActivityIds: _koqRegisteredIds,
-                                onBack: _closeKoQ,
-                              )
-                            : _showCurriculum
-                                ? StudentCurriculumContent(
-                                    controller: widget.controller,
-                                    onBookNow: _openKoQ,
-                                  )
-                                : _buildHomeView(user),
+                    ? StudentNotificationsContent(
+                        controller: widget.controller,
+                        lastViewed: _sLastNotifViewed,
+                      )
+                    : _showKoQ
+                    ? KoQBookingContent(
+                        controller: widget.controller,
+                        registeredActivityIds: _koqRegisteredIds,
+                        onBack: _closeKoQ,
+                      )
+                    : _showCurriculum
+                    ? StudentCurriculumContent(
+                        controller: widget.controller,
+                        onBookNow: _openKoQ,
+                      )
+                    : _buildHomeView(user),
               ),
             ],
           ),
@@ -223,19 +231,41 @@ class _StudentHomePageState extends State<StudentHomePage> {
                 title: 'Mark Attendance',
                 icon: Icons.calendar_month_outlined,
                 color: const Color(0xFF22C55E),
-                onTap: () => _showSoon('Mark Attendance is coming soon.'),
+                onTap: () async {
+                  final restricted = await checkAndShowRestriction(
+                    context: context,
+                    controller: widget.controller,
+                    onPayNow: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => ManageFeesDashboardPage(controller: widget.controller),
+                    )),
+                  );
+                  if (restricted || !mounted) return;
+                  _showSoon('Mark Attendance is coming soon.');
+                },
               ),
               _ActionCard(
                 title: 'Curriculum Activity',
                 icon: Icons.trending_up_outlined,
                 color: const Color(0xFFA855F7),
-                onTap: () => setState(() => _showCurriculum = true),
+                onTap: () async {
+                  final restricted = await checkAndShowRestriction(
+                    context: context,
+                    controller: widget.controller,
+                    onPayNow: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => ManageFeesDashboardPage(controller: widget.controller),
+                    )),
+                  );
+                  if (restricted || !mounted) return;
+                  setState(() => _showCurriculum = true);
+                },
               ),
               _ActionCard(
                 title: 'Pay Fees',
                 icon: Icons.attach_money_outlined,
                 color: const Color(0xFFF97316),
-                onTap: () => _showSoon('Pay Fees is coming soon.'),
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => ManageFeesDashboardPage(controller: widget.controller),
+                )),
               ),
             ],
           ),
@@ -270,7 +300,11 @@ class _StudentHomePageState extends State<StudentHomePage> {
                     color: Color(0x334A7CFF),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.person, color: Colors.white, size: 30),
+                  child: const Icon(
+                    Icons.person,
+                    color: Colors.white,
+                    size: 30,
+                  ),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -286,8 +320,20 @@ class _StudentHomePageState extends State<StudentHomePage> {
                         ),
                       ),
                       const SizedBox(height: 3),
-                      Text(user.studentId ?? '', style: const TextStyle(color: Colors.white70, fontSize: 13)),
-                      Text(user.course ?? '', style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                      Text(
+                        user.studentId ?? '',
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 13,
+                        ),
+                      ),
+                      Text(
+                        user.course ?? '',
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 13,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -298,12 +344,17 @@ class _StudentHomePageState extends State<StudentHomePage> {
                     borderRadius: BorderRadius.circular(10),
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => EditProfilePage(controller: widget.controller),
+                        builder: (_) =>
+                            EditProfilePage(controller: widget.controller),
                       ),
                     ),
                     child: const Padding(
                       padding: EdgeInsets.all(10),
-                      child: Icon(Icons.edit_outlined, color: Color(0xFF1E5BFF), size: 20),
+                      child: Icon(
+                        Icons.edit_outlined,
+                        color: Color(0xFF1E5BFF),
+                        size: 20,
+                      ),
                     ),
                   ),
                 ),
@@ -320,7 +371,11 @@ class _StudentHomePageState extends State<StudentHomePage> {
               color: Colors.white,
               borderRadius: BorderRadius.circular(18),
               boxShadow: const [
-                BoxShadow(color: Color(0x120D1B2A), blurRadius: 18, offset: Offset(0, 8)),
+                BoxShadow(
+                  color: Color(0x120D1B2A),
+                  blurRadius: 18,
+                  offset: Offset(0, 8),
+                ),
               ],
             ),
             child: Column(
@@ -330,16 +385,44 @@ class _StudentHomePageState extends State<StudentHomePage> {
                   padding: EdgeInsets.fromLTRB(18, 16, 18, 12),
                   child: Text(
                     'Personal Information',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF111827)),
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF111827),
+                    ),
                   ),
                 ),
                 const Divider(height: 1),
-                _InfoRow(icon: Icons.person_outline, label: 'Name', value: user.name),
-                _InfoRow(icon: Icons.badge_outlined, label: 'Student ID', value: user.studentId ?? '-'),
-                _InfoRow(icon: Icons.location_on_outlined, label: 'Address', value: user.address ?? '-'),
-                _InfoRow(icon: Icons.menu_book_outlined, label: 'Academic Advisor', value: user.personalAdvisor ?? '-'),
-                _InfoRow(icon: Icons.email_outlined, label: 'Email', value: user.email),
-                _InfoRow(icon: Icons.phone_outlined, label: 'Phone', value: user.phoneNumber ?? '-'),
+                _InfoRow(
+                  icon: Icons.person_outline,
+                  label: 'Name',
+                  value: user.name,
+                ),
+                _InfoRow(
+                  icon: Icons.badge_outlined,
+                  label: 'Student ID',
+                  value: user.studentId ?? '-',
+                ),
+                _InfoRow(
+                  icon: Icons.location_on_outlined,
+                  label: 'Address',
+                  value: user.address ?? '-',
+                ),
+                _InfoRow(
+                  icon: Icons.menu_book_outlined,
+                  label: 'Academic Advisor',
+                  value: user.personalAdvisor ?? '-',
+                ),
+                _InfoRow(
+                  icon: Icons.email_outlined,
+                  label: 'Email',
+                  value: user.email,
+                ),
+                _InfoRow(
+                  icon: Icons.phone_outlined,
+                  label: 'Phone',
+                  value: user.phoneNumber ?? '-',
+                ),
                 _InfoRow(
                   icon: Icons.school_outlined,
                   label: 'Current Semester',
@@ -361,10 +444,15 @@ class _StudentHomePageState extends State<StudentHomePage> {
                 side: const BorderSide(color: Color(0xFFFFCDD2)),
                 backgroundColor: const Color(0xFFFFF5F5),
                 padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
               icon: const Icon(Icons.logout),
-              label: const Text('Logout', style: TextStyle(fontWeight: FontWeight.w700)),
+              label: const Text(
+                'Logout',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
             ),
           ),
         ],
@@ -377,7 +465,9 @@ class _StudentHomePageState extends State<StudentHomePage> {
   }
 
   void _showSoon(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 }
 
@@ -411,7 +501,13 @@ class _InfoRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(label, style: const TextStyle(fontSize: 12, color: Color(0xFF8A96A8))),
+                    Text(
+                      label,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF8A96A8),
+                      ),
+                    ),
                     const SizedBox(height: 2),
                     Text(
                       value,
@@ -478,12 +574,20 @@ class _WelcomeCard extends StatelessWidget {
               children: [
                 const Text(
                   'Welcome Back,',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 18),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 18,
+                  ),
                 ),
                 const SizedBox(height: 10),
                 Text(
                   user.name,
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 22),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 22,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -496,11 +600,18 @@ class _WelcomeCard extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              const Text('Current Semester', style: TextStyle(color: Colors.white, fontSize: 14)),
+              const Text(
+                'Current Semester',
+                style: TextStyle(color: Colors.white, fontSize: 14),
+              ),
               const SizedBox(height: 6),
               Text(
                 user.currentSemester ?? '-',
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 20),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 20,
+                ),
               ),
             ],
           ),
@@ -537,7 +648,11 @@ class _ActionCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(18),
             border: Border.all(color: const Color(0xFFE8EDF6)),
             boxShadow: const [
-              BoxShadow(color: Color(0x120D1B2A), blurRadius: 18, offset: Offset(0, 8)),
+              BoxShadow(
+                color: Color(0x120D1B2A),
+                blurRadius: 18,
+                offset: Offset(0, 8),
+              ),
             ],
           ),
           child: Column(
@@ -552,7 +667,11 @@ class _ActionCard extends StatelessWidget {
               const Spacer(),
               Text(
                 title,
-                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16, color: Color(0xFF111827)),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 16,
+                  color: Color(0xFF111827),
+                ),
               ),
             ],
           ),

@@ -4,6 +4,7 @@ import 'app/app_controller.dart';
 import 'pages/LoginPage.dart';
 import 'pages/pusat_adab/SystemPage.dart';
 import 'pages/student/HomePage.dart';
+import 'pages/treasury/treasury_dashboard_page.dart';
 import 'services/api_service.dart';
 
 void main() {
@@ -62,6 +63,10 @@ class _SamsAppState extends State<SamsApp> {
 
     if (_controller.currentUser!.isPusatAdab) {
       return PusatAdabDashboardPage(controller: _controller);
+    }
+
+    if (_controller.currentUser!.isTreasury) {
+      return TreasuryDashboardPage(controller: _controller);
     }
 
     return StudentHomePage(controller: _controller);
