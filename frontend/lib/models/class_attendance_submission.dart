@@ -1,6 +1,10 @@
 import 'attendance_session.dart';
 
 /// Represents a single student's attendance submission for a session.
+///
+/// Created when a student successfully submits their attendance code and GPS
+/// location. Used in the lecturer's live view (SAMS-PACK-408) and the
+/// attendance record page (SAMS-PACK-409).
 class ClassAttendanceSubmissionModel {
   const ClassAttendanceSubmissionModel({
     required this.attendanceSubmissionId,
@@ -14,18 +18,37 @@ class ClassAttendanceSubmissionModel {
     required this.attendanceStatus,
   });
 
+  /// Unique identifier for this submission record.
   final int attendanceSubmissionId;
+
+  /// The ID of the student who submitted.
   final int studentId;
+
+  /// Full name of the student.
   final String studentName;
+
+  /// Student's matric number.
   final String matricNo;
+
+  /// The attendance code the student entered at submission time.
   final String submittedCode;
+
+  /// ISO 8601 timestamp of when the student submitted.
   final String submittedAt;
+
+  /// GPS latitude recorded at submission time.
   final double gpsLatitude;
+
+  /// GPS longitude recorded at submission time.
   final double gpsLongitude;
+
+  /// Submission status: 'present' if accepted, 'rejected' if flagged.
   final String attendanceStatus;
 
+  /// Returns true when the submission was accepted as present.
   bool get isPresent => attendanceStatus == 'present';
 
+  /// Deserialises a [ClassAttendanceSubmissionModel] from the API JSON response.
   factory ClassAttendanceSubmissionModel.fromJson(Map<String, dynamic> json) {
     return ClassAttendanceSubmissionModel(
       attendanceSubmissionId: (json['attendance_submission_id'] as num).toInt(),
@@ -41,7 +64,10 @@ class ClassAttendanceSubmissionModel {
   }
 }
 
-/// Represents a student in an attendance record who did not submit.
+/// Represents a student who was enrolled in a class but did not submit
+/// attendance for a session (i.e. marked as absent).
+///
+/// Used in the attendance record page (SAMS-PACK-409) absent tab.
 class AbsentStudentModel {
   const AbsentStudentModel({
     required this.studentId,
@@ -49,10 +75,16 @@ class AbsentStudentModel {
     required this.matricNo,
   });
 
+  /// The ID of the absent student.
   final int studentId;
+
+  /// Full name of the absent student.
   final String name;
+
+  /// Matric number of the absent student.
   final String matricNo;
 
+  /// Deserialises an [AbsentStudentModel] from the API JSON response.
   factory AbsentStudentModel.fromJson(Map<String, dynamic> json) {
     return AbsentStudentModel(
       studentId: (json['student_id'] as num).toInt(),
@@ -62,7 +94,10 @@ class AbsentStudentModel {
   }
 }
 
-/// Represents the live state of an attendance session for the lecturer's polling view.
+/// Represents the live state of an attendance session polled by the lecturer.
+///
+/// Returned by the getLiveSubmissions endpoint every 5 seconds while the
+/// session is active. Used in SAMS-PACK-408 (lecturer active session page).
 class LiveAttendanceModel {
   const LiveAttendanceModel({
     required this.session,
@@ -71,11 +106,19 @@ class LiveAttendanceModel {
     required this.submissions,
   });
 
+  /// The current state of the attendance session.
   final AttendanceSessionModel session;
+
+  /// Total number of students enrolled in the class.
   final int enrolledCount;
+
+  /// Number of students who have submitted attendance so far.
   final int submittedCount;
+
+  /// List of all submission records received so far, ordered by submitted_at desc.
   final List<ClassAttendanceSubmissionModel> submissions;
 
+  /// Deserialises a [LiveAttendanceModel] from the API JSON response.
   factory LiveAttendanceModel.fromJson(Map<String, dynamic> json) {
     return LiveAttendanceModel(
       session: AttendanceSessionModel.fromJson(json['session'] as Map<String, dynamic>),
@@ -88,7 +131,11 @@ class LiveAttendanceModel {
   }
 }
 
-/// Represents the full attendance record for one session: present, rejected and absent students.
+/// Represents the full attendance record for one session:
+/// present students, rejected submissions, and absent students.
+///
+/// Returned by the viewRecord endpoint and used in SAMS-PACK-409
+/// (lecturer attendance record page).
 class AttendanceRecordModel {
   const AttendanceRecordModel({
     required this.session,
@@ -97,11 +144,19 @@ class AttendanceRecordModel {
     required this.absent,
   });
 
+  /// The session these records belong to.
   final AttendanceSessionModel session;
+
+  /// Students whose submission was accepted (status = 'present').
   final List<ClassAttendanceSubmissionModel> present;
+
+  /// Students whose submission was flagged (status = 'rejected').
   final List<ClassAttendanceSubmissionModel> rejected;
+
+  /// Students enrolled in the class who did not submit at all.
   final List<AbsentStudentModel> absent;
 
+  /// Deserialises an [AttendanceRecordModel] from the API JSON response.
   factory AttendanceRecordModel.fromJson(Map<String, dynamic> json) {
     return AttendanceRecordModel(
       session: AttendanceSessionModel.fromJson(json['session'] as Map<String, dynamic>),
