@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../app/app_controller.dart';
 import '../../../utils/parse.dart';
-import '../notifications_page.dart';
 import 'fee_details_page.dart';
 import 'make_payment_page.dart';
 import 'payment_receipt_page.dart';
@@ -29,9 +28,8 @@ class _ManageFeesDashboardPageState extends State<ManageFeesDashboardPage>
   // Sponsor
   List<dynamic> _sponsors = [];
 
-  // Notifications
-  int _unreadCount = 0;
-  bool _hasRestrictionNotif = false;
+  // Restriction status (derived from restriction-status API, not notifications)
+  bool _isRestricted = false;
 
   // Ledger (lazy)
   bool _ledgerLoading = false;
@@ -63,18 +61,12 @@ class _ManageFeesDashboardPageState extends State<ManageFeesDashboardPage>
         widget.controller.apiService.getStudentFees(token: widget.controller.token!),
         widget.controller.apiService.getRestrictionStatus(token: widget.controller.token!),
         widget.controller.apiService.getStudentSponsors(token: widget.controller.token!),
-        widget.controller.apiService.getNotifications(token: widget.controller.token!),
       ]);
-      final notifs = (results[3]['notifications'] as List? ?? [])
-          .cast<Map<String, dynamic>>();
       setState(() {
-        _feesData = results[0];
-        _sponsors = (results[2]['sponsors'] as List?) ?? [];
-        _unreadCount        = notifs.where((n) => n['is_read'] == false).length;
-        _hasRestrictionNotif = notifs.any(
-          (n) => n['type'] == 'restriction' && n['is_read'] == false,
-        );
-        _loading = false;
+        _feesData    = results[0];
+        _isRestricted = (results[1]['restricted'] as bool?) == true;
+        _sponsors    = (results[2]['sponsors'] as List?) ?? [];
+        _loading     = false;
       });
     } catch (e) {
       setState(() { _error = e.toString().replaceFirst('Exception: ', ''); _loading = false; });
@@ -222,37 +214,7 @@ class _ManageFeesDashboardPageState extends State<ManageFeesDashboardPage>
         ),
         title: const Text('Manage Fees',
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 18)),
-        actions: [
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.notifications_outlined, color: Colors.white),
-                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => NotificationsPage(controller: widget.controller),
-                )).then((_) => _load()),
-              ),
-              if (_unreadCount > 0)
-                Positioned(
-                  top: 8, right: 8,
-                  child: Container(
-                    padding: const EdgeInsets.all(3),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFE53935),
-                      shape: BoxShape.circle,
-                    ),
-                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                    child: Text(
-                      _unreadCount > 9 ? '9+' : '$_unreadCount',
-                      style: const TextStyle(color: Colors.white,
-                          fontSize: 9, fontWeight: FontWeight.w800),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ],
+        actions: const [],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: _blue))
@@ -261,7 +223,7 @@ class _ManageFeesDashboardPageState extends State<ManageFeesDashboardPage>
               : Column(
                   children: [
                     // ── GAP 2: Restriction alert card ─────────────────────
-                    if (_hasRestrictionNotif)
+                    if (_isRestricted)
                       _RestrictionAlert(onPayNow: _goPayNow),
 
                     // ── Blue hero section ─────────────────────────────────

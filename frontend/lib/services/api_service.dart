@@ -10,6 +10,7 @@ import '../models/activity_registration.dart';
 import '../models/activity_slot.dart';
 import '../models/app_user.dart';
 import '../models/attendance_report.dart';
+import '../models/unified_notification.dart';
 import '../models/attendance_session.dart';
 import '../models/class_attendance_submission.dart';
 import '../models/class_schedule.dart';
@@ -931,6 +932,63 @@ class ApiService {
 
   Future<void> markAllNotificationsRead({required String token}) async {
     await _request(method: 'PUT', path: '/notifications/read-all', token: token);
+  }
+
+  /// Aggregates Module 2 (activity claim) and Module 3 (fee) notifications into
+  /// a single sorted list. Used by the unified Notification tab in the bottom nav.
+  Future<List<UnifiedNotification>> getAllNotifications({required String token}) async {
+    final unified = <UnifiedNotification>[];
+
+    // Module 3: fee/restriction/payment notifications from DB
+    try {
+      final feeData = await getNotifications(token: token);
+      final notifs = (feeData['notifications'] as List? ?? []).cast<Map<String, dynamic>>();
+      for (final n in notifs) {
+        unified.add(UnifiedNotification(
+          id: 'fee_${n['id']}',
+          title: n['title'] as String? ?? '',
+          message: n['message'] as String? ?? '',
+          type: 'fees',
+          isRead: n['is_read'] == true,
+          createdAt: DateTime.tryParse(n['created_at'] as String? ?? '') ?? DateTime.now(),
+          status: n['type'] as String?,
+        ));
+      }
+    } catch (_) {}
+
+    // Module 2: activity credit claim status updates
+    try {
+      final regs = await getStudentRegistrations(token: token);
+      for (final r in regs) {
+        final status = r.claimStatus;
+        if (status == 'pending' || status == 'claimed' || status == 'rejected') {
+          final String title;
+          final String message;
+          if (status == 'pending') {
+            title = 'Credit Claim Pending';
+            message = 'Your credit claim for ${r.activity.name} is under review.';
+          } else if (status == 'claimed') {
+            title = 'Credit Claim Approved';
+            message = 'Your credit claim for ${r.activity.name} has been approved.';
+          } else {
+            title = 'Credit Claim Rejected';
+            message = 'Your credit claim for ${r.activity.name} was rejected.';
+          }
+          unified.add(UnifiedNotification(
+            id: 'activity_${r.id}',
+            title: title,
+            message: message,
+            type: 'activity',
+            isRead: status == 'claimed',
+            createdAt: DateTime.tryParse(r.updatedAt ?? '') ?? DateTime.now(),
+            status: status,
+          ));
+        }
+      }
+    } catch (_) {}
+
+    unified.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return unified;
   }
 
   // ── Module 3: Receipt PDF ─────────────────────────────────────────────────

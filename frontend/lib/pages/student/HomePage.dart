@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../app/app_controller.dart';
-import '../../models/activity_registration.dart';
 import '../../models/app_user.dart';
 import 'EditProfilePage.dart';
 import 'ModuleBookingPage.dart';
@@ -51,9 +50,6 @@ class _StudentHomePageState extends State<StudentHomePage> {
   // page can scroll to and highlight the related registration on load.
   int? _highlightRegistrationId;
 
-  // Persists across rebuilds so the badge reflects reality even after leaving tab 1.
-  static DateTime? _sLastNotifViewed;
-
   @override
   void initState() {
     super.initState();
@@ -62,30 +58,16 @@ class _StudentHomePageState extends State<StudentHomePage> {
     _loadNotifCount();
   }
 
-  /// Computes how many of the student's registrations have a status update
-  /// (claimed/pending/rejected) that the student hasn't seen yet, and
-  /// stores the result in [_notifUnreadCount] for the bottom nav badge.
-  ///
-  /// A registration counts as "unread" if its [ActivityRegistration.updatedAt]
-  /// is after [_sLastNotifViewed] (or if the tab has never been viewed).
-  /// 'not_claimed' registrations are excluded since they have no status
-  /// update to notify about. Errors are swallowed so a failed fetch simply
-  /// leaves the badge at its previous value.
+  /// Counts unread unified notifications (Module 2 + Module 3) and stores
+  /// the result in [_notifUnreadCount] for the bottom nav badge.
+  /// Errors are swallowed so a failed fetch leaves the badge at 0.
   Future<void> _loadNotifCount() async {
     try {
-      final regs = await widget.controller.apiService.getStudentRegistrations(
+      final notifs = await widget.controller.apiService.getAllNotifications(
         token: widget.controller.token!,
       );
       if (!mounted) return;
-      final lastViewed = _sLastNotifViewed;
-      final count = regs.where((ActivityRegistration r) {
-        if (r.claimStatus == 'not_claimed') return false;
-        if (lastViewed == null) return true;
-        final ts = r.updatedAt;
-        if (ts == null) return false;
-        return DateTime.tryParse(ts)?.isAfter(lastViewed) ?? false;
-      }).length;
-      setState(() => _notifUnreadCount = count);
+      setState(() => _notifUnreadCount = notifs.where((n) => !n.isRead).length);
     } catch (_) {}
   }
 
@@ -115,17 +97,6 @@ class _StudentHomePageState extends State<StudentHomePage> {
     setState(() {
       _showCurriculum = true;
       _highlightRegistrationId = null;
-    });
-  }
-
-  /// Navigates to the Curriculum Activity page and scrolls to/highlights the
-  /// registration that the tapped notification refers to.
-  void _openActivityFromNotification(ActivityRegistration reg) {
-    setState(() {
-      _selectedIndex = 0;
-      _showCurriculum = true;
-      _showKoQ = false;
-      _highlightRegistrationId = reg.id;
     });
   }
 
@@ -175,10 +146,6 @@ class _StudentHomePageState extends State<StudentHomePage> {
           backgroundColor: Colors.white,
           indicatorColor: const Color(0x1A1E5BFF),
           onDestinationSelected: (index) {
-            if (index == 1) {
-              // Mark all notifications as viewed when the user opens the tab.
-              _sLastNotifViewed = DateTime.now();
-            }
             setState(() {
               _selectedIndex = index;
               _showCurriculum = false;
@@ -255,8 +222,14 @@ class _StudentHomePageState extends State<StudentHomePage> {
                     : _selectedIndex == 1
                         ? StudentNotificationsContent(
                             controller: widget.controller,
-                            lastViewed: _sLastNotifViewed,
-                            onOpenActivity: _openActivityFromNotification,
+                            onOpenCurriculum: () {
+                              setState(() {
+                                _selectedIndex = 0;
+                                _showCurriculum = true;
+                                _showKoQ = false;
+                                _highlightRegistrationId = null;
+                              });
+                            },
                           )
                         : _showKoQ
                             ? KoQBookingContent(
