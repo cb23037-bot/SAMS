@@ -96,6 +96,7 @@ class _LoginPageState extends State<LoginPage> {
                 key: _formKey,
                 child: Column(
                   children: [
+
                     // ── Header / branding ───────────────────────────────
                     Image.asset(
                       'assets/images/umpsa_logo.png',
@@ -128,7 +129,10 @@ class _LoginPageState extends State<LoginPage> {
 
                     const Text(
                       'Student Academic System',
-                      style: TextStyle(fontSize: 14, color: Color(0xFF5B6B86)),
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF5B6B86),
+                      ),
                     ),
 
                     const SizedBox(height: 28),
@@ -156,10 +160,6 @@ class _LoginPageState extends State<LoginPage> {
                           DropdownMenuItem(
                             value: 'faculty_registrar',
                             child: Text('Faculty Registrar'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'treasury',
-                            child: Text('Treasury'),
                           ),
                         ],
                         decoration: _inputDecoration(
@@ -223,9 +223,8 @@ class _LoginPageState extends State<LoginPage> {
                             },
                           ),
                         ),
-                        validator: (value) => value!.isEmpty
-                            ? 'Please enter your password.'
-                            : null,
+                        validator: (value) =>
+                            value!.isEmpty ? 'Please enter your password.' : null,
                       ),
                     ),
 
@@ -243,7 +242,7 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                           ),
                           child: const Text('Forgot password?'),
-                        ),
+                        )
                       ],
                     ),
 
@@ -265,9 +264,7 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                         child: isLoading
-                            ? const CircularProgressIndicator(
-                                color: Color.fromARGB(255, 255, 255, 255),
-                              )
+                            ? const CircularProgressIndicator(color: Color.fromARGB(255, 255, 255, 255))
                             : const Text(
                                 'Sign In',
                                 style: TextStyle(
@@ -328,7 +325,12 @@ class _Label extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+        Text(
+          title,
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         const SizedBox(height: 8),
         child,
       ],

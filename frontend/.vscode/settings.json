@@ -2,7 +2,5 @@
   "java.import.gradle.enabled": false,
   "java.configuration.updateBuildConfiguration": "disabled",
   "java.project.sourcePaths": [],
-  "cmake.sourceDirectory": "C:/xampp/htdocs/SAMS/frontend/linux",
-  "dart.flutterSdkPath": "C:\\Users\\hizbu\\.puro\\envs\\stable\\flutter",
-  "dart.sdkPath": "C:\\Users\\hizbu\\.puro\\envs\\stable\\flutter\\bin\\cache\\dart-sdk"
+  "cmake.sourceDirectory": "C:/xampp/htdocs/SAMS/frontend/linux"
 }

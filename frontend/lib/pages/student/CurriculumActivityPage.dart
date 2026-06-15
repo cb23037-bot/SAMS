@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
@@ -19,8 +19,6 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../app/app_controller.dart';
 import '../../models/activity_registration.dart';
 import '../../models/app_user.dart';
-import '../../utils/restriction_checker.dart';
-import 'fees/manage_fees_dashboard_page.dart';
 
 // ════════════════════════════════════════════════════════════════════════════
 // This file implements the student-facing "Curriculum Activity" page — the
@@ -157,10 +155,13 @@ Future<String?> _reverseGeocode(double lat, double lon) async {
     final uri = Uri.parse(
       'https://nominatim.openstreetmap.org/reverse?format=json&lat=$lat&lon=$lon&zoom=16',
     );
-    final response = await http.get(uri, headers: {'User-Agent': 'SAMS-App/1.0'})
-        .timeout(const Duration(seconds: 8));
+    final client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
+    final req = await client.getUrl(uri);
+    req.headers.set('User-Agent', 'SAMS-App/1.0');
+    final response = await req.close();
     if (response.statusCode == 200) {
-      final json = jsonDecode(response.body) as Map<String, dynamic>;
+      final raw  = await response.transform(utf8.decoder).join();
+      final json = jsonDecode(raw) as Map<String, dynamic>;
       return json['display_name'] as String?;
     }
     return null;
@@ -193,12 +194,18 @@ int _tileY(double lat, int zoom) {
 /// from the receipt rather than crashing PDF generation.
 Future<ui.Image?> _fetchOsmTile(int zoom, int x, int y) async {
   try {
-    final response = await http
-        .get(Uri.parse('https://tile.openstreetmap.org/$zoom/$x/$y.png'),
-            headers: {'User-Agent': 'SAMS-App/1.0'})
-        .timeout(const Duration(seconds: 10));
-    if (response.statusCode != 200) return null;
-    final codec = await ui.instantiateImageCodec(response.bodyBytes);
+    final client = HttpClient()..connectionTimeout = const Duration(seconds: 10);
+    final req    = await client.getUrl(
+        Uri.parse('https://tile.openstreetmap.org/$zoom/$x/$y.png'));
+    req.headers.set('User-Agent', 'SAMS-App/1.0');
+    final resp = await req.close();
+    if (resp.statusCode != 200) return null;
+    final bytes = <int>[];
+    await for (final c in resp) {
+      bytes.addAll(c);
+    }
+    client.close();
+    final codec = await ui.instantiateImageCodec(Uint8List.fromList(bytes));
     return (await codec.getNextFrame()).image;
   } catch (_) {
     return null;
@@ -621,7 +628,7 @@ class _StudentCurriculumContentState extends State<StudentCurriculumContent> {
         token:          widget.controller.token!,
         slotId:         reg.slot.id,
         attendanceCode: attendData.code,
-        photoBytes:     photoBytes,
+        photoPath:      attendData.photo.path,
         photoName:      attendData.photo.name,
         latitude:       pos?.latitude,
         longitude:      pos?.longitude,
@@ -674,7 +681,7 @@ class _StudentCurriculumContentState extends State<StudentCurriculumContent> {
       final updated = await widget.controller.apiService.claimWithProof(
         token:          widget.controller.token!,
         registrationId: reg.id,
-        fileBytes:      result.bytes!,
+        filePath:       result.path!,
         fileName:       result.name,
       );
       if (!mounted) return;
@@ -757,15 +764,9 @@ class _StudentCurriculumContentState extends State<StudentCurriculumContent> {
     );
   }
 
-  Future<void> _openBooking() async {
-    final restricted = await checkAndShowRestriction(
-      context: context,
-      controller: widget.controller,
-      onPayNow: () => Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => ManageFeesDashboardPage(controller: widget.controller),
-      )),
-    );
-    if (restricted) return;
+  /// Navigates to the booking page, passing along the IDs of activities the
+  /// student is already registered for so they can't double-book.
+  void _openBooking() {
     widget.onBookNow(_registrations.map((r) => r.activity.id).toSet());
   }
 
@@ -1319,7 +1320,6 @@ class _AttendDialogState extends State<_AttendDialog> {
 
   /// The selfie photo taken via [_takePhoto], or null until captured.
   XFile? _photo;
-  Uint8List? _photoBytes;
 
   /// Validation error shown under the code field, or null if valid.
   String? _codeError;
@@ -1340,13 +1340,7 @@ class _AttendDialogState extends State<_AttendDialog> {
       imageQuality: 85,
       maxWidth:     1280,
     );
-    if (photo != null) {
-      final bytes = await photo.readAsBytes();
-      setState(() {
-        _photo = photo;
-        _photoBytes = bytes;
-      });
-    }
+    if (photo != null) setState(() => _photo = photo);
   }
 
   /// Validates the attendance code and photo, then closes the dialog
@@ -1468,8 +1462,8 @@ class _AttendDialogState extends State<_AttendDialog> {
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(10),
-                    child: Image.memory(
-                      _photoBytes!,
+                    child: Image.file(
+                      File(_photo!.path),
                       height: 160,
                       width: double.infinity,
                       fit: BoxFit.cover,
@@ -1913,7 +1907,7 @@ class _ClaimCreditDialogState extends State<_ClaimCreditDialog> {
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf'],
-      withData: true,
+      withData: false,
       withReadStream: false,
     );
     if (result != null && result.files.isNotEmpty) {

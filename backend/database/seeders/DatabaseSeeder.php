@@ -16,7 +16,6 @@ class DatabaseSeeder extends Seeder
             UserSeeder::class,
             ActivitySeeder::class,
             ClassAttendanceSeeder::class,
-            FeeSeeder::class,
         ]);
     }
 }

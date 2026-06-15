@@ -50,38 +50,51 @@ class User extends Authenticatable
         'password' => 'hashed',
     ];
 
+    /**
+     * Get the subject registrations for this user.
+     */
     public function subjectRegistrations(): HasMany
     {
         return $this->hasMany(SubjectRegistration::class);
     }
 
+    /**
+     * Get all students who list this lecturer as their personal advisor.
+     */
     public function advisees(): HasMany
     {
         return $this->hasMany(User::class, 'personal_advisor', 'name');
     }
 
+    /**
+     * Get the class schedules assigned to this lecturer.
+     */
     public function lecturerClassSchedules(): HasMany
     {
         return $this->hasMany(ClassSchedule::class, 'lecturer_id');
     }
 
+    /**
+     * Get the class enrollments for this student.
+     */
     public function classEnrollments(): HasMany
     {
         return $this->hasMany(ClassEnrollment::class, 'student_id');
     }
 
+    /**
+     * Get the attendance sessions started by this lecturer.
+     */
     public function attendanceSessions(): HasMany
     {
         return $this->hasMany(AttendanceSession::class, 'lecturer_id');
     }
 
+    /**
+     * Get the class attendance submissions made by this student.
+     */
     public function classAttendanceSubmissions(): HasMany
     {
         return $this->hasMany(ClassAttendanceSubmission::class, 'student_id');
-    }
-
-    public function restrictions(): HasMany
-    {
-        return $this->hasMany(Restriction::class);
     }
 }

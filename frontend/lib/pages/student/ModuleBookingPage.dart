@@ -3,8 +3,6 @@ import 'package:flutter/material.dart';
 import '../../app/app_controller.dart';
 import '../../models/activity.dart';
 import '../../models/activity_slot.dart';
-import '../../utils/restriction_checker.dart';
-import 'fees/manage_fees_dashboard_page.dart';
 
 // Embedded widget — no Scaffold. Used inside StudentHomePage.
 /// Lists KoQ (Ko-Kurikulum) activities the student can register for, with
@@ -134,24 +132,12 @@ class _KoQBookingContentState extends State<KoQBookingContent> {
       widget.onBack(); // return to curriculum (which will reload)
     } catch (e) {
       if (!mounted) return;
-      final msg = e.toString().replaceFirst('Exception: ', '');
-      // Backend returned 403 → show the restriction dialog
-      if (msg.contains('restriction') || msg.contains('restricted') || msg.contains('403')) {
-        await checkAndShowRestriction(
-          context: context,
-          controller: widget.controller,
-          onPayNow: () => Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => ManageFeesDashboardPage(controller: widget.controller),
-          )),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(msg),
-            backgroundColor: const Color(0xFFFF3B30),
-          ),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: const Color(0xFFFF3B30),
+        ),
+      );
     }
   }
 
