@@ -7,6 +7,7 @@ use App\Models\Activity;
 use App\Models\ActivityRegistration;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class CreditClaimController extends Controller
 {
@@ -154,6 +155,20 @@ class CreditClaimController extends Controller
             'status' => 'success',
             'claim'  => self::claimArray($registration),
         ]);
+    }
+
+    // GET /api/adab/claims/{registration}/proof
+    public function downloadProof(int $id)
+    {
+        $this->requireAdab(request());
+
+        $registration = ActivityRegistration::findOrFail($id);
+
+        if (!$registration->proof_path || !Storage::disk('public')->exists($registration->proof_path)) {
+            return response()->json(['message' => 'Proof document not found.'], 404);
+        }
+
+        return Storage::disk('public')->download($registration->proof_path);
     }
 
     // GET /api/adab/notifications

@@ -76,6 +76,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/subjects', [SubjectController::class, 'index']);
     Route::post('/subjects', [SubjectController::class, 'store']);
     Route::delete('/subjects/{id}', [SubjectController::class, 'destroy']);
+    Route::get('/subjects/{id}/sections', [SubjectController::class, 'getSections']);
 
     // --- Subject Registration Workflow ---
     Route::prefix('student')->group(function () {
@@ -83,7 +84,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/subject-registrations', [SubjectRegistrationController::class, 'store']);
         Route::delete('/subject-registrations/{id}', [SubjectRegistrationController::class, 'destroy']);
         Route::post('/subject-registrations/submit', [SubjectRegistrationController::class, 'submitRegistration']);
-        Route::get('/subject-registrations', [SubjectRegistrationController::class, 'index']);
 
         // --- Class Attendance (Student) ---
         Route::get('/attendance/schedules', [StudentAttendanceController::class, 'getSchedules']);

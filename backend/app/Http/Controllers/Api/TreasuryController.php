@@ -280,22 +280,6 @@ class TreasuryController extends Controller
         }
     }
 
-    public function monitorUnpaid(Request $request): JsonResponse
-    {
-        $this->requireTreasury($request);
-
-        try {
-            $fees = Fee::with(['student.user'])
-                ->whereIn('status', ['Unpaid', 'Partial'])
-                ->orderByDesc('outstanding_amount')
-                ->get();
-
-            return response()->json(['fees' => $fees->map(fn($f) => $this->feeRow($f))]);
-        } catch (\Exception $e) {
-            return $this->dbError($e);
-        }
-    }
-
     // ── Restriction Management ────────────────────────────────────────────────
 
     public function restrict(Request $request, int $userId): JsonResponse

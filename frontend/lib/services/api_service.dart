@@ -879,10 +879,12 @@ class ApiService {
     return _request(method: 'PUT', path: '/treasury/fees/$feeId', token: token, body: fields);
   }
 
+  // NOTE: Backend route removed. Kept for reference only.
   Future<Map<String, dynamic>> getTreasurySettings({required String token}) async {
     return _request(method: 'GET', path: '/treasury/settings', token: token);
   }
 
+  // NOTE: Backend route removed. Kept for reference only.
   Future<void> updateTreasurySettings({
     required String token,
     required Map<String, dynamic> settings,
@@ -916,6 +918,11 @@ class ApiService {
 
   Future<Map<String, dynamic>> getNotifications({required String token}) async {
     return _request(method: 'GET', path: '/notifications', token: token);
+  }
+
+  Future<int> getNotificationUnreadCount({required String token}) async {
+    final json = await _request(method: 'GET', path: '/notifications/unread-count', token: token);
+    return (json['unread_count'] as int?) ?? 0;
   }
 
   Future<void> markNotificationRead({required String token, required int id}) async {
@@ -1026,6 +1033,12 @@ class ApiService {
       token: token,
     );
     return ReportSummaryModel.fromJson(json);
+  }
+
+  /// Returns the URL for downloading the attendance report CSV for a class.
+  /// Open this URL in a browser tab — the backend streams the file directly.
+  Future<String> getAttendanceReportDownloadUrl({required String token}) {
+    return Future.value('${_baseUrl()}/lecturer/attendance/report/download?token=$token');
   }
 
   // ── Class Attendance (Student) ─────────────────────────────────────────────

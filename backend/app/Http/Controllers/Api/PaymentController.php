@@ -1,5 +1,9 @@
 <?php
 
+// NOTE: This controller is not registered in routes/api.php.
+// Payment processing is handled by FeeController::pay().
+// Kept for reference only.
+
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
