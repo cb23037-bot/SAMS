@@ -47,7 +47,6 @@ class _LecturerActiveSessionState extends State<LecturerActiveSession> {
     _loadEnrolledCount();
     // loadLiveSubmissions() — SAMS-PACK-408: initial fetch
     _loadLiveSubmissions();
-    // Poll every 5 seconds while session is active to update submission list
     if (_session.isActive) {
       _timer = Timer.periodic(const Duration(seconds: 5), (_) => _loadLiveSubmissions());
     }
@@ -59,7 +58,6 @@ class _LecturerActiveSessionState extends State<LecturerActiveSession> {
     super.dispose();
   }
 
-  // loadActiveSession() — loads enrolled count for the progress metric tile
   Future<void> _loadEnrolledCount() async {
     try {
       final res = await ApiService.getEnrolledCount(widget.schedule.scheduleId);
@@ -71,8 +69,6 @@ class _LecturerActiveSessionState extends State<LecturerActiveSession> {
 
   // loadLiveSubmissions(attendance_session_id) — List<AttendanceSubmission>
   // SAMS-PACK-408
-  // CALL LecturerAttendanceController.getLiveSubmissions(attendance_session_id)
-  // Sets _pollError flag if the request fails so a retry banner is shown.
   Future<void> _loadLiveSubmissions() async {
     try {
       final res = await ApiService.getLiveSubmissions(_session.attendanceSessionId);
@@ -94,8 +90,6 @@ class _LecturerActiveSessionState extends State<LecturerActiveSession> {
 
   // generateAttendanceCode(attendance_session_id) — String
   // SAMS-PACK-408
-  // CALL LecturerAttendanceController.generateCode(attendance_session_id)
-  // IF code generated THEN update displayed code ELSE show error snackbar
   Future<void> _generateCode() async {
     final res = await ApiService.generateCode(_session.attendanceSessionId);
     if (res['status'] == 200) {
@@ -111,7 +105,7 @@ class _LecturerActiveSessionState extends State<LecturerActiveSession> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('New code generated: ${res['attendance_code']}'),
-        backgroundColor: const Color(0xFF0D6B5E),
+        backgroundColor: const Color(0xFF22C55E),
         behavior: SnackBarBehavior.floating,
       ));
     }
@@ -119,27 +113,27 @@ class _LecturerActiveSessionState extends State<LecturerActiveSession> {
 
   // closeAttendanceSession(attendance_session_id) — Boolean
   // SAMS-PACK-408
-  // DISPLAY confirmation dialog
-  // IF lecturer confirms → CALL LecturerAttendanceController.closeSession(attendance_session_id)
-  // IF closed THEN NAVIGATE to LecturerAttendanceRecord ELSE DISPLAY error
   Future<void> _closeSession() async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: const Text('Close Session?',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF0F2449))),
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
         content: const Text(
           'Students will no longer be able to submit attendance once the session is closed.',
-          style: TextStyle(fontSize: 14, color: Color(0xFF5A6B82), height: 1.5)),
+          style: TextStyle(fontSize: 14, color: Color(0xFF5B6B86), height: 1.5)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel', style: TextStyle(color: Color(0xFF8896AB))),
+            child: const Text('Cancel', style: TextStyle(color: Color(0xFF5B6B86))),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFD32F2F)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFF3B30),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
             child: const Text('Close Session'),
           ),
         ],
@@ -172,14 +166,13 @@ class _LecturerActiveSessionState extends State<LecturerActiveSession> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(res['message'] ?? 'Failed to close session'),
-        backgroundColor: Colors.red.shade700,
+        backgroundColor: const Color(0xFFFF3B30),
         behavior: SnackBarBehavior.floating,
       ));
     }
   }
 
   // render() — void  (SAMS-PACK-408)
-  // Displays session info, attendance code, metric tiles, action buttons, and submissions list.
   @override
   Widget build(BuildContext context) {
     final presentCount = _submissions.where((s) => s.attendanceStatus == 'present').length;
@@ -187,9 +180,13 @@ class _LecturerActiveSessionState extends State<LecturerActiveSession> {
     final pct          = total > 0 ? presentCount / total : 0.0;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F2F7),
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text('Live Session'),
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF111827),
+        elevation: 0,
+        title: const Text('Live Session',
+          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
         actions: [
           if (_session.isActive)
             IconButton(
@@ -210,97 +207,109 @@ class _LecturerActiveSessionState extends State<LecturerActiveSession> {
               width: 46, height: 46,
               decoration: BoxDecoration(
                 color: _session.isActive
-                    ? const Color(0xFFE8F5F2)
-                    : const Color(0xFFF0F2F7),
+                    ? const Color(0xFF22C55E).withValues(alpha: 0.12)
+                    : const Color(0xFFF8FAFD),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(
                 _session.isActive ? Icons.sensors : Icons.sensors_off_outlined,
-                color: _session.isActive ? const Color(0xFF0D6B5E) : const Color(0xFF8896AB),
+                color: _session.isActive ? const Color(0xFF22C55E) : const Color(0xFF5B6B86),
                 size: 22,
               ),
             ),
             const SizedBox(width: 14),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(widget.schedule.courseName,
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF0F2449))),
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
               const SizedBox(height: 2),
               Text('${widget.schedule.section}  ·  ${widget.schedule.venue}',
-                style: const TextStyle(fontSize: 13, color: Color(0xFF8896AB))),
+                style: const TextStyle(fontSize: 13, color: Color(0xFF5B6B86))),
             ])),
             _StatusBadge(status: _session.status),
           ])),
           const SizedBox(height: 12),
 
-          // Attendance code card — only shown while session is active
+          // Attendance code card — blue gradient, only shown while active
           if (_session.isActive) ...[
-            _Card(child: Column(children: [
-              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                const Text('Attendance Code',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
-                    color: Color(0xFF8896AB), letterSpacing: 0.5)),
-                // generateAttendanceCode() trigger — SAMS-PACK-408
-                TextButton.icon(
-                  onPressed: _generateCode,
-                  icon: const Icon(Icons.refresh_outlined, size: 14),
-                  label: const Text('New Code', style: TextStyle(fontSize: 12)),
-                  style: TextButton.styleFrom(
-                    foregroundColor: const Color(0xFF1A3A6B),
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF2E6BFF), Color(0xFF1544D9)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-              ]),
-              const SizedBox(height: 8),
-              Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                ..._session.attendanceCode.split('').map((c) => Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                  width: 42, height: 52,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF0F2F7),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFFDDE2EC)),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Column(children: [
+                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                  const Text('Attendance Code',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
+                      color: Colors.white70, letterSpacing: 0.5)),
+                  // generateAttendanceCode() trigger — SAMS-PACK-408
+                  TextButton.icon(
+                    onPressed: _generateCode,
+                    icon: const Icon(Icons.refresh_outlined, size: 14, color: Colors.white),
+                    label: const Text('New Code',
+                      style: TextStyle(fontSize: 12, color: Colors.white)),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
                   ),
-                  child: Center(child: Text(c,
-                    style: const TextStyle(
-                      fontSize: 24, fontWeight: FontWeight.w800,
-                      color: Color(0xFF1A3A6B), letterSpacing: 0,
-                    ))),
-                )),
-                const SizedBox(width: 12),
-                IconButton(
-                  icon: const Icon(Icons.copy_outlined, size: 18, color: Color(0xFF8896AB)),
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: _session.attendanceCode));
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                      content: Text('Code copied to clipboard'),
-                      behavior: SnackBarBehavior.floating,
-                      duration: Duration(seconds: 1),
-                    ));
-                  },
-                ),
+                ]),
+                const SizedBox(height: 12),
+                Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  ..._session.attendanceCode.split('').map((c) => Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    width: 42, height: 52,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+                    ),
+                    child: Center(child: Text(c,
+                      style: const TextStyle(
+                        fontSize: 24, fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ))),
+                  )),
+                  const SizedBox(width: 12),
+                  IconButton(
+                    icon: const Icon(Icons.copy_outlined, size: 18, color: Colors.white70),
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: _session.attendanceCode));
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                        content: Text('Code copied to clipboard'),
+                        behavior: SnackBarBehavior.floating,
+                        duration: Duration(seconds: 1),
+                      ));
+                    },
+                  ),
+                ]),
+                const SizedBox(height: 8),
+                const Text('Share this code with your students',
+                  style: TextStyle(fontSize: 11, color: Colors.white60)),
               ]),
-              const SizedBox(height: 4),
-              Text('Share this code with your students',
-                style: TextStyle(fontSize: 11, color: Colors.grey[400])),
-            ])),
+            ),
             const SizedBox(height: 12),
           ],
 
-          // Metric tiles — Enrolled, Present, Attendance Rate
+          // Metric tiles
           Row(children: [
             _MetricTile(
               label: 'Enrolled',
               value: _enrolledCount != null ? '$_enrolledCount' : '—',
               icon: Icons.people_outline,
-              color: const Color(0xFF1A3A6B),
+              color: const Color(0xFF1E5BFF),
             ),
             const SizedBox(width: 10),
             _MetricTile(
               label: 'Present',
               value: '$presentCount',
               icon: Icons.check_circle_outline,
-              color: const Color(0xFF0D6B5E),
+              color: const Color(0xFF22C55E),
             ),
             const SizedBox(width: 10),
             _MetricTile(
@@ -308,15 +317,15 @@ class _LecturerActiveSessionState extends State<LecturerActiveSession> {
               value: total > 0 ? '${(pct * 100).toStringAsFixed(0)}%' : '—',
               icon: Icons.show_chart,
               color: pct >= 0.8
-                  ? const Color(0xFF0D6B5E)
+                  ? const Color(0xFF22C55E)
                   : pct >= 0.5
                     ? const Color(0xFFC47F00)
-                    : const Color(0xFFB22222),
+                    : const Color(0xFFFF3B30),
             ),
           ]),
           const SizedBox(height: 12),
 
-          // Poll error banner — shown when live submission polling fails
+          // Poll error banner
           if (_pollError)
             Container(
               margin: const EdgeInsets.only(bottom: 12),
@@ -345,55 +354,66 @@ class _LecturerActiveSessionState extends State<LecturerActiveSession> {
                 onPressed: () => Navigator.push(context, MaterialPageRoute(
                   builder: (_) => LecturerAttendanceRecord(session: _session, schedule: widget.schedule))),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFF1A3A6B),
-                  side: const BorderSide(color: Color(0xFF1A3A6B)),
-                  minimumSize: const Size(0, 44),
+                  foregroundColor: const Color(0xFF1E5BFF),
+                  side: const BorderSide(color: Color(0xFF1E5BFF)),
+                  minimumSize: const Size(0, 48),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
-                child: const Text('View Records', style: TextStyle(fontSize: 13)),
+                child: const Text('View Records'),
               )),
               const SizedBox(width: 10),
               // closeAttendanceSession() trigger — SAMS-PACK-408
               Expanded(child: ElevatedButton(
                 onPressed: _closing ? null : _closeSession,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFD32F2F),
-                  minimumSize: const Size(0, 44),
+                  backgroundColor: const Color(0xFFFF3B30),
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(0, 48),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
                 child: _closing
                   ? const SizedBox(width: 18, height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Text('Close Session', style: TextStyle(fontSize: 13)),
+                  : const Text('Close Session'),
               )),
             ]),
           ] else ...[
-            SizedBox(width: double.infinity, child: ElevatedButton(
-              onPressed: () => Navigator.push(context, MaterialPageRoute(
-                builder: (_) => LecturerAttendanceRecord(session: _session, schedule: widget.schedule))),
-              child: const Text('View Attendance Record'),
-            )),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton(
+                onPressed: () => Navigator.push(context, MaterialPageRoute(
+                  builder: (_) => LecturerAttendanceRecord(session: _session, schedule: widget.schedule))),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1E5BFF),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                child: const Text('View Attendance Record'),
+              ),
+            ),
           ],
           const SizedBox(height: 20),
 
           // Submissions section header
           Row(children: [
             const Text('Submissions',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF0F2449))),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
             const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
-                color: const Color(0xFFE8ECF2),
+                color: const Color(0xFFE8EDF6),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text('${_submissions.length}',
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF5A6B82))),
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF5B6B86))),
             ),
             const SizedBox(width: 8),
-            // Live indicator dot — shown while polling is healthy
             if (_session.isActive && !_pollError)
               Container(
                 width: 7, height: 7,
-                decoration: const BoxDecoration(color: Color(0xFF0D6B5E), shape: BoxShape.circle),
+                decoration: const BoxDecoration(color: Color(0xFF22C55E), shape: BoxShape.circle),
               ),
           ]),
           const SizedBox(height: 10),
@@ -403,13 +423,13 @@ class _LecturerActiveSessionState extends State<LecturerActiveSession> {
             ? const _Card(child: Padding(
                 padding: EdgeInsets.symmetric(vertical: 28),
                 child: Center(child: Column(children: [
-                  Icon(Icons.hourglass_empty_outlined, size: 36, color: Color(0xFFB0BAD0)),
+                  Icon(Icons.hourglass_empty_outlined, size: 36, color: Color(0xFF5B6B86)),
                   SizedBox(height: 10),
                   Text('Awaiting submissions',
-                    style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF2D3748))),
+                    style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF111827))),
                   SizedBox(height: 4),
                   Text('Students will appear here once they submit',
-                    style: TextStyle(color: Color(0xFF8896AB), fontSize: 12)),
+                    style: TextStyle(color: Color(0xFF5B6B86), fontSize: 12)),
                 ])),
               ))
             : _Card(child: Column(
@@ -422,21 +442,23 @@ class _LecturerActiveSessionState extends State<LecturerActiveSession> {
                       child: Row(children: [
                         CircleAvatar(
                           radius: 18,
-                          backgroundColor: const Color(0xFFE8F5F2),
+                          backgroundColor: const Color(0xFF22C55E).withValues(alpha: 0.12),
                           child: Text((sub.studentName ?? '?')[0].toUpperCase(),
-                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0D6B5E))),
+                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700,
+                                color: Color(0xFF22C55E))),
                         ),
                         const SizedBox(width: 12),
                         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Text(sub.studentName ?? '—',
-                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF0F2449))),
+                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600,
+                                color: Color(0xFF111827))),
                           Text('${sub.studentMatric ?? ''}  ·  ${sub.submittedAt.length >= 16 ? sub.submittedAt.substring(11, 16) : ''}',
-                            style: const TextStyle(fontSize: 12, color: Color(0xFF8896AB))),
+                            style: const TextStyle(fontSize: 12, color: Color(0xFF5B6B86))),
                         ])),
                         _StatusPill(status: sub.attendanceStatus),
                       ]),
                     ),
-                    if (!isLast) const Divider(height: 1, thickness: 1, color: Color(0xFFF0F2F7)),
+                    if (!isLast) const Divider(height: 1, thickness: 1, color: Color(0xFFE8EDF6)),
                   ]);
                 }).toList(),
               )),
@@ -447,6 +469,7 @@ class _LecturerActiveSessionState extends State<LecturerActiveSession> {
   }
 }
 
+// ─── Shared card widget ───────────────────────────────────────────────────────
 class _Card extends StatelessWidget {
   final Widget child;
   const _Card({required this.child});
@@ -458,8 +481,9 @@ class _Card extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE8ECF2)),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE8EDF6)),
+        boxShadow: const [BoxShadow(color: Color(0x120D1B2A), blurRadius: 10, offset: Offset(0, 4))],
       ),
       child: child,
     );
@@ -479,15 +503,16 @@ class _MetricTile extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE8ECF2)),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE8EDF6)),
+        boxShadow: const [BoxShadow(color: Color(0x120D1B2A), blurRadius: 10, offset: Offset(0, 4))],
       ),
       child: Column(children: [
         Icon(icon, size: 18, color: color),
         const SizedBox(height: 6),
         Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: color)),
         const SizedBox(height: 2),
-        Text(label, style: const TextStyle(fontSize: 11, color: Color(0xFF8896AB))),
+        Text(label, style: const TextStyle(fontSize: 11, color: Color(0xFF5B6B86))),
       ]),
     ));
   }
@@ -500,22 +525,20 @@ class _StatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isActive = status == 'active';
+    final color = isActive ? const Color(0xFF22C55E) : const Color(0xFF5B6B86);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: isActive ? const Color(0xFFE8F5F2) : const Color(0xFFF0F2F7),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         if (isActive) ...[
-          const Icon(Icons.circle, size: 7, color: Color(0xFF0D6B5E)),
+          Icon(Icons.circle, size: 7, color: color),
           const SizedBox(width: 5),
         ],
         Text(isActive ? 'Active' : 'Closed',
-          style: TextStyle(
-            fontSize: 11, fontWeight: FontWeight.w600,
-            color: isActive ? const Color(0xFF0D6B5E) : const Color(0xFF8896AB),
-          )),
+          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color)),
       ]),
     );
   }
@@ -528,18 +551,16 @@ class _StatusPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isPresent = status == 'present';
+    final color = isPresent ? const Color(0xFF22C55E) : const Color(0xFFFF3B30);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: isPresent ? const Color(0xFFE8F5F2) : const Color(0xFFFFF0F0),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
         isPresent ? 'Present' : 'Rejected',
-        style: TextStyle(
-          fontSize: 11, fontWeight: FontWeight.w600,
-          color: isPresent ? const Color(0xFF0D6B5E) : const Color(0xFFD32F2F),
-        ),
+        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color),
       ),
     );
   }

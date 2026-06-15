@@ -33,15 +33,12 @@ class _StudentClassListState extends State<StudentClassList> {
   @override
   void initState() {
     super.initState();
-    // loadEnrolledClasses() — SAMS-PACK-413: fetch on init
+    // loadEnrolledClasses() — SAMS-PACK-413
     _load();
   }
 
   // loadEnrolledClasses() — void
   // SAMS-PACK-413
-  // CALL StudentAttendanceController.getEnrolledSchedules()
-  // SET enrolledClasses = response.schedules
-  // DISPLAY enrolled classes
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
@@ -58,18 +55,22 @@ class _StudentClassListState extends State<StudentClassList> {
   }
 
   // render() — void  (SAMS-PACK-413)
-  // Renders a list of _ClassCard widgets for each enrolled schedule.
-  // selectClass(schedule) — navigateToAttendanceForm() on tap.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F2F7),
-      appBar: AppBar(title: const Text('My Classes')),
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF111827),
+        elevation: 0,
+        title: const Text('My Classes',
+          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
+      ),
       body: RefreshIndicator(
         onRefresh: _load,
-        color: const Color(0xFF1A3A6B),
+        color: const Color(0xFF1E5BFF),
         child: _loading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF1A3A6B)))
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF1E5BFF)))
           : _schedules.isEmpty
             ? const _EmptyState()
             : ListView.builder(
@@ -95,22 +96,19 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-      Icon(Icons.school_outlined, size: 52, color: Color(0xFFB0BAD0)),
+      Icon(Icons.school_outlined, size: 52, color: Color(0xFF5B6B86)),
       SizedBox(height: 14),
       Text('No classes found',
-        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16, color: Color(0xFF2D3748))),
+        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16, color: Color(0xFF111827))),
       SizedBox(height: 6),
       Text('You are not enrolled in any classes yet',
-        style: TextStyle(color: Color(0xFF8896AB), fontSize: 13)),
+        style: TextStyle(color: Color(0xFF5B6B86), fontSize: 13)),
     ]));
   }
 }
 
 // ─── Class card ───────────────────────────────────────────────────────────────
 // render() — void  (SAMS-PACK-413)
-// Displays one enrolled class with status pill (Submitted / Active / none)
-// and the appropriate action button.
-//
 // selectClass(schedule) algorithm:
 //   IF alreadySubmitted   → show "Submitted" confirmation row (no button)
 //   ELSE IF activeSession → show "Submit Attendance" button → navigateToAttendanceForm()
@@ -122,25 +120,26 @@ class _ClassCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasActive  = schedule.activeSession != null;
-    final submitted  = schedule.alreadySubmitted;
+    final hasActive = schedule.activeSession != null;
+    final submitted = schedule.alreadySubmitted;
 
     // Accent colour: green = submitted, blue = active session, grey = no session
     final Color accentColor;
     if (submitted) {
-      accentColor = const Color(0xFF0D6B5E);
+      accentColor = const Color(0xFF22C55E);
     } else if (hasActive) {
-      accentColor = const Color(0xFF1A3A6B);
+      accentColor = const Color(0xFF1E5BFF);
     } else {
-      accentColor = const Color(0xFFB0BAD0);
+      accentColor = const Color(0xFF5B6B86);
     }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE8ECF2)),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE8EDF6)),
+        boxShadow: const [BoxShadow(color: Color(0x120D1B2A), blurRadius: 10, offset: Offset(0, 4))],
       ),
       child: Column(children: [
         // Top colour bar — indicates session status
@@ -148,7 +147,7 @@ class _ClassCard extends StatelessWidget {
           height: 4,
           decoration: BoxDecoration(
             color: accentColor,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
           ),
         ),
         Padding(
@@ -157,21 +156,19 @@ class _ClassCard extends StatelessWidget {
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(schedule.courseName,
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700,
-                      color: Color(0xFF0F2449))),
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
                 const SizedBox(height: 3),
                 Text('${schedule.courseCode}  ·  ${schedule.section}',
-                  style: const TextStyle(fontSize: 13, color: Color(0xFF8896AB))),
+                  style: const TextStyle(fontSize: 13, color: Color(0xFF5B6B86))),
               ])),
               const SizedBox(width: 10),
-              // Status pill — "Submitted" or "Active"
+              // Status pill — Module 1 style
               if (submitted)
-                const _Pill(label: 'Submitted', color: Color(0xFF0D6B5E))
+                _StatusPill(label: 'Submitted', color: const Color(0xFF22C55E))
               else if (hasActive)
-                const _Pill(label: 'Active', color: Color(0xFF1A3A6B)),
+                _StatusPill(label: 'Active', color: const Color(0xFF1E5BFF)),
             ]),
             const SizedBox(height: 12),
-            // Info chips — time, venue, date
             Wrap(spacing: 14, runSpacing: 6, children: [
               _InfoChip(icon: Icons.access_time_outlined, label: '${schedule.startTime} – ${schedule.endTime}'),
               _InfoChip(icon: Icons.place_outlined, label: schedule.venue),
@@ -179,49 +176,51 @@ class _ClassCard extends StatelessWidget {
             ]),
             const SizedBox(height: 14),
 
-            // Action row — context-sensitive per session state
+            // Action row
             if (submitted)
-              // Already submitted: show confirmation, disable further action
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE8F5F2),
-                  borderRadius: BorderRadius.circular(10),
+                  color: const Color(0xFF22C55E).withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF22C55E).withValues(alpha: 0.3)),
                 ),
                 child: const Row(children: [
-                  Icon(Icons.check_circle_outline, color: Color(0xFF0D6B5E), size: 16),
+                  Icon(Icons.check_circle_outline, color: Color(0xFF22C55E), size: 16),
                   SizedBox(width: 8),
                   Text('Attendance submitted for this session',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500,
-                        color: Color(0xFF0D6B5E))),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF22C55E))),
                 ]),
               )
             else if (hasActive)
               // navigateToAttendanceForm() — SAMS-PACK-413
               SizedBox(
                 width: double.infinity,
+                height: 48,
                 child: ElevatedButton(
                   onPressed: onTap,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1A3A6B),
-                    minimumSize: const Size(0, 42),
+                    backgroundColor: const Color(0xFF1E5BFF),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   ),
-                  child: const Text('Submit Attendance'),
+                  child: const Text('Submit Attendance',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
                 ),
               )
             else
-              // No active session — display notice
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF4F6F9),
-                  borderRadius: BorderRadius.circular(10),
+                  color: const Color(0xFFF8FAFD),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE8EDF6)),
                 ),
                 child: const Row(children: [
-                  Icon(Icons.schedule_outlined, color: Color(0xFFB0BAD0), size: 16),
+                  Icon(Icons.schedule_outlined, color: Color(0xFF5B6B86), size: 16),
                   SizedBox(width: 8),
                   Text('No active session for this class',
-                    style: TextStyle(fontSize: 13, color: Color(0xFF8896AB))),
+                    style: TextStyle(fontSize: 13, color: Color(0xFF5B6B86))),
                 ]),
               ),
           ]),
@@ -231,25 +230,22 @@ class _ClassCard extends StatelessWidget {
   }
 }
 
-// ─── Status pill ──────────────────────────────────────────────────────────────
-class _Pill extends StatelessWidget {
+// ─── Status pill — Module 1 style ─────────────────────────────────────────────
+class _StatusPill extends StatelessWidget {
   final String label;
   final Color color;
-  const _Pill({required this.label, required this.color});
+  const _StatusPill({required this.label, required this.color});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(Icons.circle, size: 6, color: color),
-        const SizedBox(width: 5),
-        Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color)),
-      ]),
+      child: Text(label,
+        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color)),
     );
   }
 }
@@ -263,9 +259,9 @@ class _InfoChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(icon, size: 13, color: const Color(0xFF8896AB)),
+      Icon(icon, size: 13, color: const Color(0xFF5B6B86)),
       const SizedBox(width: 4),
-      Text(label, style: const TextStyle(fontSize: 12, color: Color(0xFF5A6B82))),
+      Text(label, style: const TextStyle(fontSize: 12, color: Color(0xFF5B6B86))),
     ]);
   }
 }

@@ -49,12 +49,6 @@ class _StudentAttendanceFormState extends State<StudentAttendanceForm> {
 
   // requestGPSLocation() — bool
   // SAMS-PACK-412
-  // CHECK if location service is enabled
-  // REQUEST location permission if not already granted
-  // CALL Geolocator.getCurrentPosition(accuracy: high, timeLimit: 15s)
-  // SET _gpsLat, _gpsLng from position
-  // IF error THEN displaySubmissionStatus(error) AND RETURN false
-  // ELSE RETURN true
   Future<bool> _getLocation() async {
     setState(() { _status = 'verifying_gps'; _errorMessage = ''; });
 
@@ -67,7 +61,6 @@ class _StudentAttendanceFormState extends State<StudentAttendanceForm> {
       return false;
     }
 
-    // Check / request permission (works on mobile; browser handles this on web)
     LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
@@ -108,10 +101,6 @@ class _StudentAttendanceFormState extends State<StudentAttendanceForm> {
 
   // submitAttendance() — void
   // SAMS-PACK-412
-  // validateAttendanceCode() — IF code is empty THEN DISPLAY error AND RETURN
-  // requestGPSLocation()     — IF GPS fails THEN RETURN
-  // CALL StudentAttendanceController.submitAttendance(scheduleId, code, lat, lng)
-  // displaySubmissionStatus() — IF 201 THEN show success screen ELSE show error
   Future<void> _submit() async {
     if (_codeCtrl.text.trim().isEmpty) {
       setState(() => _errorMessage = 'Please enter the attendance code.');
@@ -147,9 +136,6 @@ class _StudentAttendanceFormState extends State<StudentAttendanceForm> {
   }
 
   // render() — void  (SAMS-PACK-412)
-  // IF status == success THEN show _SuccessScreen
-  // ELSE show form: class info, session status banner, code input, verification
-  //   steps, progress indicator, error banner, and Submit button.
   @override
   Widget build(BuildContext context) {
     // displaySubmissionStatus(success) — SAMS-PACK-412
@@ -157,71 +143,74 @@ class _StudentAttendanceFormState extends State<StudentAttendanceForm> {
       return _SuccessScreen(schedule: widget.schedule);
     }
 
-    // loadActiveSession() — SAMS-PACK-412: read from schedule passed by navigator
     final activeSession = widget.schedule.activeSession;
     final busy = _status == 'verifying_gps' || _status == 'submitting';
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F2F7),
-      appBar: AppBar(title: const Text('Submit Attendance')),
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF111827),
+        elevation: 0,
+        title: const Text('Submit Attendance',
+          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
-          // Class info card — shows course name, code, section, time, venue
+          // Class info card — Module 1 style
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFFE8ECF2)),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xFFE8EDF6)),
+              boxShadow: const [BoxShadow(color: Color(0x120D1B2A), blurRadius: 10, offset: Offset(0, 4))],
             ),
             child: Row(children: [
               Container(
                 width: 46, height: 46,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEEF1F8),
+                  color: const Color(0xFF1E5BFF).withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.menu_book_outlined, color: Color(0xFF1A3A6B), size: 22),
+                child: const Icon(Icons.menu_book_outlined, color: Color(0xFF1E5BFF), size: 22),
               ),
               const SizedBox(width: 14),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(widget.schedule.courseName,
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15,
-                      color: Color(0xFF0F2449))),
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: Color(0xFF111827))),
                 const SizedBox(height: 2),
                 Text('${widget.schedule.courseCode}  ·  ${widget.schedule.section}',
-                  style: const TextStyle(fontSize: 13, color: Color(0xFF8896AB))),
+                  style: const TextStyle(fontSize: 13, color: Color(0xFF5B6B86))),
                 const SizedBox(height: 2),
                 Text('${widget.schedule.startTime} – ${widget.schedule.endTime}  ·  ${widget.schedule.venue}',
-                  style: const TextStyle(fontSize: 12, color: Color(0xFFB0BAD0))),
+                  style: const TextStyle(fontSize: 12, color: Color(0xFF5B6B86))),
               ])),
             ]),
           ),
           const SizedBox(height: 10),
 
-          // Session status banner — loadActiveSession() result indicator
+          // Session status banner — loadActiveSession() result
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
             decoration: BoxDecoration(
-              color: activeSession != null ? const Color(0xFFE8F5F2) : const Color(0xFFF4F6F9),
-              borderRadius: BorderRadius.circular(10),
+              color: activeSession != null
+                  ? const Color(0xFF22C55E).withValues(alpha: 0.08)
+                  : const Color(0xFFF8FAFD),
+              borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: activeSession != null
-                    ? const Color(0xFFB2DFDB)
-                    : const Color(0xFFDDE2EC),
+                    ? const Color(0xFF22C55E).withValues(alpha: 0.3)
+                    : const Color(0xFFE8EDF6),
               ),
             ),
             child: Row(children: [
               Icon(
-                activeSession != null
-                    ? Icons.sensors
-                    : Icons.sensors_off_outlined,
+                activeSession != null ? Icons.sensors : Icons.sensors_off_outlined,
                 size: 16,
-                color: activeSession != null
-                    ? const Color(0xFF0D6B5E)
-                    : const Color(0xFF8896AB),
+                color: activeSession != null ? const Color(0xFF22C55E) : const Color(0xFF5B6B86),
               ),
               const SizedBox(width: 8),
               Text(
@@ -231,9 +220,7 @@ class _StudentAttendanceFormState extends State<StudentAttendanceForm> {
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
-                  color: activeSession != null
-                      ? const Color(0xFF0D6B5E)
-                      : const Color(0xFF8896AB),
+                  color: activeSession != null ? const Color(0xFF22C55E) : const Color(0xFF5B6B86),
                 ),
               ),
             ]),
@@ -241,21 +228,21 @@ class _StudentAttendanceFormState extends State<StudentAttendanceForm> {
           const SizedBox(height: 20),
 
           if (activeSession != null) ...[
-            // validateAttendanceCode() — SAMS-PACK-412: code input field
+            // Code input card — validateAttendanceCode() — SAMS-PACK-412
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: const Color(0xFFE8ECF2)),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: const Color(0xFFE8EDF6)),
+                boxShadow: const [BoxShadow(color: Color(0x120D1B2A), blurRadius: 10, offset: Offset(0, 4))],
               ),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 const Text('Attendance Code',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
-                      color: Color(0xFF2D3748))),
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
                 const SizedBox(height: 4),
                 const Text('Enter the 6-character code shown by your lecturer',
-                  style: TextStyle(fontSize: 12, color: Color(0xFF8896AB))),
+                  style: TextStyle(fontSize: 12, color: Color(0xFF5B6B86))),
                 const SizedBox(height: 14),
                 TextField(
                   controller: _codeCtrl,
@@ -266,26 +253,29 @@ class _StudentAttendanceFormState extends State<StudentAttendanceForm> {
                     fontSize: 30,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 14,
-                    color: Color(0xFF1A3A6B),
+                    color: Color(0xFF1E5BFF),
                   ),
                   decoration: InputDecoration(
                     counterText: '',
                     hintText: '······',
                     hintStyle: const TextStyle(
-                      fontSize: 30, letterSpacing: 14,
-                      color: Color(0xFFDDE2EC),
+                      fontSize: 30, letterSpacing: 14, color: Color(0xFFE8EDF6),
                     ),
                     filled: true,
-                    fillColor: const Color(0xFFF4F6F9),
+                    fillColor: const Color(0xFFF8FAFD),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 18),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide.none,
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFFE8EDF6)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFFE8EDF6)),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(color: Color(0xFF1A3A6B), width: 1.5),
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFF1E5BFF), width: 1.5),
                     ),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 18),
                   ),
                   onChanged: (_) => setState(() => _errorMessage = ''),
                 ),
@@ -293,20 +283,19 @@ class _StudentAttendanceFormState extends State<StudentAttendanceForm> {
             ),
             const SizedBox(height: 12),
 
-            // Verification steps card — explains the submitAttendance() pipeline
+            // Verification steps card
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: const Color(0xFFE8ECF2)),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: const Color(0xFFE8EDF6)),
+                boxShadow: const [BoxShadow(color: Color(0x120D1B2A), blurRadius: 10, offset: Offset(0, 4))],
               ),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 const Text('Verification steps',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
-                      color: Color(0xFF2D3748))),
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
                 const SizedBox(height: 10),
-                // Steps: validateAttendanceCode → requestGPSLocation → verifyLocation → checkDuplicate
                 ...[
                   ('Verify attendance code', Icons.key_outlined),
                   ('Request your GPS location', Icons.gps_fixed_outlined),
@@ -318,77 +307,79 @@ class _StudentAttendanceFormState extends State<StudentAttendanceForm> {
                     Container(
                       width: 22, height: 22,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFEEF1F8),
+                        color: const Color(0xFF1E5BFF).withValues(alpha: 0.10),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Center(child: Text('${e.key + 1}',
                         style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
-                            color: Color(0xFF1A3A6B)))),
+                            color: Color(0xFF1E5BFF)))),
                     ),
                     const SizedBox(width: 10),
-                    Icon(e.value.item2, size: 14, color: const Color(0xFF8896AB)),
+                    Icon(e.value.item2, size: 14, color: const Color(0xFF5B6B86)),
                     const SizedBox(width: 6),
                     Text(e.value.item1,
-                      style: const TextStyle(fontSize: 13, color: Color(0xFF5A6B82))),
+                      style: const TextStyle(fontSize: 13, color: Color(0xFF5B6B86))),
                   ]),
                 )),
               ]),
             ),
             const SizedBox(height: 12),
 
-            // displaySubmissionStatus(progress) — requestGPSLocation / submitting spinner
+            // Progress indicator — verifying_gps / submitting
             if (_status == 'verifying_gps' || _status == 'submitting')
               Container(
                 margin: const EdgeInsets.only(bottom: 12),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: const Color(0xFF1E5BFF).withValues(alpha: 0.06),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE8ECF2)),
+                  border: Border.all(color: const Color(0xFF1E5BFF).withValues(alpha: 0.2)),
                 ),
                 child: Row(children: [
                   const SizedBox(width: 18, height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2.5, color: Color(0xFF1A3A6B))),
+                    child: CircularProgressIndicator(strokeWidth: 2.5, color: Color(0xFF1E5BFF))),
                   const SizedBox(width: 14),
                   Text(
                     _status == 'verifying_gps'
                         ? 'Retrieving GPS location…'
                         : 'Submitting attendance…',
-                    style: const TextStyle(fontSize: 14, color: Color(0xFF2D3748),
+                    style: const TextStyle(fontSize: 14, color: Color(0xFF111827),
                         fontWeight: FontWeight.w500),
                   ),
                 ]),
               ),
 
-            // displaySubmissionStatus(error) — SAMS-PACK-412: error banner
+            // Error banner — displaySubmissionStatus(error) — SAMS-PACK-412
             if (_errorMessage.isNotEmpty)
               Container(
                 margin: const EdgeInsets.only(bottom: 12),
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFF0F0),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: const Color(0xFFFFCDD2)),
                 ),
                 child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const Icon(Icons.error_outline, color: Color(0xFFD32F2F), size: 16),
+                  const Icon(Icons.error_outline, color: Color(0xFFFF3B30), size: 16),
                   const SizedBox(width: 8),
                   Expanded(child: Text(_errorMessage,
-                    style: const TextStyle(color: Color(0xFFD32F2F), fontSize: 13, height: 1.4))),
+                    style: const TextStyle(color: Color(0xFFFF3B30), fontSize: 13, height: 1.4))),
                 ]),
               ),
 
-            // submitAttendance() trigger — SAMS-PACK-412
+            // Submit button — submitAttendance() trigger — SAMS-PACK-412
             SizedBox(
               width: double.infinity,
-              height: 50,
+              height: 52,
               child: ElevatedButton(
                 onPressed: busy ? null : _submit,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1A3A6B),
+                  backgroundColor: const Color(0xFF1E5BFF),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
                 child: const Text('Submit Attendance',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
               ),
             ),
 
@@ -399,38 +390,39 @@ class _StudentAttendanceFormState extends State<StudentAttendanceForm> {
               padding: const EdgeInsets.all(28),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: const Color(0xFFE8ECF2)),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: const Color(0xFFE8EDF6)),
+                boxShadow: const [BoxShadow(color: Color(0x120D1B2A), blurRadius: 10, offset: Offset(0, 4))],
               ),
               child: Column(children: [
                 Container(
                   width: 56, height: 56,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF4F6F9),
+                    color: const Color(0xFFF8FAFD),
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: const Icon(Icons.schedule_outlined,
-                      size: 28, color: Color(0xFFB0BAD0)),
+                  child: const Icon(Icons.schedule_outlined, size: 28, color: Color(0xFF5B6B86)),
                 ),
                 const SizedBox(height: 14),
                 const Text('No Active Session',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700,
-                      color: Color(0xFF0F2449))),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
                 const SizedBox(height: 6),
                 const Text(
                   'Your lecturer has not started an attendance session for this class yet.',
-                  style: TextStyle(fontSize: 13, color: Color(0xFF8896AB), height: 1.5),
+                  style: TextStyle(fontSize: 13, color: Color(0xFF5B6B86), height: 1.5),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 20),
                 OutlinedButton(
                   onPressed: () => Navigator.pop(context),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF1A3A6B),
-                    side: const BorderSide(color: Color(0xFF1A3A6B)),
-                    minimumSize: const Size(160, 42),
+                    foregroundColor: const Color(0xFF1E5BFF),
+                    side: const BorderSide(color: Color(0xFF1E5BFF)),
+                    minimumSize: const Size(160, 48),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   ),
-                  child: const Text('Back to Classes'),
+                  child: const Text('Back to Classes',
+                    style: TextStyle(fontWeight: FontWeight.w600)),
                 ),
               ]),
             ),
@@ -450,7 +442,6 @@ extension _Tuple2<A, B> on (A, B) {
 // ─── Success screen ───────────────────────────────────────────────────────────
 // displaySubmissionStatus(success) — SAMS-PACK-412
 // Shown when StudentAttendanceController returns HTTP 201.
-// Displays course name, confirmation message, and Back to Classes button.
 class _SuccessScreen extends StatelessWidget {
   final ClassScheduleModel schedule;
   const _SuccessScreen({required this.schedule});
@@ -458,52 +449,73 @@ class _SuccessScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F2F7),
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(32),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              // Green gradient success card
               Container(
-                width: 90, height: 90,
+                width: double.infinity,
+                padding: const EdgeInsets.all(32),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF0D6B5E),
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF22C55E), Color(0xFF16A34A)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
                   borderRadius: BorderRadius.circular(24),
                 ),
-                child: const Icon(Icons.check_rounded, size: 50, color: Colors.white),
+                child: Column(children: [
+                  Container(
+                    width: 72, height: 72,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.check_rounded, size: 40, color: Colors.white),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text('Attendance Submitted',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800,
+                        color: Colors.white, letterSpacing: -0.3)),
+                  const SizedBox(height: 8),
+                  Text(schedule.courseName,
+                    style: const TextStyle(fontSize: 14, color: Colors.white70),
+                    textAlign: TextAlign.center),
+                  Text('${schedule.courseCode}  ·  ${schedule.section}',
+                    style: const TextStyle(fontSize: 12, color: Colors.white60)),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Text('Your attendance has been recorded successfully.',
+                      style: TextStyle(fontSize: 13, color: Colors.white,
+                          fontWeight: FontWeight.w500),
+                      textAlign: TextAlign.center),
+                  ),
+                ]),
               ),
-              const SizedBox(height: 24),
-              const Text('Attendance Submitted',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800,
-                    color: Color(0xFF0F2449), letterSpacing: -0.3)),
-              const SizedBox(height: 8),
-              Text(schedule.courseName,
-                style: const TextStyle(fontSize: 15, color: Color(0xFF5A6B82)),
-                textAlign: TextAlign.center),
-              Text('${schedule.courseCode}  ·  ${schedule.section}',
-                style: const TextStyle(fontSize: 13, color: Color(0xFF8896AB))),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE8F5F2),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Text('Your attendance has been recorded successfully.',
-                  style: TextStyle(fontSize: 13, color: Color(0xFF0D6B5E),
-                      fontWeight: FontWeight.w500),
-                  textAlign: TextAlign.center),
-              ),
-              const SizedBox(height: 36),
+              const SizedBox(height: 32),
               SizedBox(
                 width: double.infinity,
-                height: 48,
+                height: 52,
                 child: ElevatedButton(
                   onPressed: () => Navigator.of(context)
                     ..pop()
                     ..pop(),
-                  child: const Text('Back to Classes'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1E5BFF),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: const Text('Back to Classes',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
                 ),
               ),
             ],

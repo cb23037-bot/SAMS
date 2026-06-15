@@ -82,85 +82,79 @@ class _LecturerDashboardState extends State<LecturerDashboard> {
 
   // navigateToClassList() — void
   // SAMS-PACK-406
-  // Navigates to any lecturer screen using a slide-up transition.
   void _navigate(Widget page) {
     Navigator.push(context, SlideUpRoute(page: page));
   }
 
   // render() — void
   // SAMS-PACK-406
-  // Displays lecturer name, today's session cards, and quick action buttons.
   @override
   Widget build(BuildContext context) {
     final firstName = widget.user.name.split(' ').first;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F2F7),
+      backgroundColor: Colors.white,
       body: RefreshIndicator(
         onRefresh: _loadTodaySchedule,
+        color: const Color(0xFF1E5BFF),
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
-            SliverAppBar(
-              expandedHeight: 160,
-              pinned: true,
-              backgroundColor: const Color(0xFF1A3A6B),
-              foregroundColor: Colors.white,
-              elevation: 0,
-              automaticallyImplyLeading: false,
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.logout_outlined, size: 20),
-                  onPressed: _logout,
-                  tooltip: 'Sign out',
-                ),
-                const SizedBox(width: 4),
-              ],
-              flexibleSpace: FlexibleSpaceBar(
-                background: Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Color(0xFF0F2449), Color(0xFF1A3A6B)],
+            // Header
+            SliverToBoxAdapter(
+              child: Container(
+                color: Colors.white,
+                padding: const EdgeInsets.fromLTRB(20, 56, 20, 16),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  // Brand + logout row
+                  Row(children: [
+                    _MiniBrandMark(),
+                    const SizedBox(width: 10),
+                    const Expanded(child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Lecturer Portal',
+                          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18, color: Color(0xFF111827))),
+                        Text('Attendance Management',
+                          style: TextStyle(color: Color(0xFF5B6B86), fontSize: 13)),
+                      ],
+                    )),
+                    IconButton(
+                      onPressed: _logout,
+                      icon: const Icon(Icons.logout, color: Color(0xFFFF3B30)),
+                      tooltip: 'Sign out',
                     ),
-                  ),
-                  child: SafeArea(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(children: [
-                            Container(
-                              width: 36, height: 36,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Icon(Icons.school, color: Colors.white, size: 18),
-                            ),
-                            const SizedBox(width: 10),
-                            const Text('SAMS',
-                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16, letterSpacing: 0.5)),
-                          ]),
-                          const SizedBox(height: 16),
-                          Text('${_greeting()}, $firstName',
-                            style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w700, letterSpacing: -0.3)),
-                          const SizedBox(height: 4),
-                          Text(_formatDate(DateTime.now()),
-                            style: TextStyle(color: Colors.white.withValues(alpha: 0.65), fontSize: 13)),
-                        ],
+                  ]),
+                  const SizedBox(height: 20),
+
+                  // Welcome card — gradient blue
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF2E6BFF), Color(0xFF1544D9)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
                       ),
+                      borderRadius: BorderRadius.circular(20),
                     ),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('${_greeting()}, $firstName',
+                        style: const TextStyle(color: Colors.white, fontSize: 20,
+                            fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 4),
+                      Text(_formatDate(DateTime.now()),
+                        style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                    ]),
                   ),
-                ),
+                ]),
               ),
             ),
 
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
                 child: _loading
                   ? _LecturerSkeleton()
                   : _LecturerBody(
@@ -177,6 +171,21 @@ class _LecturerDashboardState extends State<LecturerDashboard> {
   }
 }
 
+// ─── Mini brand mark ──────────────────────────────────────────────────────────
+class _MiniBrandMark extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 42, height: 42,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F6FF),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: const Icon(Icons.school, color: Color(0xFF1E5BFF), size: 22),
+    );
+  }
+}
+
 // ─── Loading skeleton ─────────────────────────────────────────────────────────
 class _LecturerSkeleton extends StatelessWidget {
   @override
@@ -184,24 +193,21 @@ class _LecturerSkeleton extends StatelessWidget {
     return const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       ShimmerBox(width: 110, height: 16, borderRadius: 6),
       SizedBox(height: 12),
-      ShimmerBox(width: double.infinity, height: 120, borderRadius: 14),
+      ShimmerBox(width: double.infinity, height: 120, borderRadius: 18),
       SizedBox(height: 10),
-      ShimmerBox(width: double.infinity, height: 120, borderRadius: 14),
+      ShimmerBox(width: double.infinity, height: 120, borderRadius: 18),
       SizedBox(height: 24),
       ShimmerBox(width: 110, height: 16, borderRadius: 6),
       SizedBox(height: 12),
-      Row(children: [
-        Expanded(child: ShimmerBox(width: double.infinity, height: 96, borderRadius: 14)),
-        SizedBox(width: 12),
-        Expanded(child: ShimmerBox(width: double.infinity, height: 96, borderRadius: 14)),
-      ]),
+      ShimmerBox(width: double.infinity, height: 72, borderRadius: 18),
+      SizedBox(height: 10),
+      ShimmerBox(width: double.infinity, height: 72, borderRadius: 18),
     ]);
   }
 }
 
 // ─── Loaded body ──────────────────────────────────────────────────────────────
 // render() — void  (SAMS-PACK-406)
-// Displays today's schedule cards and quick action tiles.
 class _LecturerBody extends StatelessWidget {
   final List<ClassScheduleModel> schedules;
   final UserModel user;
@@ -217,37 +223,31 @@ class _LecturerBody extends StatelessWidget {
   Widget build(BuildContext context) {
     return StaggerList(
       children: [
-        // Section header
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text("Today's Classes",
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF0F2449))),
-            Pressable(
-              onTap: () => onNavigate(LecturerClassList(user: user)),
-              scale: 0.95,
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                child: Text('View all',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1A3A6B))),
-              ),
+        // Section heading — Today's Classes
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          const Text("Today's Classes",
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
+          Pressable(
+            onTap: () => onNavigate(LecturerClassList(user: user)),
+            scale: 0.95,
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              child: Text('View all',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1E5BFF))),
             ),
-          ],
-        ),
-
-        const SizedBox(height: 10),
+          ),
+        ]),
+        const SizedBox(height: 12),
 
         // Schedule cards or empty state
         if (schedules.isEmpty)
-          const _EmptyCard(
+          _EmptyCard(
             icon: Icons.calendar_today_outlined,
             title: 'No classes today',
             subtitle: 'Your schedule is clear for today.',
           )
         else
           // navigateToClassList() / onViewSession() — SAMS-PACK-406
-          // "Manage Attendance" navigates to class list.
-          // "View Code" navigates directly to the active session when one exists.
           ...schedules.map((s) => Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: _ScheduleCard(
@@ -261,26 +261,24 @@ class _LecturerBody extends StatelessWidget {
 
         const SizedBox(height: 24),
 
+        // Quick Actions section
         const Text('Quick Actions',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF0F2449))),
-
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
         const SizedBox(height: 12),
 
-        Row(children: [
-          Expanded(child: _ActionTile(
-            icon: Icons.fact_check_outlined,
-            label: 'Manage\nAttendance',
-            color: const Color(0xFF1A3A6B),
-            onTap: () => onNavigate(LecturerClassList(user: user)),
-          )),
-          const SizedBox(width: 12),
-          Expanded(child: _ActionTile(
-            icon: Icons.bar_chart_outlined,
-            label: 'Attendance\nReports',
-            color: const Color(0xFF0D6B5E),
-            onTap: () => onNavigate(LecturerAttendanceReport(user: user)),
-          )),
-        ]),
+        _ActionCard(
+          icon: Icons.fact_check_outlined,
+          title: 'Manage Classes',
+          color: const Color(0xFF1E5BFF),
+          onTap: () => onNavigate(LecturerClassList(user: user)),
+        ),
+        const SizedBox(height: 10),
+        _ActionCard(
+          icon: Icons.bar_chart_outlined,
+          title: 'Attendance Reports',
+          color: const Color(0xFF22C55E),
+          onTap: () => onNavigate(LecturerAttendanceReport(user: user)),
+        ),
 
         const SizedBox(height: 16),
       ],
@@ -288,6 +286,44 @@ class _LecturerBody extends StatelessWidget {
   }
 }
 
+// ─── Action card ──────────────────────────────────────────────────────────────
+class _ActionCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final Color color;
+  final VoidCallback onTap;
+  const _ActionCard({required this.icon, required this.title, required this.color, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFE8EDF6)),
+          boxShadow: const [BoxShadow(color: Color(0x120D1B2A), blurRadius: 10, offset: Offset(0, 4))],
+        ),
+        child: Row(children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            child: Icon(icon, color: Colors.white, size: 20),
+          ),
+          const SizedBox(width: 16),
+          Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16, color: Color(0xFF111827))),
+          const Spacer(),
+          const Icon(Icons.chevron_right, color: Color(0xFF5B6B86)),
+        ]),
+      ),
+    );
+  }
+}
+
+// ─── Empty card ───────────────────────────────────────────────────────────────
 class _EmptyCard extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -300,24 +336,23 @@ class _EmptyCard extends StatelessWidget {
       padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE8ECF2)),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE8EDF6)),
+        boxShadow: const [BoxShadow(color: Color(0x120D1B2A), blurRadius: 10, offset: Offset(0, 4))],
       ),
       child: Column(children: [
-        Icon(icon, size: 36, color: const Color(0xFFB0BAD0)),
+        Icon(icon, size: 36, color: const Color(0xFF5B6B86)),
         const SizedBox(height: 12),
-        Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: Color(0xFF2D3748))),
+        Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: Color(0xFF111827))),
         const SizedBox(height: 4),
-        Text(subtitle, style: const TextStyle(fontSize: 13, color: Color(0xFF8896AB)), textAlign: TextAlign.center),
+        Text(subtitle, style: const TextStyle(fontSize: 13, color: Color(0xFF5B6B86)), textAlign: TextAlign.center),
       ]),
     );
   }
 }
 
-// _ScheduleCard — displays a single today's class card.
-// Shows a "View Code" button when an active session exists (onViewSession != null),
-// allowing the lecturer to jump directly to the live session without going through
-// the class list — the primary fix for this screen's active-session navigation.
+// ─── Schedule card ────────────────────────────────────────────────────────────
+// Shows a "View Code" button when an active session exists (onViewSession != null).
 class _ScheduleCard extends StatelessWidget {
   final ClassScheduleModel schedule;
   final VoidCallback onManage;
@@ -327,33 +362,29 @@ class _ScheduleCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE8ECF2)),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE8EDF6)),
+        boxShadow: const [BoxShadow(color: Color(0x120D1B2A), blurRadius: 10, offset: Offset(0, 4))],
       ),
       child: Column(children: [
-        // Colored top strip — green when session is active, blue otherwise
+        // Top accent bar
         Container(
           height: 4,
           decoration: const BoxDecoration(
-            color: Color(0xFF1A3A6B),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
+            gradient: LinearGradient(colors: [Color(0xFF2E6BFF), Color(0xFF1544D9)]),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
           ),
         ),
         Padding(
           padding: const EdgeInsets.all(16),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(schedule.courseName,
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: Color(0xFF0F2449))),
-                const SizedBox(height: 2),
-                Text('${schedule.courseCode}  ·  ${schedule.section}',
-                  style: const TextStyle(color: Color(0xFF8896AB), fontSize: 13)),
-              ])),
-            ]),
+            Text(schedule.courseName,
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: Color(0xFF111827))),
+            const SizedBox(height: 2),
+            Text('${schedule.courseCode}  ·  ${schedule.section}',
+              style: const TextStyle(color: Color(0xFF5B6B86), fontSize: 13)),
             const SizedBox(height: 12),
             Row(children: [
               _Chip(icon: Icons.access_time_outlined, label: '${schedule.startTime} – ${schedule.endTime}'),
@@ -362,8 +393,7 @@ class _ScheduleCard extends StatelessWidget {
             ]),
             const SizedBox(height: 14),
             Row(children: [
-              // "View Code" button — only shown when there is an active session.
-              // Navigates directly to LecturerActiveSession to show the attendance code.
+              // "View Code" — only shown when there is an active session
               if (onViewSession != null) ...[
                 Pressable(
                   onTap: onViewSession,
@@ -373,7 +403,7 @@ class _ScheduleCard extends StatelessWidget {
                     height: 42,
                     padding: const EdgeInsets.symmetric(horizontal: 14),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF0D6B5E),
+                      color: const Color(0xFF22C55E),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: const Row(mainAxisSize: MainAxisSize.min, children: [
@@ -393,7 +423,7 @@ class _ScheduleCard extends StatelessWidget {
                 child: Container(
                   height: 42,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1A3A6B),
+                    gradient: const LinearGradient(colors: [Color(0xFF2E6BFF), Color(0xFF1544D9)]),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Center(
@@ -418,46 +448,9 @@ class _Chip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(icon, size: 14, color: const Color(0xFF8896AB)),
+      Icon(icon, size: 14, color: const Color(0xFF5B6B86)),
       const SizedBox(width: 4),
-      Text(label, style: const TextStyle(fontSize: 12, color: Color(0xFF5A6B82))),
+      Text(label, style: const TextStyle(fontSize: 12, color: Color(0xFF5B6B86))),
     ]);
-  }
-}
-
-class _ActionTile extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-  final VoidCallback onTap;
-  const _ActionTile({required this.icon, required this.label, required this.color, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Pressable(
-      onTap: onTap,
-      scale: 0.97,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Container(
-            width: 38, height: 38,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: Colors.white, size: 20),
-          ),
-          const SizedBox(height: 14),
-          Text(label,
-            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600, height: 1.4)),
-        ]),
-      ),
-    );
   }
 }

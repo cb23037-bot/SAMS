@@ -35,16 +35,12 @@ class _StudentDashboardState extends State<StudentDashboard> {
   @override
   void initState() {
     super.initState();
-    // checkActiveAttendance() — SAMS-PACK-411: load schedules on init
+    // checkActiveAttendance() — SAMS-PACK-411
     _load();
   }
 
   // checkActiveAttendance(student_id) — AttendanceSession
   // SAMS-PACK-411
-  // GET student_id from session
-  // CALL StudentAttendanceController.getActiveSession(student_id)
-  // IF active session exists THEN DISPLAY "Active attendance session available"
-  // ELSE DISPLAY "No active attendance session"
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
@@ -61,7 +57,6 @@ class _StudentDashboardState extends State<StudentDashboard> {
   }
 
   // logout() — void
-  // Terminates the current user session and navigates back to the login screen.
   Future<void> _logout() async {
     await ApiService.logout();
     if (!mounted) return;
@@ -78,91 +73,81 @@ class _StudentDashboardState extends State<StudentDashboard> {
 
   // navigateToAttendanceForm() — void
   // SAMS-PACK-411
-  // NAVIGATE to StudentClassList screen, then reload on return.
   void _navigate(Widget page) {
     Navigator.push(context, SlideUpRoute(page: page)).then((_) => _load());
   }
 
   // render() — void  (SAMS-PACK-411)
-  // Displays student name, active session banner (if any), stat cards, and class menu.
   @override
   Widget build(BuildContext context) {
     final firstName = widget.user.name.split(' ').first;
-    // activeNow — schedules with an active session the student has not yet submitted
     final activeNow = _schedules.where((s) => s.activeSession != null && !s.alreadySubmitted).toList();
     final submitted = _schedules.where((s) => s.alreadySubmitted).length;
     final enrolled  = _schedules.length;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F2F7),
+      backgroundColor: Colors.white,
       body: RefreshIndicator(
         onRefresh: _load,
-        color: const Color(0xFF1A3A6B),
+        color: const Color(0xFF1E5BFF),
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
-            SliverAppBar(
-              expandedHeight: 170,
-              pinned: true,
-              backgroundColor: const Color(0xFF1A3A6B),
-              foregroundColor: Colors.white,
-              elevation: 0,
-              automaticallyImplyLeading: false,
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.logout_outlined, size: 20),
-                  onPressed: _logout,
-                  tooltip: 'Sign out',
-                ),
-                const SizedBox(width: 4),
-              ],
-              flexibleSpace: FlexibleSpaceBar(
-                background: Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Color(0xFF0F2449), Color(0xFF1A3A6B)],
+            // Header
+            SliverToBoxAdapter(
+              child: Container(
+                color: Colors.white,
+                padding: const EdgeInsets.fromLTRB(20, 56, 20, 16),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  // Brand + logout row
+                  Row(children: [
+                    _MiniBrandMark(),
+                    const SizedBox(width: 10),
+                    const Expanded(child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Student Portal',
+                          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18, color: Color(0xFF111827))),
+                        Text('Attendance Management',
+                          style: TextStyle(color: Color(0xFF5B6B86), fontSize: 13)),
+                      ],
+                    )),
+                    IconButton(
+                      onPressed: _logout,
+                      icon: const Icon(Icons.logout, color: Color(0xFFFF3B30)),
+                      tooltip: 'Sign out',
                     ),
-                  ),
-                  child: SafeArea(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(children: [
-                            Container(
-                              width: 36, height: 36,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Icon(Icons.school, color: Colors.white, size: 18),
-                            ),
-                            const SizedBox(width: 10),
-                            const Text('SAMS',
-                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700,
-                                  fontSize: 16, letterSpacing: 0.5)),
-                          ]),
-                          const SizedBox(height: 16),
-                          Text('${_greeting()}, $firstName',
-                            style: const TextStyle(color: Colors.white, fontSize: 22,
-                                fontWeight: FontWeight.w700, letterSpacing: -0.3)),
-                          const SizedBox(height: 4),
-                          Text(widget.user.studentId ?? widget.user.email,
-                            style: TextStyle(color: Colors.white.withValues(alpha: 0.65), fontSize: 13)),
-                        ],
+                  ]),
+                  const SizedBox(height: 20),
+
+                  // Welcome card — gradient blue
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF2E6BFF), Color(0xFF1544D9)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
                       ),
+                      borderRadius: BorderRadius.circular(20),
                     ),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('${_greeting()}, $firstName',
+                        style: const TextStyle(color: Colors.white, fontSize: 20,
+                            fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 4),
+                      Text(widget.user.studentId ?? widget.user.email,
+                        style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                    ]),
                   ),
-                ),
+                ]),
               ),
             ),
 
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
                 child: _loading ? _Skeleton() : _Body(
                   activeNow: activeNow,
                   enrolled: enrolled,
@@ -179,27 +164,41 @@ class _StudentDashboardState extends State<StudentDashboard> {
   }
 }
 
+// ─── Mini brand mark ──────────────────────────────────────────────────────────
+class _MiniBrandMark extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 42, height: 42,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F6FF),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: const Icon(Icons.school, color: Color(0xFF1E5BFF), size: 22),
+    );
+  }
+}
+
 // ─── Loading skeleton ─────────────────────────────────────────────────────────
 class _Skeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        Expanded(child: ShimmerBox(width: double.infinity, height: 76, borderRadius: 14)),
+        Expanded(child: ShimmerBox(width: double.infinity, height: 76, borderRadius: 18)),
         SizedBox(width: 12),
-        Expanded(child: ShimmerBox(width: double.infinity, height: 76, borderRadius: 14)),
+        Expanded(child: ShimmerBox(width: double.infinity, height: 76, borderRadius: 18)),
       ]),
       SizedBox(height: 20),
       ShimmerBox(width: 90, height: 16, borderRadius: 6),
       SizedBox(height: 12),
-      ShimmerBox(width: double.infinity, height: 72, borderRadius: 14),
+      ShimmerBox(width: double.infinity, height: 72, borderRadius: 18),
     ]);
   }
 }
 
 // ─── Loaded body ──────────────────────────────────────────────────────────────
 // render() — void  (SAMS-PACK-411)
-// Displays active session banner, enrolled/attended stat cards, and Submit Attendance menu tile.
 class _Body extends StatelessWidget {
   final List<ClassScheduleModel> activeNow;
   final int enrolled;
@@ -219,7 +218,7 @@ class _Body extends StatelessWidget {
   Widget build(BuildContext context) {
     return StaggerList(
       children: [
-        // Active session banner — shown when student has an unsubmitted active session
+        // Active session banner — green-tinted card
         // navigateToAttendanceForm() — SAMS-PACK-411
         if (activeNow.isNotEmpty) ...[
           FadeSlideIn(
@@ -232,38 +231,67 @@ class _Body extends StatelessWidget {
           const SizedBox(height: 16),
         ],
 
-        // Stats row — Enrolled classes and Attended count
+        // Stats row
         Row(children: [
           _StatCard(
             icon: Icons.menu_book_outlined,
             label: 'Enrolled',
             value: '$enrolled',
-            color: const Color(0xFF1A3A6B),
+            color: const Color(0xFF1E5BFF),
           ),
           const SizedBox(width: 12),
           _StatCard(
             icon: Icons.check_circle_outline,
             label: 'Attended',
             value: '$submitted',
-            color: const Color(0xFF0D6B5E),
+            color: const Color(0xFF22C55E),
           ),
         ]),
 
         const SizedBox(height: 20),
 
         const Text('My Classes',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF0F2449))),
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
 
         const SizedBox(height: 12),
 
-        // navigateToAttendanceForm() — SAMS-PACK-411
-        // Badge shows count of classes with active unsubmitted sessions
-        _MenuTile(
-          icon: Icons.fact_check_outlined,
-          title: 'Submit Attendance',
-          subtitle: 'View enrolled classes and submit attendance',
-          badgeCount: activeNow.length,
+        // Submit Attendance action card — navigateToAttendanceForm() — SAMS-PACK-411
+        InkWell(
           onTap: () => onNavigate(StudentClassList(user: user)),
+          borderRadius: BorderRadius.circular(18),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xFFE8EDF6)),
+              boxShadow: const [BoxShadow(color: Color(0x120D1B2A), blurRadius: 10, offset: Offset(0, 4))],
+            ),
+            child: Row(children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: const BoxDecoration(color: Color(0xFF1E5BFF), shape: BoxShape.circle),
+                child: const Icon(Icons.fact_check_outlined, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 16),
+              const Expanded(child: Text('Submit Attendance',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16, color: Color(0xFF111827)))),
+              // Badge — count of active unsubmitted sessions
+              if (activeNow.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF22C55E).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text('${activeNow.length}',
+                    style: const TextStyle(color: Color(0xFF22C55E), fontSize: 12,
+                        fontWeight: FontWeight.w700)),
+                )
+              else
+                const Icon(Icons.chevron_right, color: Color(0xFF5B6B86)),
+            ]),
+          ),
         ),
 
         const SizedBox(height: 16),
@@ -274,7 +302,6 @@ class _Body extends StatelessWidget {
 
 // ─── Active session banner ────────────────────────────────────────────────────
 // Shown when there is at least one active session the student has not submitted.
-// Tapping navigates to the class list — SAMS-PACK-411: navigateToAttendanceForm()
 class _ActiveBanner extends StatelessWidget {
   final ClassScheduleModel session;
   final VoidCallback onTap;
@@ -284,51 +311,48 @@ class _ActiveBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFE8F5F2),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFB2DFDB)),
+        color: const Color(0xFF22C55E).withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFF22C55E).withValues(alpha: 0.3)),
       ),
       child: Column(children: [
         Padding(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(16),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Container(
-              width: 36, height: 36,
+              width: 40, height: 40,
               decoration: BoxDecoration(
-                color: const Color(0xFF0D6B5E),
-                borderRadius: BorderRadius.circular(9),
+                color: const Color(0xFF22C55E),
+                borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.notifications_active_outlined, color: Colors.white, size: 18),
+              child: const Icon(Icons.notifications_active_outlined, color: Colors.white, size: 20),
             ),
             const SizedBox(width: 12),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               const Text('Active Session',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Color(0xFF0D6B5E))),
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Color(0xFF22C55E))),
               const SizedBox(height: 2),
               Text(session.courseName,
-                style: const TextStyle(fontSize: 13, color: Color(0xFF2D3748))),
+                style: const TextStyle(fontSize: 13, color: Color(0xFF111827))),
               Text('${session.courseCode}  ·  ${session.section}',
-                style: const TextStyle(fontSize: 12, color: Color(0xFF5A6B82))),
+                style: const TextStyle(fontSize: 12, color: Color(0xFF5B6B86))),
             ])),
           ]),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-          child: Pressable(
-            onTap: onTap,
-            scale: 0.97,
-            borderRadius: BorderRadius.circular(10),
-            child: Container(
-              width: double.infinity,
-              height: 42,
-              decoration: BoxDecoration(
-                color: const Color(0xFF0D6B5E),
-                borderRadius: BorderRadius.circular(10),
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: SizedBox(
+            width: double.infinity,
+            height: 46,
+            child: ElevatedButton(
+              onPressed: onTap,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF22C55E),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              child: const Center(
-                child: Text('Submit Attendance Now',
-                  style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
-              ),
+              child: const Text('Submit Attendance Now',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
             ),
           ),
         ),
@@ -347,93 +371,28 @@ class _StatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Expanded(
-      child: Pressable(
-        scale: 0.97,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFFE8ECF2)),
-          ),
-          child: Row(children: [
-            Container(
-              width: 40, height: 40,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, color: color, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: color)),
-              Text(label, style: const TextStyle(fontSize: 11, color: Color(0xFF8896AB))),
-            ]),
-          ]),
-        ),
-      ),
-    );
-  }
-}
-
-class _MenuTile extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final int badgeCount;
-  final VoidCallback onTap;
-  const _MenuTile({
-    required this.icon, required this.title, required this.subtitle,
-    required this.badgeCount, required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Pressable(
-      onTap: onTap,
-      scale: 0.97,
-      borderRadius: BorderRadius.circular(14),
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFE8ECF2)),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFE8EDF6)),
+          boxShadow: const [BoxShadow(color: Color(0x120D1B2A), blurRadius: 10, offset: Offset(0, 4))],
         ),
         child: Row(children: [
           Container(
-            width: 46, height: 46,
+            width: 40, height: 40,
             decoration: BoxDecoration(
-              color: const Color(0xFFEEF1F8),
-              borderRadius: BorderRadius.circular(12),
+              color: color.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, color: const Color(0xFF1A3A6B), size: 22),
+            child: Icon(icon, color: color, size: 20),
           ),
-          const SizedBox(width: 14),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(title,
-              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15,
-                  color: Color(0xFF0F2449))),
-            const SizedBox(height: 2),
-            Text(subtitle,
-              style: const TextStyle(fontSize: 12, color: Color(0xFF8896AB))),
-          ])),
-          // Badge — shows number of active unsubmitted sessions
-          if (badgeCount > 0)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: const Color(0xFF0D6B5E),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text('$badgeCount',
-                style: const TextStyle(color: Colors.white, fontSize: 12,
-                    fontWeight: FontWeight.w700)),
-            )
-          else
-            const Icon(Icons.chevron_right, color: Color(0xFFB0BAD0)),
+          const SizedBox(width: 12),
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: color)),
+            Text(label, style: const TextStyle(fontSize: 11, color: Color(0xFF5B6B86))),
+          ]),
         ]),
       ),
     );

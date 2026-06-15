@@ -47,14 +47,12 @@ class _LecturerAttendanceReportState extends State<LecturerAttendanceReport> {
   @override
   void initState() {
     super.initState();
-    // getReportFilter() — SAMS-PACK-410: load schedule dropdown on open
+    // getReportFilter() — SAMS-PACK-410
     _loadFilter();
   }
 
   // getReportFilter() — List<ClassSchedule>
   // SAMS-PACK-410
-  // CALL AttendanceReportController.getReportFilter(lecturer_id)
-  // Populates the schedule dropdown used to filter the report.
   Future<void> _loadFilter() async {
     try {
       final res = await ApiService.getReportFilter();
@@ -71,9 +69,6 @@ class _LecturerAttendanceReportState extends State<LecturerAttendanceReport> {
 
   // generateReport(schedule_id, session_date) — ReportDTO
   // SAMS-PACK-410
-  // IF selectedSchedule is empty OR selectedDate is empty THEN DISPLAY error
-  // ELSE CALL AttendanceReportController.generateReport(selectedSchedule, selectedDate)
-  // DISPLAY report summary and detailed records
   Future<void> _generate() async {
     if (_selectedSchedule == null || _selectedDate == null) {
       setState(() => _error = 'Please select a class and date.');
@@ -96,8 +91,6 @@ class _LecturerAttendanceReportState extends State<LecturerAttendanceReport> {
 
   // downloadReport(reportData) — File
   // SAMS-PACK-410
-  // CALL AttendanceReportController.downloadReport(reportSummary, detailedRecord)
-  // FORMAT as CSV → save to temp directory → share via device share sheet
   Future<void> _exportReport() async {
     if (_reportData == null || _selectedSchedule == null || _selectedDate == null) return;
     setState(() => _exporting = true);
@@ -117,7 +110,7 @@ class _LecturerAttendanceReportState extends State<LecturerAttendanceReport> {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Export failed. Please try again.'),
-          backgroundColor: Color(0xFFD32F2F),
+          backgroundColor: Color(0xFFFF3B30),
           behavior: SnackBarBehavior.floating,
         ));
       }
@@ -125,7 +118,7 @@ class _LecturerAttendanceReportState extends State<LecturerAttendanceReport> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Export failed. Check your connection.'),
-        backgroundColor: Color(0xFFD32F2F),
+        backgroundColor: Color(0xFFFF3B30),
         behavior: SnackBarBehavior.floating,
       ));
     }
@@ -134,8 +127,6 @@ class _LecturerAttendanceReportState extends State<LecturerAttendanceReport> {
 
   // printReport(reportData) — void
   // SAMS-PACK-410
-  // BUILD PDF document from reportSummary and detailedRecords
-  // CALL Printing.layoutPdf() → OPEN print preview on device
   Future<void> _printReport() async {
     if (_reportData == null || _selectedSchedule == null || _selectedDate == null) return;
     setState(() => _printing = true);
@@ -188,7 +179,7 @@ class _LecturerAttendanceReportState extends State<LecturerAttendanceReport> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Print failed. Please try again.'),
-        backgroundColor: Color(0xFFD32F2F),
+        backgroundColor: Color(0xFFFF3B30),
         behavior: SnackBarBehavior.floating,
       ));
     }
@@ -202,17 +193,22 @@ class _LecturerAttendanceReportState extends State<LecturerAttendanceReport> {
       '${d.day.toString().padLeft(2, '0')} / ${d.month.toString().padLeft(2, '0')} / ${d.year}';
 
   // render() — void  (SAMS-PACK-410)
-  // Displays report filter form, generate button, export/print buttons, and report output.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F2F7),
-      appBar: AppBar(title: const Text('Attendance Report')),
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF111827),
+        elevation: 0,
+        title: const Text('Attendance Report',
+          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
-          // Report filter card — schedule dropdown + date picker
+          // Generate Report card
           _SectionCard(
             title: 'Generate Report',
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -221,19 +217,27 @@ class _LecturerAttendanceReportState extends State<LecturerAttendanceReport> {
               _loadingSchedules
                 ? const Center(child: Padding(
                     padding: EdgeInsets.all(12),
-                    child: CircularProgressIndicator(color: Color(0xFF1A3A6B)),
+                    child: CircularProgressIndicator(color: Color(0xFF1E5BFF)),
                   ))
                 : DropdownButtonFormField<ClassScheduleModel>(
                     initialValue: _selectedSchedule,
-                    hint: const Text('Select a class...', style: TextStyle(fontSize: 14, color: Color(0xFFB0BAD0))),
+                    hint: const Text('Select a class...', style: TextStyle(fontSize: 14, color: Color(0xFF5B6B86))),
                     decoration: InputDecoration(
                       filled: true,
-                      fillColor: const Color(0xFFF4F6F9),
+                      fillColor: const Color(0xFFF8FAFD),
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide.none,
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFFE8EDF6)),
                       ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFFE8EDF6)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF1E5BFF), width: 1.5),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                     ),
                     items: _schedules.map((s) => DropdownMenuItem(
                       value: s,
@@ -255,7 +259,7 @@ class _LecturerAttendanceReportState extends State<LecturerAttendanceReport> {
                     lastDate: DateTime.now(),
                     builder: (ctx, child) => Theme(
                       data: Theme.of(ctx).copyWith(
-                        colorScheme: const ColorScheme.light(primary: Color(0xFF1A3A6B)),
+                        colorScheme: const ColorScheme.light(primary: Color(0xFF1E5BFF)),
                       ),
                       child: child!,
                     ),
@@ -265,40 +269,40 @@ class _LecturerAttendanceReportState extends State<LecturerAttendanceReport> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF4F6F9),
-                    borderRadius: BorderRadius.circular(10),
+                    color: const Color(0xFFF8FAFD),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE8EDF6)),
                   ),
                   child: Row(children: [
-                    const Icon(Icons.calendar_today_outlined, size: 16, color: Color(0xFF8896AB)),
+                    const Icon(Icons.calendar_today_outlined, size: 16, color: Color(0xFF5B6B86)),
                     const SizedBox(width: 10),
                     Text(
                       _selectedDate == null ? 'Pick a date...' : _displayDate(_selectedDate!),
                       style: TextStyle(
                         fontSize: 14,
-                        color: _selectedDate == null ? const Color(0xFFB0BAD0) : const Color(0xFF0F2449),
+                        color: _selectedDate == null ? const Color(0xFF5B6B86) : const Color(0xFF111827),
                       ),
                     ),
                     const Spacer(),
-                    const Icon(Icons.arrow_drop_down, color: Color(0xFF8896AB)),
+                    const Icon(Icons.arrow_drop_down, color: Color(0xFF5B6B86)),
                   ]),
                 ),
               ),
 
-              // Validation error — shown when generate is tapped with incomplete filter
               if (_error != null) ...[
                 const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   decoration: BoxDecoration(
                     color: const Color(0xFFFFF0F0),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(10),
                     border: Border.all(color: const Color(0xFFFFCDD2)),
                   ),
                   child: Row(children: [
-                    const Icon(Icons.error_outline, size: 15, color: Color(0xFFD32F2F)),
+                    const Icon(Icons.error_outline, size: 15, color: Color(0xFFFF3B30)),
                     const SizedBox(width: 8),
                     Expanded(child: Text(_error!,
-                      style: const TextStyle(fontSize: 13, color: Color(0xFFD32F2F)))),
+                      style: const TextStyle(fontSize: 13, color: Color(0xFFFF3B30)))),
                   ]),
                 ),
               ],
@@ -307,13 +311,19 @@ class _LecturerAttendanceReportState extends State<LecturerAttendanceReport> {
               // generateReport() trigger — SAMS-PACK-410
               SizedBox(
                 width: double.infinity,
-                height: 46,
+                height: 52,
                 child: ElevatedButton(
                   onPressed: _generating ? null : _generate,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1E5BFF),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
                   child: _generating
                     ? const SizedBox(width: 20, height: 20,
                         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Text('Generate Report'),
+                    : const Text('Generate Report',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
                 ),
               ),
             ]),
@@ -329,7 +339,7 @@ class _LecturerAttendanceReportState extends State<LecturerAttendanceReport> {
                 label: 'Export CSV',
                 loading: _exporting,
                 onTap: _exporting ? null : _exportReport,
-                color: const Color(0xFF0D6B5E),
+                color: const Color(0xFF22C55E),
               )),
               const SizedBox(width: 10),
               Expanded(child: _ActionButton(
@@ -337,12 +347,11 @@ class _LecturerAttendanceReportState extends State<LecturerAttendanceReport> {
                 label: 'Print PDF',
                 loading: _printing,
                 onTap: _printing ? null : _printReport,
-                color: const Color(0xFF1A3A6B),
+                color: const Color(0xFF1E5BFF),
               )),
             ]),
             const SizedBox(height: 14),
 
-            // Report output — summary + detailed records
             _ReportOutput(data: _reportData!),
           ],
           const SizedBox(height: 16),
@@ -362,16 +371,17 @@ class _SectionCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE8ECF2)),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE8EDF6)),
+        boxShadow: const [BoxShadow(color: Color(0x120D1B2A), blurRadius: 10, offset: Offset(0, 4))],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
           child: Text(title,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF0F2449))),
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
         ),
-        const Divider(height: 20, indent: 16, endIndent: 16, color: Color(0xFFE8ECF2)),
+        const Divider(height: 20, indent: 16, endIndent: 16, color: Color(0xFFE8EDF6)),
         Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 16), child: child),
       ]),
     );
@@ -385,7 +395,7 @@ class _FieldLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Text(text,
-      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF2D3748)));
+      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF111827)));
   }
 }
 
@@ -412,8 +422,8 @@ class _ActionButton extends StatelessWidget {
       style: OutlinedButton.styleFrom(
         foregroundColor: color,
         side: BorderSide(color: color),
-        minimumSize: const Size(0, 44),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        minimumSize: const Size(0, 48),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
     );
   }
@@ -433,42 +443,43 @@ class _ReportOutput extends StatelessWidget {
         .toList();
     final pct = summary.attendancePercentage;
     final pctColor = pct >= 80
-        ? const Color(0xFF0D6B5E)
+        ? const Color(0xFF22C55E)
         : pct >= 50
           ? const Color(0xFFC47F00)
-          : const Color(0xFFD32F2F);
+          : const Color(0xFFFF3B30);
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       // Summary card
       Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFE8ECF2)),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFE8EDF6)),
+          boxShadow: const [BoxShadow(color: Color(0x120D1B2A), blurRadius: 10, offset: Offset(0, 4))],
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               const Text('Summary',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF0F2449))),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
               const SizedBox(height: 2),
               Text('${schedule.courseName}  ·  ${schedule.section}',
-                style: const TextStyle(fontSize: 13, color: Color(0xFF8896AB))),
+                style: const TextStyle(fontSize: 13, color: Color(0xFF5B6B86))),
               Text(session.sessionDate,
-                style: const TextStyle(fontSize: 12, color: Color(0xFFB0BAD0))),
+                style: const TextStyle(fontSize: 12, color: Color(0xFF5B6B86))),
             ]),
           ),
-          const Divider(height: 20, indent: 16, endIndent: 16, color: Color(0xFFE8ECF2)),
+          const Divider(height: 20, indent: 16, endIndent: 16, color: Color(0xFFE8EDF6)),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: Column(children: [
               Row(children: [
-                _metricBox('Total',   '${summary.totalStudents}',   const Color(0xFF1A3A6B)),
+                _metricBox('Total',   '${summary.totalStudents}',   const Color(0xFF1E5BFF)),
                 const SizedBox(width: 8),
-                _metricBox('Present', '${summary.presentStudents}', const Color(0xFF0D6B5E)),
+                _metricBox('Present', '${summary.presentStudents}', const Color(0xFF22C55E)),
                 const SizedBox(width: 8),
-                _metricBox('Absent',  '${summary.absentStudents}',  const Color(0xFFD32F2F)),
+                _metricBox('Absent',  '${summary.absentStudents}',  const Color(0xFFFF3B30)),
                 const SizedBox(width: 8),
                 _metricBox('Rate', '${pct.toStringAsFixed(1)}%', pctColor),
               ]),
@@ -478,7 +489,7 @@ class _ReportOutput extends StatelessWidget {
                 child: LinearProgressIndicator(
                   value: pct / 100,
                   minHeight: 8,
-                  backgroundColor: const Color(0xFFE8ECF2),
+                  backgroundColor: const Color(0xFFE8EDF6),
                   valueColor: AlwaysStoppedAnimation(pctColor),
                 ),
               ),
@@ -486,7 +497,7 @@ class _ReportOutput extends StatelessWidget {
               Align(
                 alignment: Alignment.centerRight,
                 child: Text('${summary.presentStudents} of ${summary.totalStudents} present',
-                  style: const TextStyle(fontSize: 12, color: Color(0xFF8896AB))),
+                  style: const TextStyle(fontSize: 12, color: Color(0xFF5B6B86))),
               ),
             ]),
           ),
@@ -498,68 +509,62 @@ class _ReportOutput extends StatelessWidget {
       Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFE8ECF2)),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFE8EDF6)),
+          boxShadow: const [BoxShadow(color: Color(0x120D1B2A), blurRadius: 10, offset: Offset(0, 4))],
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 14, 16, 0),
             child: Text('Detailed Records',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF0F2449))),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
           ),
-          const Divider(height: 20, indent: 16, endIndent: 16, color: Color(0xFFE8ECF2)),
+          const Divider(height: 20, indent: 16, endIndent: 16, color: Color(0xFFE8EDF6)),
           if (records.isEmpty)
             const Padding(
               padding: EdgeInsets.all(24),
               child: Center(child: Text('No submissions recorded',
-                style: TextStyle(color: Color(0xFF8896AB)))),
+                style: TextStyle(color: Color(0xFF5B6B86)))),
             )
           else
             ...records.asMap().entries.map((e) {
-              final r      = e.value;
-              final isLast = e.key == records.length - 1;
+              final r         = e.value;
+              final isLast    = e.key == records.length - 1;
               final isPresent = r.attendanceStatus == 'present';
+              final color     = isPresent ? const Color(0xFF22C55E) : const Color(0xFFFF3B30);
               return Column(children: [
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
                   child: Row(children: [
                     CircleAvatar(
                       radius: 17,
-                      backgroundColor: isPresent
-                          ? const Color(0xFFE8F5F2)
-                          : const Color(0xFFFFF0F0),
+                      backgroundColor: color.withValues(alpha: 0.12),
                       child: Text(
                         (r.studentName ?? '?')[0].toUpperCase(),
-                        style: TextStyle(
-                          fontSize: 12, fontWeight: FontWeight.w700,
-                          color: isPresent ? const Color(0xFF0D6B5E) : const Color(0xFFD32F2F),
-                        ),
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: color),
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text(r.studentName ?? '—',
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF0F2449))),
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF111827))),
                       Text('${r.studentMatric ?? ''}  ·  ${r.submittedAt.length >= 16 ? r.submittedAt.substring(0, 16) : r.submittedAt}',
-                        style: const TextStyle(fontSize: 11, color: Color(0xFF8896AB))),
+                        style: const TextStyle(fontSize: 11, color: Color(0xFF5B6B86))),
                     ])),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                       decoration: BoxDecoration(
-                        color: isPresent ? const Color(0xFFE8F5F2) : const Color(0xFFFFF0F0),
+                        color: color.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
                         isPresent ? 'Present' : 'Rejected',
-                        style: TextStyle(
-                          fontSize: 11, fontWeight: FontWeight.w600,
-                          color: isPresent ? const Color(0xFF0D6B5E) : const Color(0xFFD32F2F),
-                        ),
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color),
                       ),
                     ),
                   ]),
                 ),
-                if (!isLast) const Divider(height: 1, indent: 16, endIndent: 16, color: Color(0xFFF0F2F7)),
+                if (!isLast) const Divider(height: 1, indent: 16, endIndent: 16, color: Color(0xFFE8EDF6)),
               ]);
             }),
           const SizedBox(height: 4),
@@ -574,7 +579,7 @@ Widget _metricBox(String label, String value, Color color) {
     padding: const EdgeInsets.symmetric(vertical: 10),
     decoration: BoxDecoration(
       color: color.withValues(alpha: 0.07),
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(10),
     ),
     child: Column(children: [
       Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: color)),

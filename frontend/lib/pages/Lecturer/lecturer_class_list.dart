@@ -71,24 +71,29 @@ class _LecturerClassListState extends State<LecturerClassList> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(res['message'] ?? 'Failed to start session'),
-        backgroundColor: Colors.red.shade700,
+        backgroundColor: const Color(0xFFFF3B30),
         behavior: SnackBarBehavior.floating,
       ));
     }
   }
 
   // render() — void  (SAMS-PACK-407)
-  // Displays the list of class schedules with Start/View Session buttons.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F2F7),
-      appBar: AppBar(title: const Text('Class Schedules')),
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF111827),
+        elevation: 0,
+        title: const Text('Class Schedules',
+          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
+      ),
       body: RefreshIndicator(
         onRefresh: _loadSchedules,
-        color: const Color(0xFF1A3A6B),
+        color: const Color(0xFF1E5BFF),
         child: _loading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF1A3A6B)))
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF1E5BFF)))
           : _schedules.isEmpty
             ? const _EmptyState()
             : ListView.builder(
@@ -114,18 +119,18 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-      Icon(Icons.calendar_today_outlined, size: 52, color: Color(0xFFB0BAD0)),
+      Icon(Icons.calendar_today_outlined, size: 52, color: Color(0xFF5B6B86)),
       SizedBox(height: 14),
       Text('No schedules assigned',
-        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16, color: Color(0xFF2D3748))),
+        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16, color: Color(0xFF111827))),
       SizedBox(height: 6),
       Text('Contact admin to add class schedules',
-        style: TextStyle(color: Color(0xFF8896AB), fontSize: 13)),
+        style: TextStyle(color: Color(0xFF5B6B86), fontSize: 13)),
     ]));
   }
 }
 
-// _ScheduleItem — renders a single class schedule card.
+// _ScheduleItem — renders a single class schedule card with Module 1 style.
 // Shows "View Active Session" when an active session exists, "Start Session" otherwise.
 class _ScheduleItem extends StatefulWidget {
   final ClassScheduleModel schedule;
@@ -153,16 +158,21 @@ class _ScheduleItemState extends State<_ScheduleItem> {
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE8ECF2)),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE8EDF6)),
+        boxShadow: const [BoxShadow(color: Color(0x120D1B2A), blurRadius: 10, offset: Offset(0, 4))],
       ),
       child: Column(children: [
-        // Top accent bar — green when active session exists, blue otherwise
+        // Top accent bar — green when active session exists, blue gradient otherwise
         Container(
           height: 4,
           decoration: BoxDecoration(
-            color: hasActive ? const Color(0xFF0D6B5E) : const Color(0xFF1A3A6B),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+            gradient: LinearGradient(
+              colors: hasActive
+                ? [const Color(0xFF22C55E), const Color(0xFF16A34A)]
+                : [const Color(0xFF2E6BFF), const Color(0xFF1544D9)],
+            ),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
           ),
         ),
         Padding(
@@ -171,23 +181,23 @@ class _ScheduleItemState extends State<_ScheduleItem> {
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(s.courseName,
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF0F2449))),
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
                 const SizedBox(height: 3),
                 Text('${s.courseCode}  ·  ${s.className}  ·  ${s.section}',
-                  style: const TextStyle(color: Color(0xFF8896AB), fontSize: 13)),
+                  style: const TextStyle(color: Color(0xFF5B6B86), fontSize: 13)),
               ])),
-              // Active badge — shown when a session is currently running
+              // Active badge
               if (hasActive)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFE8F5F2),
+                    color: const Color(0xFF22C55E).withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.circle, size: 7, color: Color(0xFF0D6B5E)),
+                    Icon(Icons.circle, size: 7, color: Color(0xFF22C55E)),
                     SizedBox(width: 5),
-                    Text('Active', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF0D6B5E))),
+                    Text('Active', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF22C55E))),
                   ]),
                 ),
             ]),
@@ -199,9 +209,9 @@ class _ScheduleItemState extends State<_ScheduleItem> {
             ]),
             const SizedBox(height: 14),
             // startAttendanceSession() — SAMS-PACK-407
-            // Tapping navigates to the active session if one exists, or starts a new one.
             SizedBox(
               width: double.infinity,
+              height: 48,
               child: ElevatedButton.icon(
                 onPressed: _starting ? null : () async {
                   if (hasActive) {
@@ -218,7 +228,9 @@ class _ScheduleItemState extends State<_ScheduleItem> {
                   : Icon(hasActive ? Icons.open_in_new_outlined : Icons.play_arrow_rounded, size: 18),
                 label: Text(hasActive ? 'View Active Session' : 'Start Session'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: hasActive ? const Color(0xFF0D6B5E) : const Color(0xFF1A3A6B),
+                  backgroundColor: hasActive ? const Color(0xFF22C55E) : const Color(0xFF1E5BFF),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
               ),
             ),
@@ -237,9 +249,9 @@ class _InfoChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(icon, size: 13, color: const Color(0xFF8896AB)),
+      Icon(icon, size: 13, color: const Color(0xFF5B6B86)),
       const SizedBox(width: 4),
-      Text(label, style: const TextStyle(fontSize: 12, color: Color(0xFF5A6B82))),
+      Text(label, style: const TextStyle(fontSize: 12, color: Color(0xFF5B6B86))),
     ]);
   }
 }

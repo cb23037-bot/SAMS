@@ -51,7 +51,6 @@ class _LecturerAttendanceRecordState extends State<LecturerAttendanceRecord> {
 
   // loadAttendanceRecord(attendance_session_id) — List<AttendanceSubmission>
   // SAMS-PACK-409
-  // CALL LecturerAttendanceController.viewRecord(attendance_session_id)
   Future<void> _loadRecord() async {
     setState(() => _loading = true);
     try {
@@ -67,8 +66,6 @@ class _LecturerAttendanceRecordState extends State<LecturerAttendanceRecord> {
   }
 
   // searchStudent(keyword) + filterByStatus(status) — SAMS-PACK-409
-  // FILTER attendanceRecord WHERE student name or matric matches searchKeyword
-  // AND attendance_status matches filterStatus
   void _applyFilter() {
     final kw = _searchCtrl.text.toLowerCase();
     setState(() {
@@ -83,7 +80,6 @@ class _LecturerAttendanceRecordState extends State<LecturerAttendanceRecord> {
   }
 
   // render() — void  (SAMS-PACK-409)
-  // Displays class/session details, stats, search field, status filter chips, and record list.
   @override
   Widget build(BuildContext context) {
     final present = _all.where((s) => s.attendanceStatus == 'present').length;
@@ -91,66 +87,71 @@ class _LecturerAttendanceRecordState extends State<LecturerAttendanceRecord> {
     final pct     = total > 0 ? present / total : 0.0;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F2F7),
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text('Attendance Record'),
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF111827),
+        elevation: 0,
+        title: const Text('Attendance Record',
+          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
         actions: [
           TextButton.icon(
             onPressed: () => Navigator.push(context, MaterialPageRoute(
               builder: (_) => const LecturerAttendanceReport(user: null))),
-            icon: const Icon(Icons.bar_chart_outlined, color: Colors.white, size: 16),
-            label: const Text('Reports', style: TextStyle(color: Colors.white, fontSize: 13)),
+            icon: const Icon(Icons.bar_chart_outlined, size: 16),
+            label: const Text('Reports', style: TextStyle(fontSize: 13)),
+            style: TextButton.styleFrom(foregroundColor: const Color(0xFF1E5BFF)),
           ),
           const SizedBox(width: 4),
         ],
       ),
       body: _loading
-        ? const Center(child: CircularProgressIndicator(color: Color(0xFF1A3A6B)))
+        ? const Center(child: CircularProgressIndicator(color: Color(0xFF1E5BFF)))
         : Column(children: [
 
-            // Header section — course name, session date, stats, search, filter
+            // Header section
             Container(
               color: Colors.white,
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(widget.schedule.courseName,
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF0F2449))),
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
                 const SizedBox(height: 2),
                 Text('${widget.schedule.section}  ·  ${widget.session.sessionDate}',
-                  style: const TextStyle(fontSize: 13, color: Color(0xFF8896AB))),
+                  style: const TextStyle(fontSize: 13, color: Color(0xFF5B6B86))),
                 const SizedBox(height: 14),
 
                 // Stats row
                 Row(children: [
-                  _StatBox(label: 'Present', value: '$present', color: const Color(0xFF0D6B5E)),
+                  _StatBox(label: 'Present', value: '$present', color: const Color(0xFF22C55E)),
                   const SizedBox(width: 10),
-                  _StatBox(label: 'Total', value: '$total', color: const Color(0xFF1A3A6B)),
+                  _StatBox(label: 'Total', value: '$total', color: const Color(0xFF1E5BFF)),
                   const SizedBox(width: 10),
                   _StatBox(
                     label: 'Rate',
                     value: '${(pct * 100).toStringAsFixed(0)}%',
                     color: pct >= 0.8
-                        ? const Color(0xFF0D6B5E)
+                        ? const Color(0xFF22C55E)
                         : pct >= 0.5
                           ? const Color(0xFFC47F00)
-                          : const Color(0xFFD32F2F),
+                          : const Color(0xFFFF3B30),
                   ),
                 ]),
                 const SizedBox(height: 14),
 
-                // Attendance progress bar
+                // Progress bar
                 ClipRRect(
                   borderRadius: BorderRadius.circular(4),
                   child: LinearProgressIndicator(
                     value: pct,
                     minHeight: 6,
-                    backgroundColor: const Color(0xFFE8ECF2),
+                    backgroundColor: const Color(0xFFE8EDF6),
                     valueColor: AlwaysStoppedAnimation(
                       pct >= 0.8
-                          ? const Color(0xFF0D6B5E)
+                          ? const Color(0xFF22C55E)
                           : pct >= 0.5
                             ? const Color(0xFFC47F00)
-                            : const Color(0xFFD32F2F),
+                            : const Color(0xFFFF3B30),
                     ),
                   ),
                 ),
@@ -162,15 +163,23 @@ class _LecturerAttendanceRecordState extends State<LecturerAttendanceRecord> {
                   style: const TextStyle(fontSize: 14),
                   decoration: InputDecoration(
                     hintText: 'Search by name or matric number...',
-                    hintStyle: const TextStyle(fontSize: 13, color: Color(0xFFB0BAD0)),
-                    prefixIcon: const Icon(Icons.search_outlined, size: 18, color: Color(0xFF8896AB)),
+                    hintStyle: const TextStyle(fontSize: 13, color: Color(0xFF5B6B86)),
+                    prefixIcon: const Icon(Icons.search_outlined, size: 18, color: Color(0xFF5B6B86)),
                     filled: true,
-                    fillColor: const Color(0xFFF4F6F9),
+                    fillColor: const Color(0xFFF8FAFD),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide.none,
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFFE8EDF6)),
                     ),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 11),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFFE8EDF6)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFF1E5BFF), width: 1.5),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -190,22 +199,22 @@ class _LecturerAttendanceRecordState extends State<LecturerAttendanceRecord> {
                       ),
                   ]),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 8),
               ]),
             ),
 
-            const Divider(height: 1, color: Color(0xFFE8ECF2)),
+            const Divider(height: 1, color: Color(0xFFE8EDF6)),
 
-            // Attendance record list
+            // Record list
             Expanded(child: _filtered.isEmpty
               ? const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Icon(Icons.search_off_outlined, size: 40, color: Color(0xFFB0BAD0)),
+                  Icon(Icons.search_off_outlined, size: 40, color: Color(0xFF5B6B86)),
                   SizedBox(height: 10),
                   Text('No records found',
-                    style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF2D3748))),
+                    style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF111827))),
                   SizedBox(height: 4),
                   Text('Try adjusting your search or filter',
-                    style: TextStyle(color: Color(0xFF8896AB), fontSize: 13)),
+                    style: TextStyle(color: Color(0xFF5B6B86), fontSize: 13)),
                 ]))
               : ListView.separated(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -214,43 +223,38 @@ class _LecturerAttendanceRecordState extends State<LecturerAttendanceRecord> {
                   itemBuilder: (_, i) {
                     final sub = _filtered[i];
                     final isPresent = sub.attendanceStatus == 'present';
+                    final color = isPresent ? const Color(0xFF22C55E) : const Color(0xFFFF3B30);
                     return Container(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFE8ECF2)),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: const Color(0xFFE8EDF6)),
+                        boxShadow: const [BoxShadow(color: Color(0x120D1B2A), blurRadius: 10, offset: Offset(0, 4))],
                       ),
                       child: Row(children: [
                         CircleAvatar(
                           radius: 20,
-                          backgroundColor: isPresent
-                              ? const Color(0xFFE8F5F2)
-                              : const Color(0xFFFFF0F0),
+                          backgroundColor: color.withValues(alpha: 0.12),
                           child: Text(
                             (sub.studentName ?? '?')[0].toUpperCase(),
-                            style: TextStyle(
-                              fontSize: 14, fontWeight: FontWeight.w700,
-                              color: isPresent
-                                  ? const Color(0xFF0D6B5E)
-                                  : const Color(0xFFD32F2F),
-                            ),
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: color),
                           ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Text(sub.studentName ?? '—',
-                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF0F2449))),
+                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF111827))),
                           const SizedBox(height: 2),
                           Text(sub.studentMatric ?? '',
-                            style: const TextStyle(fontSize: 12, color: Color(0xFF8896AB))),
+                            style: const TextStyle(fontSize: 12, color: Color(0xFF5B6B86))),
                         ])),
                         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                           _StatusPill(status: sub.attendanceStatus),
                           const SizedBox(height: 4),
                           Text(
                             sub.submittedAt.length >= 16 ? sub.submittedAt.substring(11, 16) : '',
-                            style: const TextStyle(fontSize: 11, color: Color(0xFF8896AB)),
+                            style: const TextStyle(fontSize: 11, color: Color(0xFF5B6B86)),
                           ),
                         ]),
                       ]),
@@ -275,7 +279,7 @@ class _StatBox extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 12),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.07),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Column(children: [
         Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: color)),
@@ -300,17 +304,17 @@ class _FilterChip extends StatelessWidget {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xFF1A3A6B) : Colors.white,
+          color: selected ? const Color(0xFF1E5BFF) : Colors.white,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: selected ? const Color(0xFF1A3A6B) : const Color(0xFFDDE2EC),
+            color: selected ? const Color(0xFF1E5BFF) : const Color(0xFFE8EDF6),
           ),
         ),
         child: Text(label,
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w600,
-            color: selected ? Colors.white : const Color(0xFF5A6B82),
+            color: selected ? Colors.white : const Color(0xFF5B6B86),
           )),
       ),
     );
@@ -324,18 +328,16 @@ class _StatusPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isPresent = status == 'present';
+    final color = isPresent ? const Color(0xFF22C55E) : const Color(0xFFFF3B30);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
       decoration: BoxDecoration(
-        color: isPresent ? const Color(0xFFE8F5F2) : const Color(0xFFFFF0F0),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
         isPresent ? 'Present' : 'Rejected',
-        style: TextStyle(
-          fontSize: 11, fontWeight: FontWeight.w600,
-          color: isPresent ? const Color(0xFF0D6B5E) : const Color(0xFFD32F2F),
-        ),
+        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color),
       ),
     );
   }
