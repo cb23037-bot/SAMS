@@ -21,6 +21,11 @@ class ClassAttendanceSubmission extends Model
         'attendance_status',
     ];
 
+    protected $casts = [
+        'gps_latitude' => 'float',
+        'gps_longitude' => 'float',
+    ];
+
     /**
      * The attendance session this submission belongs to.
      */
