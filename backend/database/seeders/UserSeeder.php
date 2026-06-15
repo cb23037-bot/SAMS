@@ -34,7 +34,7 @@ class UserSeeder extends Seeder
                 'address'          => '162A, Jalan Nilam 3, Taman Delima, 08000 Sungai Petani, Kedah',
             ],
             [
-                'name'             => 'Muhammad izbu Farhan bin Alias',
+                'name'             => 'Muhammad Hizbu Farhan bin Alias',
                 'email'            => 'cb23022@adab.umpsa.edu.my',
                 'role'             => 'student',
                 'student_id'       => 'CB23022',
