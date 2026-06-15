@@ -161,6 +161,10 @@ class _LoginPageState extends State<LoginPage> {
                             value: 'faculty_registrar',
                             child: Text('Faculty Registrar'),
                           ),
+                          DropdownMenuItem(
+                            value: 'treasury',
+                            child: Text('Treasury'),
+                          ),
                         ],
                         decoration: _inputDecoration(
                           hintText: 'Select your role',

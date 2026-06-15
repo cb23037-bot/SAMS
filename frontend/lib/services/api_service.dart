@@ -1,14 +1,16 @@
 import 'dart:convert';
-import 'dart:io';
+import 'dart:io' show File;
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 
 import '../models/activity.dart';
 import '../models/activity_registration.dart';
 import '../models/activity_slot.dart';
 import '../models/app_user.dart';
 import '../app/app_controller.dart';
-import 'package:http/http.dart' as http;
 
 /// Handles all HTTP communication between the Flutter app and the Laravel backend.
 ///
@@ -17,7 +19,7 @@ import 'package:http/http.dart' as http;
 /// headers, error handling, and JSON parsing across every method.
 ///
 /// File uploads (proof PDF, attendance photo) use multipart/form-data manually
-/// because Dart's native [HttpClient] does not have a built-in multipart helper.
+/// because the http package's MultipartRequest is cleaner for this use case.
 class ApiService {
   // ── Controller link ────────────────────────────────────────────────────────
 
@@ -61,57 +63,36 @@ class ApiService {
     String? token,
     Map<String, dynamic>? body,
   }) async {
-    // Create a new client per request — prevents connection pooling issues
-    // when the app goes background and sockets time out.
-    final client = HttpClient()
-      ..connectionTimeout = const Duration(seconds: 15)
-      ..idleTimeout = const Duration(seconds: 15);
-
+    final client = http.Client();
     try {
       final uri = Uri.parse('${_baseUrl()}$path');
-      late HttpClientRequest req;
+      final headers = <String, String>{
+        'Accept': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+        if (body != null) 'Content-Type': 'application/json',
+      };
 
-      // Open the correct HTTP method
+      http.Response response;
       switch (method) {
         case 'GET':
-          req = await client.getUrl(uri);
+          response = await client.get(uri, headers: headers);
         case 'POST':
-          req = await client.postUrl(uri);
+          response = await client.post(uri, headers: headers, body: body != null ? jsonEncode(body) : null);
         case 'PUT':
-          req = await client.putUrl(uri);
+          response = await client.put(uri, headers: headers, body: body != null ? jsonEncode(body) : null);
         case 'DELETE':
-          req = await client.deleteUrl(uri);
+          response = await client.delete(uri, headers: headers);
         default:
           throw Exception('Unsupported method: $method');
       }
 
-      // Attach the Bearer token so the backend can identify the user
-      if (token != null) {
-        req.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
-      }
-
-      // Encode the body as JSON if provided
-      if (body != null) {
-        req.headers.contentType = ContentType.json;
-        req.write(jsonEncode(body));
-      }
-
-      final response = await req.close();
-      final raw = await response.transform(utf8.decoder).join();
-
-      // Some endpoints return an empty body (e.g. DELETE), handle gracefully
-      final json = _decodeJson(raw, response.statusCode);
-
-      // 2xx = success; anything else is an API error
+      final json = _decodeJson(response.body, response.statusCode);
       if (response.statusCode >= 200 && response.statusCode < 300) return json;
-
       throw Exception(_extractMessage(json));
-    } on SocketException {
-      // Thrown when the device cannot reach the server at all
+    } on http.ClientException {
       throw Exception('Unable to connect to the server. Make sure the backend is running.');
     } finally {
-      // Always close the client to free socket resources
-      client.close(force: true);
+      client.close();
     }
   }
 
@@ -121,32 +102,27 @@ class ApiService {
     required String path,
     String? token,
   }) async {
-    final client = HttpClient()
-      ..connectionTimeout = const Duration(seconds: 15)
-      ..idleTimeout = const Duration(seconds: 15);
-
+    final client = http.Client();
     try {
       final uri = Uri.parse('${_baseUrl()}$path');
-      final req = await client.getUrl(uri);
+      final headers = <String, String>{
+        'Accept': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      };
 
-      if (token != null) {
-        req.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
-      }
-
-      final response = await req.close();
-      final raw = await response.transform(utf8.decoder).join();
+      final response = await client.get(uri, headers: headers);
+      final raw = response.body;
       final decoded = raw.isEmpty ? <dynamic>[] : jsonDecode(raw);
 
       if (response.statusCode >= 200 && response.statusCode < 300 && decoded is List) {
         return decoded;
       }
-
       if (decoded is Map<String, dynamic>) throw Exception(_extractMessage(decoded));
       throw Exception('Unexpected response from server.');
-    } on SocketException {
+    } on http.ClientException {
       throw Exception('Unable to connect to the server. Make sure the backend is running.');
     } finally {
-      client.close(force: true);
+      client.close();
     }
   }
 
@@ -388,23 +364,8 @@ class ApiService {
     required String filePath,
     required String fileName,
   }) async {
-    // Separate client with longer timeout because file uploads take more time
-    final client = HttpClient()
-      ..connectionTimeout = const Duration(seconds: 30)
-      ..idleTimeout = const Duration(seconds: 30);
-
     try {
       final uri = Uri.parse('${_baseUrl()}/student/registrations/$registrationId/claim');
-      final req = await client.postUrl(uri);
-
-      req.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
-
-      // Generate a unique boundary string for this multipart request
-      final boundary = '----Boundary${DateTime.now().millisecondsSinceEpoch}';
-      req.headers.contentType =
-          ContentType('multipart', 'form-data', parameters: {'boundary': boundary});
-
-      // Determine MIME type from file extension so the backend knows what to expect
       final ext = fileName.toLowerCase().split('.').last;
       final mimeType = switch (ext) {
         'jpg' || 'jpeg' => 'image/jpeg',
@@ -413,31 +374,25 @@ class ApiService {
         _               => 'application/octet-stream',
       };
 
-      // Build the multipart body manually as a byte buffer
       final fileBytes = await File(filePath).readAsBytes();
-      final buffer = <int>[];
-      buffer.addAll(utf8.encode('--$boundary\r\n'));
-      buffer.addAll(utf8.encode(
-          'Content-Disposition: form-data; name="proof"; filename="$fileName"\r\n'));
-      buffer.addAll(utf8.encode('Content-Type: $mimeType\r\n\r\n'));
-      buffer.addAll(fileBytes);
-      buffer.addAll(utf8.encode('\r\n--$boundary--\r\n'));
+      final request = http.MultipartRequest('POST', uri)
+        ..headers['Authorization'] = 'Bearer $token'
+        ..files.add(http.MultipartFile.fromBytes(
+          'proof', fileBytes,
+          filename: fileName,
+          contentType: MediaType.parse(mimeType),
+        ));
 
-      req.contentLength = buffer.length;
-      req.add(buffer);
+      final streamed = await request.send();
+      final raw = await streamed.stream.bytesToString();
+      final json = _decodeJson(raw, streamed.statusCode);
 
-      final response = await req.close();
-      final raw = await response.transform(utf8.decoder).join();
-      final json = _decodeJson(raw, response.statusCode);
-
-      if (response.statusCode >= 200 && response.statusCode < 300) {
+      if (streamed.statusCode >= 200 && streamed.statusCode < 300) {
         return ActivityRegistration.fromJson(json['registration'] as Map<String, dynamic>);
       }
       throw Exception(_extractMessage(json));
-    } on SocketException {
+    } on http.ClientException {
       throw Exception('Unable to connect to the server. Make sure the backend is running.');
-    } finally {
-      client.close(force: true);
     }
   }
 
@@ -462,56 +417,32 @@ class ApiService {
     double? longitude,
     String? address,
   }) async {
-    final client = HttpClient()
-      ..connectionTimeout = const Duration(seconds: 30)
-      ..idleTimeout = const Duration(seconds: 30);
-
     try {
       final uri = Uri.parse('${_baseUrl()}/student/attendances');
-      final req = await client.postUrl(uri);
-
-      req.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
-
-      final boundary = '----Boundary${DateTime.now().millisecondsSinceEpoch}';
-      req.headers.contentType =
-          ContentType('multipart', 'form-data', parameters: {'boundary': boundary});
-
       final ext = photoName.toLowerCase().split('.').last;
       final mimeType = ext == 'png' ? 'image/png' : 'image/jpeg';
 
       final fileBytes = await File(photoPath).readAsBytes();
-      final buffer = <int>[];
+      final request = http.MultipartRequest('POST', uri)
+        ..headers['Authorization'] = 'Bearer $token'
+        ..fields['slot_id'] = '$slotId'
+        ..fields['attendance_code'] = attendanceCode;
 
-      // Helper closure to add a plain text field to the multipart body
-      void addField(String name, String value) {
-        buffer.addAll(utf8.encode('--$boundary\r\n'));
-        buffer.addAll(utf8.encode('Content-Disposition: form-data; name="$name"\r\n\r\n'));
-        buffer.addAll(utf8.encode('$value\r\n'));
-      }
+      if (latitude != null) request.fields['latitude'] = '$latitude';
+      if (longitude != null) request.fields['longitude'] = '$longitude';
+      if (address != null) request.fields['address'] = address;
 
-      // Add all text fields first, then the photo file
-      addField('slot_id', '$slotId');
-      addField('attendance_code', attendanceCode);
-      if (latitude != null) addField('latitude', '$latitude');
-      if (longitude != null) addField('longitude', '$longitude');
-      if (address != null) addField('address', address);
+      request.files.add(http.MultipartFile.fromBytes(
+        'photo', fileBytes,
+        filename: photoName,
+        contentType: MediaType.parse(mimeType),
+      ));
 
-      // Add the photo as the last part of the multipart body
-      buffer.addAll(utf8.encode('--$boundary\r\n'));
-      buffer.addAll(utf8.encode(
-          'Content-Disposition: form-data; name="photo"; filename="$photoName"\r\n'));
-      buffer.addAll(utf8.encode('Content-Type: $mimeType\r\n\r\n'));
-      buffer.addAll(fileBytes);
-      buffer.addAll(utf8.encode('\r\n--$boundary--\r\n'));
+      final streamed = await request.send();
+      final raw = await streamed.stream.bytesToString();
+      final json = _decodeJson(raw, streamed.statusCode);
 
-      req.contentLength = buffer.length;
-      req.add(buffer);
-
-      final response = await req.close();
-      final raw = await response.transform(utf8.decoder).join();
-      final json = _decodeJson(raw, response.statusCode);
-
-      if (response.statusCode >= 200 && response.statusCode < 300) {
+      if (streamed.statusCode >= 200 && streamed.statusCode < 300) {
         final sub = json['submission'] as Map<String, dynamic>;
         return AttendanceResult(
           receiptId: sub['receipt_id'] as String,
@@ -519,10 +450,8 @@ class ApiService {
         );
       }
       throw Exception(_extractMessage(json));
-    } on SocketException {
+    } on http.ClientException {
       throw Exception('Unable to connect to the server. Make sure the backend is running.');
-    } finally {
-      client.close(force: true);
     }
   }
 
@@ -633,28 +562,16 @@ class ApiService {
   /// controller response — the PHP dev server truncates large JSON bodies,
   /// but static file serving streams the full file correctly.
   Future<Uint8List> downloadProof({required String proofPath}) async {
-    final client = HttpClient()
-      ..connectionTimeout = const Duration(seconds: 15)
-      ..idleTimeout = const Duration(seconds: 15);
-
     try {
       final uri = Uri.parse('${_storageBaseUrl()}/storage/$proofPath');
-      final req = await client.getUrl(uri);
-      final response = await req.close();
+      final response = await http.get(uri);
 
       if (response.statusCode != 200) {
         throw Exception('Proof document not found.');
       }
-
-      final bytes = <int>[];
-      await for (final chunk in response) {
-        bytes.addAll(chunk);
-      }
-      return Uint8List.fromList(bytes);
-    } on SocketException {
+      return response.bodyBytes;
+    } on http.ClientException {
       throw Exception('Unable to connect to the server. Make sure the backend is running.');
-    } finally {
-      client.close(force: true);
     }
   }
 
