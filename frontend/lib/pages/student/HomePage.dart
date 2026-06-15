@@ -164,7 +164,7 @@ class _StudentHomePageState extends State<StudentHomePage> {
         }
       },
       child: Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFFF1F5F9),
         // ── Bottom navigation bar ──────────────────────────────────────────
         bottomNavigationBar: NavigationBar(
           selectedIndex: _selectedIndex,
@@ -706,10 +706,10 @@ class _ActionCard extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
+            color: Colors.white,
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
             boxShadow: const [
-              BoxShadow(color: Color(0x120D1B2A), blurRadius: 18, offset: Offset(0, 8)),
+              BoxShadow(color: Color(0x1F0D1B2A), blurRadius: 16, offset: Offset(0, 6)),
             ],
           ),
           child: Column(
