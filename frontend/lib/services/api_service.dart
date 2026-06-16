@@ -596,6 +596,14 @@ class ApiService {
     );
   }
 
+  Future<void> closeAllSessions() async {
+    await _request(
+      method: 'POST',
+      path: '/academic-sessions/close-all',
+      token: _controller?.token,
+    );
+  }
+
   /// Deletes an academic session by [sessionId].
   Future<void> deleteSession(int sessionId) async {
     await _request(

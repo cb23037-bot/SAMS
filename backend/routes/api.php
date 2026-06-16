@@ -65,6 +65,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // --- Academic Sessions ---
     Route::prefix('academic-sessions')->group(function () {
         Route::get('/active', [AcademicSessionController::class, 'getActiveSession']);
+        Route::post('/close-all', [AcademicSessionController::class, 'closeAll']);
         Route::get('/', [AcademicSessionController::class, 'index']);
         Route::post('/', [AcademicSessionController::class, 'store']);
         Route::post('/{id}/set-registration-status', [AcademicSessionController::class, 'setRegistrationStatus']);

@@ -17,6 +17,13 @@ class AcademicSessionController extends Controller
     public function store(Request $request)
     {
         $request->validate(['session_name' => 'required|string']);
+
+        // Close all existing sessions before creating the new one
+        AcademicSession::query()->update([
+            'is_registration_open' => false,
+            'is_active'            => false,
+        ]);
+
         return AcademicSession::create(['session_name' => $request->session_name]);
     }
 
@@ -69,4 +76,14 @@ public function setRegistrationStatus(Request $request, $id) {
 
     return response()->json($session);
 }
+
+    // Utility: force-close all sessions (call once from registrar if DB has stale data)
+    public function closeAll()
+    {
+        AcademicSession::query()->update([
+            'is_registration_open' => false,
+            'is_active'            => false,
+        ]);
+        return response()->json(['message' => 'All sessions closed']);
+    }
 }

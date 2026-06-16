@@ -139,7 +139,45 @@ class _ManageSessionPageState extends State<ManageSessionPage> {
     return Scaffold(
       backgroundColor: theme.AppColors.background,
       appBar: AppBar(
-          title: const Text('Manage Sessions', style: theme.AppText.heading)),
+        title: const Text('Manage Sessions', style: theme.AppText.heading),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.lock, color: Colors.redAccent),
+            tooltip: 'Close All Access',
+            onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Close All Access'),
+                  content: const Text('This will close registration access for ALL sessions immediately.'),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text('Close All', style: TextStyle(color: Colors.white)),
+                    ),
+                  ],
+                ),
+              );
+              if (confirm == true) {
+                try {
+                  await widget.controller.apiService.closeAllSessions();
+                  if (mounted) _refreshSessions();
+                  messenger.showSnackBar(
+                    const SnackBar(content: Text('All sessions closed successfully.')),
+                  );
+                } catch (e) {
+                  messenger.showSnackBar(
+                    SnackBar(content: Text('Failed: ${e.toString()}')),
+                  );
+                }
+              }
+            },
+          ),
+        ],
+      ),
       body: FutureBuilder<List<dynamic>>(
         future: _sessionsFuture,
         builder: (context, snapshot) {
