@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api;
 use App\Models\AcademicSession;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
-use Illuminate\Support\Facades\Log;
 
 
 
@@ -31,14 +30,26 @@ class AcademicSessionController extends Controller
 
 public function setRegistrationStatus(Request $request, $id) {
     $session = AcademicSession::findOrFail($id);
-    
 
-    $request->validate(['is_registration_open' => 'required']); 
-    
-    $session->is_registration_open = $request->is_registration_open;
-    $session->save();
-    
-    return response()->json(['message' => 'Registration status updated']);
+    $request->validate(['is_registration_open' => 'required']);
+
+    $isOpen = filter_var($request->is_registration_open, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE)
+              ?? (bool) $request->is_registration_open;
+
+    // Always wipe open state from every session first — prevents stale open records
+    AcademicSession::query()->update([
+        'is_registration_open' => false,
+        'is_active'            => false,
+    ]);
+
+    if ($isOpen) {
+        // Then mark only this session as open
+        $session->is_registration_open = true;
+        $session->is_active            = true;
+        $session->save();
+    }
+
+    return response()->json(['message' => 'Registration status updated', 'session' => $session->fresh()]);
 }
     
 
@@ -50,11 +61,12 @@ public function setRegistrationStatus(Request $request, $id) {
 
     public function getActiveSession()
 {
-    // Find the session where registration is open
-    Log::info("getActiveSession was called!");
-    $session = AcademicSession::where('is_registration_open', 1)->first();
-    
-    // Return the session data, or null if nothing is found
+    // Return the single session that has registration open, or null if none
+    $session = AcademicSession::where('is_registration_open', true)
+                              ->where('is_active', true)
+                              ->latest()
+                              ->first();
+
     return response()->json($session);
 }
 }
