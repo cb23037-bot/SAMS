@@ -9,8 +9,23 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
+/**
+ * Menguruskan semakan dan keputusan tuntutan kredit CATs oleh staf Pusat Adab.
+ *
+ * Controller ini hanya untuk peranan 'adab'. Ia menyediakan:
+ *   - Paparan overview semua tuntutan (dengan statistik agregat)
+ *   - Senarai tuntutan mengikut aktiviti
+ *   - Lulus (approve) atau tolak (reject) tuntutan pending
+ *   - Muat turun dokumen bukti (PDF) yang dihantar pelajar
+ *   - Senarai notifikasi tuntutan pending
+ */
 class CreditClaimController extends Controller
 {
+    /**
+     * Tukar model ActivityRegistration kepada array JSON penuh untuk frontend Pusat Adab.
+     * Berbeza dengan ActivityRegistrationController::registrationArray() — ini
+     * menyertakan proof_path sebenar dan maklumat pelajar penuh untuk semakan staf.
+     */
     private static function claimArray(ActivityRegistration $reg): array
     {
         $slot     = $reg->slot;
@@ -47,20 +62,25 @@ class CreditClaimController extends Controller
     }
 
     // GET /api/adab/claims
+    // Kembalikan statistik agregat dan senarai aktiviti yang ada tuntutan.
+    // Aktiviti tanpa sebarang tuntutan ditapis keluar dari senarai.
     public function index(Request $request): JsonResponse
     {
         $this->requireAdab($request);
 
+        // Statistik global merentasi semua aktiviti
         $total            = ActivityRegistration::where('claim_status', '!=', 'not_claimed')->count();
         $pending          = ActivityRegistration::where('claim_status', 'pending')->count();
         $approved         = ActivityRegistration::where('claim_status', 'claimed')->count();
         $rejected         = ActivityRegistration::where('claim_status', 'rejected')->count();
         $activitiesTotal  = Activity::count();
 
+        // Muatkan hanya pendaftaran yang ada tuntutan (bukan not_claimed)
         $activities = Activity::with(['slots.registrations' => function ($q) {
             $q->where('claim_status', '!=', 'not_claimed');
         }])->get();
 
+        // Kira jumlah tuntutan mengikut status untuk setiap aktiviti
         $activityList = $activities->map(function ($activity) {
             $regs = $activity->slots->flatMap(fn ($s) => $s->registrations);
             return [
@@ -73,7 +93,7 @@ class CreditClaimController extends Controller
                 'claims_approved' => $regs->where('claim_status', 'claimed')->count(),
                 'claims_rejected' => $regs->where('claim_status', 'rejected')->count(),
             ];
-        })->filter(fn ($a) => $a['claims_total'] > 0)->values();
+        })->filter(fn ($a) => $a['claims_total'] > 0)->values(); // Buang aktiviti tanpa tuntutan
 
         return response()->json([
             'stats'      => compact('total', 'pending', 'approved', 'rejected', 'activitiesTotal'),
@@ -82,6 +102,7 @@ class CreditClaimController extends Controller
     }
 
     // GET /api/adab/claims/{activityId}
+    // Kembalikan semua tuntutan untuk satu aktiviti (kecuali not_claimed).
     public function activityClaims(Request $request, int $activityId): JsonResponse
     {
         $this->requireAdab($request);
@@ -106,10 +127,12 @@ class CreditClaimController extends Controller
     }
 
     // PUT /api/adab/claims/{registration}/approve
+    // Luluskan tuntutan pending; staf boleh tambah catatan (remarks) secara pilihan.
     public function approve(Request $request, ActivityRegistration $registration): JsonResponse
     {
         $this->requireAdab($request);
 
+        // Hanya tuntutan berstatus 'pending' boleh diluluskan
         if ($registration->claim_status !== 'pending') {
             return response()->json(['message' => 'Only pending claims can be approved.'], 422);
         }
@@ -132,10 +155,12 @@ class CreditClaimController extends Controller
     }
 
     // PUT /api/adab/claims/{registration}/reject
+    // Tolak tuntutan pending; sebab penolakan (reason) wajib diisi.
     public function reject(Request $request, ActivityRegistration $registration): JsonResponse
     {
         $this->requireAdab($request);
 
+        // Hanya tuntutan berstatus 'pending' boleh ditolak
         if ($registration->claim_status !== 'pending') {
             return response()->json(['message' => 'Only pending claims can be rejected.'], 422);
         }
@@ -158,6 +183,8 @@ class CreditClaimController extends Controller
     }
 
     // GET /api/adab/claims/{registration}/proof
+    // Muat turun fail PDF bukti yang dihantar pelajar melalui route API
+    // (bukan terus dari storage/) supaya CORS header disertakan.
     public function downloadProof(int $id)
     {
         $this->requireAdab(request());
@@ -172,6 +199,7 @@ class CreditClaimController extends Controller
     }
 
     // GET /api/adab/notifications
+    // Kembalikan semua tuntutan berstatus 'pending' untuk paparan notifikasi staf.
     public function notifications(Request $request): JsonResponse
     {
         $this->requireAdab($request);

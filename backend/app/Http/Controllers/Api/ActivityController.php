@@ -8,8 +8,16 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
+/**
+ * Menguruskan CRUD untuk aktiviti kurikulum (Module 2).
+ *
+ * Semua operasi tulis (store, update, destroy) adalah untuk staf Pusat Adab
+ * sahaja. Index boleh diakses oleh semua pengguna yang telah log masuk.
+ */
 class ActivityController extends Controller
 {
+    // GET /api/activities
+    // Kembalikan semua aktiviti bersama slot masing-masing, diisih terbaru dahulu.
     public function index(Request $request): JsonResponse
     {
         $activities = Activity::with('slots')->orderByDesc('created_at')->get();
@@ -20,6 +28,8 @@ class ActivityController extends Controller
         ]);
     }
 
+    // POST /api/activities  (adab only)
+    // Kod aktiviti dijana secara automatik dari inisial nama jika tidak diisi.
     public function store(Request $request): JsonResponse
     {
         $this->requireAdab($request);
@@ -32,6 +42,7 @@ class ActivityController extends Controller
             'location'      => ['required', 'string', 'max:255'],
         ]);
 
+        // Jana kod automatik jika tidak diisi; code sentiasa uppercase
         $validated['code'] = !empty($validated['code'])
             ? strtoupper($validated['code'])
             : $this->generateCode($validated['name']);
@@ -44,6 +55,8 @@ class ActivityController extends Controller
         ], 201);
     }
 
+    // PUT /api/activities/{activity}  (adab only)
+    // Kod mesti unik kecuali untuk aktiviti yang sama (ignore current id).
     public function update(Request $request, Activity $activity): JsonResponse
     {
         $this->requireAdab($request);
@@ -56,6 +69,7 @@ class ActivityController extends Controller
             'location'      => ['required', 'string', 'max:255'],
         ]);
 
+        // Kosongkan string kosong kepada null supaya DB tidak simpan string kosong
         $validated['code']          = strtoupper($validated['code']);
         $validated['whatsapp_link'] = !empty($validated['whatsapp_link']) ? $validated['whatsapp_link'] : null;
         $validated['description']   = !empty($validated['description']) ? $validated['description'] : null;
@@ -68,6 +82,7 @@ class ActivityController extends Controller
         ]);
     }
 
+    // DELETE /api/activities/{activity}  (adab only)
     public function destroy(Request $request, Activity $activity): JsonResponse
     {
         $this->requireAdab($request);
@@ -77,6 +92,10 @@ class ActivityController extends Controller
         return response()->json(['status' => 'success', 'message' => 'Activity deleted.']);
     }
 
+    /**
+     * Tukar model Activity kepada array JSON yang dihantar ke frontend.
+     * Static supaya boleh dipanggil dari ActivityRegistrationController juga.
+     */
     public static function activityArray(Activity $activity): array
     {
         return [
@@ -90,6 +109,11 @@ class ActivityController extends Controller
         ];
     }
 
+    /**
+     * Jana kod aktiviti unik dari inisial perkataan nama aktiviti + nombor rawak.
+     * Contoh: "Mental Health Talk" → "MHT" + "482" → "MHT482".
+     * Loop semula jika kod yang dijana sudah wujud dalam database.
+     */
     private function generateCode(string $name): string
     {
         $words  = preg_split('/\s+/', trim($name));

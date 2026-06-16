@@ -34,6 +34,11 @@ class _FeeRecordsListPageState extends State<FeeRecordsListPage> {
     super.dispose();
   }
 
+  // Fetches the fee records list from the backend, applying the current
+  // _search text and _statusFilter (Paid/Unpaid/Partial). When reset is true
+  // (the default), the existing list is replaced; when false, new items are
+  // appended for pagination. Sets _hasMore = false since this endpoint
+  // returns all matching records in one response (no server-side pagination).
   Future<void> _load({bool reset = true}) async {
     if (reset) {
       _hasMore = true;

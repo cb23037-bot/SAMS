@@ -100,8 +100,78 @@ class _SubjectRegistrationPageState extends State<SubjectRegistrationPage> {
   }
 
   Widget _buildClosedView() {
-    return const Center(
-      child: Text('Registration is currently closed.', style: TextStyle(fontSize: 16, color: Color(0xFF64748B))),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Status card
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: const [BoxShadow(color: Color(0x11000000), blurRadius: 18, offset: Offset(0, 8))],
+            ),
+            child: Row(
+              children: [
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Registration Closed', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+                      SizedBox(height: 4),
+                      Text('Subject registration is not available at this time.', style: TextStyle(fontSize: 13, color: Color(0xFF64748B))),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(color: const Color(0xFF64748B), borderRadius: BorderRadius.circular(999)),
+                  child: const Text('CLOSED', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12)),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Already registered subjects (read-only)
+          if (_registeredSubjects.isNotEmpty) ...[
+            const Text('My Registered Subjects', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF1E3A8A))),
+            const SizedBox(height: 8),
+            ..._registeredSubjects.map((s) => Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              color: Colors.blue.shade50,
+              elevation: 0,
+              child: ListTile(
+                leading: const Icon(Icons.check_circle, color: Colors.blue),
+                title: Text(s.name),
+                subtitle: Text(s.code),
+              ),
+            )),
+            const SizedBox(height: 16),
+          ],
+
+          // Timetable button (only available action when closed)
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _registeredSubjects.isEmpty ? null : () {
+                Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => TimetablePage(selectedSubjects: _registeredSubjects),
+                ));
+              },
+              icon: const Icon(Icons.calendar_month_outlined, size: 20, color: Color(0xFF1E3A8A)),
+              label: const Text('View Timetable', style: TextStyle(color: Color(0xFF1E3A8A), fontWeight: FontWeight.bold)),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Color(0xFFD1D5DB)),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

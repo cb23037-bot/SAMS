@@ -2,8 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../app/app_controller.dart';
 
-/// Checks if the student is financially restricted.
-/// Shows a dialog and returns true if restricted (caller should abort the action).
+// Calls getRestrictionStatus() to check whether the current student has an
+// active financial restriction. If restricted, shows a blocking AlertDialog
+// with a "Pay Now" button (calls [onPayNow] if provided) and returns true so
+// the caller knows to abort the attempted action (e.g. course registration).
+// Returns false if the student is not restricted, or if the API call fails
+// (fail-open: do not block the student due to a network error).
 Future<bool> checkAndShowRestriction({
   required BuildContext context,
   required AppController controller,

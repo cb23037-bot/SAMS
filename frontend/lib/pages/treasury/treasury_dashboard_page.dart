@@ -26,6 +26,9 @@ class _TreasuryDashboardPageState extends State<TreasuryDashboardPage> {
     _load();
   }
 
+  // Fetches high-level financial statistics from GET /api/treasury/dashboard:
+  // total fees, total paid/unpaid, restriction count, current semester week,
+  // and the 5 most recent payments. Populates _data for the dashboard widgets.
   Future<void> _load() async {
     setState(() { _loading = true; _error = null; });
     try {
@@ -89,6 +92,10 @@ class _TreasuryDashboardPageState extends State<TreasuryDashboardPage> {
     );
   }
 
+  // Builds the main dashboard body using _data (loaded by _load()).
+  // Shows stat cards (total fees, paid, unpaid, restrictions, semester week)
+  // and a list of the 5 most recent successful payments.
+  // Returns a loading spinner or error view while data is unavailable.
   Widget _buildDashboard() {
     if (_loading) return const Center(child: CircularProgressIndicator(color: _teal));
     if (_error != null) {

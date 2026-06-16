@@ -8,17 +8,27 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * AttendanceSubmission Model — SAMS-PACK-405
  *
- * Manages student attendance submissions, including submitted code,
- * submission time, GPS location, and attendance status.
+ * Manages student attendance submissions for both:
+ *   - Module 2/1: Activity curriculum attendance (photo + GPS + receipt)
+ *   - Module 4: GPS-based class attendance sessions
  *
  * Attributes:
  *   - attendance_submission_id : int       — Primary key, unique submission identifier.
- *   - attendance_session_id    : int       — Foreign key to the attendance session.
+ *   - attendance_session_id    : int       — Foreign key to the attendance session (Module 4).
  *   - student_id               : int       — Foreign key to the student (users).
+ *   - user_id                  : int       — Foreign key to the user (Module 1/2).
+ *   - activity_slot_id         : int       — Slot aktiviti yang dihadiri (Module 1/2).
  *   - submitted_code           : String    — The attendance code entered by the student.
+ *   - attendance_code_submitted : String   — Kod yang dimasukkan pelajar semasa attend (Module 1/2).
  *   - submitted_at             : Timestamp — Timestamp when the submission was made.
  *   - gps_latitude             : Decimal   — Student's GPS latitude at time of submission.
  *   - gps_longitude            : Decimal   — Student's GPS longitude at time of submission.
+ *   - latitude                 : Decimal   — Koordinat GPS (Module 1/2).
+ *   - longitude                : Decimal   — Koordinat GPS (Module 1/2).
+ *   - address                  : String    — Alamat terbalik dari koordinat GPS (Module 1/2).
+ *   - photo_path               : String    — Path foto selfie (Module 1/2).
+ *   - receipt_id               : String    — ID unik resit kehadiran (Module 1/2).
+ *   - receipt_hash             : String    — SHA-256 hash untuk pengesahan integriti resit.
  *   - attendance_status        : String    — Result: 'present' or 'rejected'.
  *   - created_at               : Timestamp — Record creation timestamp.
  *   - updated_at               : Timestamp — Record last update timestamp.
@@ -30,6 +40,7 @@ class AttendanceSubmission extends Model
     protected $primaryKey = 'attendance_submission_id';
 
     protected $fillable = [
+        // Module 4 fields
         'attendance_session_id',
         'student_id',
         'submitted_code',
@@ -37,11 +48,23 @@ class AttendanceSubmission extends Model
         'gps_latitude',
         'gps_longitude',
         'attendance_status',
+        // Module 1/2 fields
+        'user_id',
+        'activity_slot_id',
+        'attendance_code_submitted',
+        'photo_path',
+        'latitude',
+        'longitude',
+        'address',
+        'receipt_id',
+        'receipt_hash',
     ];
 
     protected $casts = [
         'gps_latitude'  => 'float',
         'gps_longitude' => 'float',
+        'latitude'      => 'float',
+        'longitude'     => 'float',
     ];
 
     // =========================================================================
@@ -94,7 +117,6 @@ class AttendanceSubmission extends Model
      *
      * Checks whether a student has already submitted attendance for a given session.
      * Prevents students from submitting more than once per session.
-     * Called during the attendance submission flow before saving a new record.
      *
      * @param  int $sessionId — The attendance session ID to check.
      * @param  int $studentId — The student ID to check.
@@ -144,7 +166,6 @@ class AttendanceSubmission extends Model
      * countPresentStudents(attendance_session_id)
      *
      * Counts the number of students who are marked as 'present' for a session.
-     * Used during report generation to calculate the present count summary.
      *
      * @param  int $sessionId — The attendance session ID to count for.
      * Returns: int — Total number of students with attendance_status = 'present'.
@@ -161,7 +182,7 @@ class AttendanceSubmission extends Model
     // =========================================================================
 
     /**
-     * Get the attendance session this submission belongs to.
+     * Get the attendance session this submission belongs to (Module 4).
      */
     public function session(): BelongsTo
     {
@@ -169,10 +190,26 @@ class AttendanceSubmission extends Model
     }
 
     /**
-     * Get the student who made this attendance submission.
+     * Get the student who made this attendance submission (Module 4).
      */
     public function student(): BelongsTo
     {
         return $this->belongsTo(User::class, 'student_id');
+    }
+
+    /**
+     * Pelajar yang membuat submission kehadiran ini (Module 1/2).
+     */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Slot aktiviti yang dihadiri (Module 1/2).
+     */
+    public function slot(): BelongsTo
+    {
+        return $this->belongsTo(ActivitySlot::class, 'activity_slot_id');
     }
 }

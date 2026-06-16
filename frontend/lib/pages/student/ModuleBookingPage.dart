@@ -4,6 +4,26 @@ import '../../app/app_controller.dart';
 import '../../models/activity.dart';
 import '../../models/activity_slot.dart';
 
+// ════════════════════════════════════════════════════════════════════════════
+// Widget tempahan slot aktiviti KoQ (Ko-Kurikulum) untuk pelajar (Module 2).
+//
+// Fail ini adalah embedded widget (tiada Scaffold sendiri) — dimuatkan di
+// dalam StudentHomePage apabila pelajar memilih untuk membuat tempahan aktiviti.
+// Aktiviti yang pelajar sudah daftar dan aktiviti tiada slot aktif
+// disembunyikan daripada senarai secara automatik.
+//
+// Struktur kelas dalam fail ini:
+//   KoQBookingContent       : senarai aktiviti dengan carian + tapis
+//   _ActivityBookingCard    : kad paparan satu aktiviti + butang "Book Now"
+//   _InfoRow                : baris ikon + teks untuk maklumat ringkas aktiviti
+//   _SlotSelectionDialog    : dialog pilih slot masa sebelum mendaftar
+//   _ErrorView              : widget ralat / tiada data
+//
+// Helper functions (peringkat fail):
+//   _isPastSlot  : semak sama ada slot sudah berlalu berdasarkan tarikh & masa
+//   _parseSlotDT : parse string tarikh + masa slot ke objek DateTime
+// ════════════════════════════════════════════════════════════════════════════
+
 // Embedded widget — no Scaffold. Used inside StudentHomePage.
 /// Lists KoQ (Ko-Kurikulum) activities the student can register for, with
 /// search/filtering and a slot-selection dialog for registration.

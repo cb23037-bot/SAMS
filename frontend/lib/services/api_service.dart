@@ -643,7 +643,10 @@ class ApiService {
       final isJson = contentType != null && contentType.contains('application/json');
 
       if (response.statusCode == 200 && isJson) {
-        return jsonDecode(response.body) as Map<String, dynamic>;
+        final decoded = jsonDecode(response.body);
+        // Backend returns null JSON when no session is currently open
+        if (decoded is Map<String, dynamic>) return decoded;
+        return null;
       }
       debugPrint('getActiveSession: server error ${response.statusCode} -- ${response.body}');
       return null;

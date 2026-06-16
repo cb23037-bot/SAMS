@@ -5,6 +5,23 @@ import 'AdabNotificationsPage.dart';
 import 'ActivityFormPage.dart';
 import 'CreditClaimPage.dart';
 
+// ════════════════════════════════════════════════════════════════════════════
+// Halaman dashboard utama untuk staf Pusat Adab (Module 2).
+//
+// Fail ini memaparkan statistik keseluruhan sistem dan menyediakan navigasi
+// ke dua bahagian utama pengurusan:
+//   - Pengurusan Aktiviti Kurikulum  → ActivityFormPage (CurriculumActivitiesPage)
+//   - Pengurusan Tuntutan Kredit     → CreditClaimPage (ManageClaimsPage)
+//
+// Struktur kelas dalam fail ini:
+//   PusatAdabDashboardPage   : halaman utama — muatkan statistik & kawalan akses
+//   _HeaderCard              : bar atas dengan butang notifikasi dan log keluar
+//   _DashboardBrandMark      : logo UMPSA di dalam _HeaderCard
+//   _StatCard                : kad statistik (jumlah aktiviti / tuntutan)
+//   _AccessControlCard       : togol buka/tutup akses pelajar secara sistem
+//   _ManagementCard          : kad navigasi ke halaman pengurusan
+// ════════════════════════════════════════════════════════════════════════════
+
 /// Pusat Adab staff home/dashboard page.
 ///
 /// Shows summary statistics (total activities, pending/approved/rejected

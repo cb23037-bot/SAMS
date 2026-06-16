@@ -17,6 +17,7 @@ use Illuminate\Support\Str;
 
 class FeeController extends Controller
 {
+    // Aborts with 403 if the authenticated user is not a student.
     protected function requireStudent(Request $request): void
     {
         if ($request->user()->role !== 'student') {
@@ -24,6 +25,7 @@ class FeeController extends Controller
         }
     }
 
+    // Logs the exception and returns a standard 500 JSON error response.
     private function dbError(\Exception $e): JsonResponse
     {
         Log::error('FeeController DB error: ' . $e->getMessage());
@@ -34,11 +36,16 @@ class FeeController extends Controller
         ], 500);
     }
 
+    // Looks up the Student record linked to the authenticated user.
+    // Throws 404 if no student profile exists for this user.
     private function getStudent(Request $request): Student
     {
         return Student::where('user_id', $request->user()->id)->firstOrFail();
     }
 
+    // GET /api/fees
+    // Returns a summary (total, paid, unpaid, count) and a list of all
+    // fee records for the authenticated student, ordered by due date.
     public function index(Request $request): JsonResponse
     {
         $this->requireStudent($request);
@@ -67,6 +74,9 @@ class FeeController extends Controller
         }
     }
 
+    // GET /api/fees/{fee}
+    // Returns the full details of a single fee and its payment history.
+    // Returns 403 if the fee does not belong to the authenticated student.
     public function show(Request $request, Fee $fee): JsonResponse
     {
         $this->requireStudent($request);
@@ -86,6 +96,14 @@ class FeeController extends Controller
         }
     }
 
+    // POST /api/fees/{fee}/pay
+    // Processes a payment for the given fee. Accepts 'amount' and 'payment_method'
+    // in the request body. The amount must be > 0 and must not exceed the outstanding balance.
+    // On success: creates a Payment record, recalculates the fee status (Unpaid/Partial/Paid),
+    // and automatically lifts any active financial restriction if all fees are now paid.
+    // Sends a 'payment_success' notification (and optionally 'access_restored') to the student.
+    // Returns 422 if the fee is already paid or the amount is invalid.
+    // Returns 503 if the payment transaction itself fails.
     public function pay(Request $request, Fee $fee): JsonResponse
     {
         $this->requireStudent($request);
@@ -193,6 +211,10 @@ class FeeController extends Controller
         ], 201);
     }
 
+    // GET /api/student/restriction-status
+    // Returns whether the student currently has an active financial restriction,
+    // along with the restriction type, the date it was applied, and the current
+    // semester week number (calculated from the semester_start_date setting).
     public function restrictionStatus(Request $request): JsonResponse
     {
         $this->requireStudent($request);
@@ -224,6 +246,9 @@ class FeeController extends Controller
         }
     }
 
+    // GET /api/payments
+    // Returns all successful payments made by the authenticated student,
+    // ordered newest-first. Each entry includes the fee description and semester.
     public function history(Request $request): JsonResponse
     {
         $this->requireStudent($request);
@@ -247,6 +272,9 @@ class FeeController extends Controller
         }
     }
 
+    // GET /api/student/sponsors
+    // Returns all sponsor records (scholarships, loans, bursaries, grants)
+    // linked to the authenticated student, sorted so active sponsors appear first.
     public function sponsors(Request $request): JsonResponse
     {
         $this->requireStudent($request);
@@ -271,6 +299,11 @@ class FeeController extends Controller
         }
     }
 
+    // GET /api/student/ledger
+    // Returns a combined, date-sorted transaction history for the student,
+    // including fee charges (negative), successful payments (positive),
+    // and active sponsor disbursements (positive). Used on the History tab
+    // of the fee dashboard to give the student a full financial picture.
     public function ledger(Request $request): JsonResponse
     {
         $this->requireStudent($request);
@@ -324,6 +357,12 @@ class FeeController extends Controller
         }
     }
 
+    // GET /api/payments/{payment}/receipt
+    // Returns structured receipt data for a specific payment as JSON.
+    // Used by the Flutter frontend to render the in-app receipt screen.
+    // Returns 403 if the payment belongs to a different student.
+    // Includes student info, payment details, fee breakdown, and any active
+    // sponsor deductions so the app can display the net amount paid.
     public function receipt(Request $request, Payment $payment): JsonResponse
     {
         $this->requireStudent($request);
@@ -378,6 +417,9 @@ class FeeController extends Controller
         }
     }
 
+    // Converts a Fee model into a flat array safe to send as JSON.
+    // Normalises the status field to lowercase so the Flutter app
+    // can compare it with simple string equality (e.g. 'paid', 'unpaid').
     private function feeArray(Fee $fee): array
     {
         return [
@@ -392,6 +434,8 @@ class FeeController extends Controller
         ];
     }
 
+    // Converts a Payment model into a flat array safe to send as JSON.
+    // Falls back to created_at if paid_at is null (e.g. manually recorded payments).
     private function paymentArray(Payment $payment): array
     {
         return [

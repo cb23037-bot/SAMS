@@ -36,6 +36,10 @@ class _FeeRecordDetailsPageState extends State<FeeRecordDetailsPage> {
     super.dispose();
   }
 
+  // Fetches the full details of a single fee record (widget.feeId) from the backend,
+  // including the student profile and any active financial restrictions on that student.
+  // Falls back to hardcoded placeholder data if the API call fails, so the treasury
+  // user sees something rather than a blank screen during development.
   Future<void> _load() async {
     setState(() => _isLoading = true);
     try {
@@ -69,6 +73,9 @@ class _FeeRecordDetailsPageState extends State<FeeRecordDetailsPage> {
     }
   }
 
+  // Returns true if the student linked to this fee record has at least one
+  // restriction entry with status 'Active'. Used to decide which button
+  // to show: "Apply Restriction" or "Lift Restriction".
   bool get _hasActiveRestriction {
     final student = _fee?['student'] as Map<String, dynamic>?;
     final restrictions = (student?['restrictions'] as List<dynamic>?) ?? [];
