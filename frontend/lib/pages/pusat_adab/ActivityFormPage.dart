@@ -4,6 +4,20 @@ import '../../app/app_controller.dart';
 import '../../models/activity.dart';
 import 'SlotFormPage.dart';
 
+// ════════════════════════════════════════════════════════════════════════════
+// Halaman pengurusan aktiviti kurikulum untuk staf Pusat Adab (Module 2).
+//
+// Fail ini membolehkan staf menambah, mengedit, memadam dan mengurus slot
+// pendaftaran untuk setiap aktiviti kurikulum dalam sistem.
+//
+// Struktur kelas dalam fail ini:
+//   CurriculumActivitiesPage   : halaman senarai aktiviti dengan carian & tapis
+//   _ActivityCard              : kad paparan ringkas satu aktiviti + butang aksi
+//   _ActivityFormDialog        : dialog borang tambah / edit aktiviti
+//   _DeleteActivityDialog      : dialog pengesahan sebelum padam aktiviti
+//   _DialogField               : widget field teks yang dikongsi dalam dialog
+// ════════════════════════════════════════════════════════════════════════════
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // Main Page
 // ═══════════════════════════════════════════════════════════════════════════════

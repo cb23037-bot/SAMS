@@ -4,6 +4,26 @@ import '../../app/app_controller.dart';
 import '../../models/activity.dart';
 import '../../models/activity_slot.dart';
 
+// ════════════════════════════════════════════════════════════════════════════
+// Dialog pengurusan slot masa untuk satu aktiviti kurikulum (Module 2).
+//
+// Dibuka sebagai dialog (bukan route) dari ActivityFormPage supaya ia boleh
+// memulangkan objek Activity yang dikemaskini (dengan slot baharu/diedit/dipadam)
+// kepada pemanggil melalui Navigator.pop apabila ditutup.
+//
+// Struktur kelas dalam fail ini:
+//   SlotFormPage            : dialog utama — borang tambah slot + jadual slot sedia
+//   _AttendanceCodeDialog   : dialog paparan kod kehadiran selepas slot ditambah
+//   _DeleteSlotDialog       : dialog pengesahan sebelum padam slot
+//   _EditSlotDialog         : dialog edit tarikh, masa dan kapasiti slot sedia ada
+//
+// Helper functions (peringkat fail):
+//   _formatDate   : format tarikh ISO kepada bentuk boleh baca (e.g. "Saturday, June 14, 2025")
+//   _apiDate      : format DateTime ke "yyyy-MM-dd" untuk API
+//   _displayDate  : format DateTime ke "dd/mm/yyyy" untuk paparan
+//   _parseTime12h : parse string masa 12-jam balik ke TimeOfDay
+// ════════════════════════════════════════════════════════════════════════════
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /// Formats an ISO date string (e.g. "2025-06-14") as a full readable date
