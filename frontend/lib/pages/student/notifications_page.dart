@@ -22,6 +22,8 @@ class _NotificationsPageState extends State<NotificationsPage> {
     _load();
   }
 
+  // Fetches all Module 3 (fee/restriction/payment) notifications for the
+  // authenticated student from the backend and populates _notifications.
   Future<void> _load() async {
     setState(() { _loading = true; _error = null; });
     try {
@@ -41,6 +43,9 @@ class _NotificationsPageState extends State<NotificationsPage> {
     }
   }
 
+  // Marks all unread notifications as read in the backend, then optimistically
+  // updates _notifications in state so the UI reflects the change immediately
+  // without waiting for a full reload. Silently ignores network errors.
   Future<void> _markAllRead() async {
     try {
       await widget.controller.apiService.markAllNotificationsRead(
@@ -54,6 +59,9 @@ class _NotificationsPageState extends State<NotificationsPage> {
     } catch (_) {}
   }
 
+  // Marks a single notification (identified by [id]) as read in the backend,
+  // then optimistically updates that entry in _notifications so the blue
+  // unread indicator disappears immediately. Silently ignores network errors.
   Future<void> _markRead(int id) async {
     try {
       await widget.controller.apiService.markNotificationRead(
@@ -213,6 +221,9 @@ class _NotificationsPageState extends State<NotificationsPage> {
     );
   }
 
+  // Converts an ISO 8601 timestamp string to a human-readable relative label
+  // (e.g. "Just now", "5m ago", "3h ago", "2d ago", or "15 Jun 2025").
+  // Used on each notification card to show when it was created.
   String _timeAgo(String iso) {
     try {
       final dt   = DateTime.parse(iso).toLocal();

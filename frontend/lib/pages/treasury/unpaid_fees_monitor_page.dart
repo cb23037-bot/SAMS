@@ -27,6 +27,9 @@ class _UnpaidFeesMonitorPageState extends State<UnpaidFeesMonitorPage> {
     _load();
   }
 
+  // Fetches all students with Unpaid or Partial fees from the backend.
+  // Each entry is a student summary with total balance, earliest due date,
+  // and whether they are currently under an active financial restriction.
   Future<void> _load() async {
     setState(() { _loading = true; _error = null; });
     try {
@@ -39,6 +42,11 @@ class _UnpaidFeesMonitorPageState extends State<UnpaidFeesMonitorPage> {
     }
   }
 
+  // Toggles the financial restriction for the student in [fee].
+  // If [isRestricted] is true, calls liftRestriction(); otherwise calls applyRestriction().
+  // Shows the student's userId in the processing set so the row's button shows a spinner.
+  // On ALREADY_RESTRICTED or "No active restriction" errors, silently refreshes the list
+  // (the state changed elsewhere). Other errors show a red snackbar with a Retry action.
   Future<void> _toggleRestriction(Map<String, dynamic> fee, bool isRestricted) async {
     final userId = fee['user_id'] as int;
     setState(() => _processing.add(userId));

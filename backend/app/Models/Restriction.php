@@ -22,6 +22,9 @@ class Restriction extends Model
         return $this->belongsTo(Student::class);
     }
 
+    // Returns true if the user identified by $userId currently has an active
+    // financial restriction, false otherwise (including if no student profile exists).
+    // Accepts a User ID (not a Student ID) so callers don't need a separate lookup.
     public static function isRestricted(int $userId): bool
     {
         $student = Student::where('user_id', $userId)->first();

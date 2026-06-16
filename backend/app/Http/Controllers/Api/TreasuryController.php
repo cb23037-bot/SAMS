@@ -19,6 +19,7 @@ use Illuminate\Support\Str;
 
 class TreasuryController extends Controller
 {
+    // Aborts with 403 if the authenticated user does not have the 'treasury' role.
     protected function requireTreasury(Request $request): void
     {
         if ($request->user()->role !== 'treasury') {
@@ -26,6 +27,9 @@ class TreasuryController extends Controller
         }
     }
 
+    // Logs the exception and returns a standard 500 JSON error response.
+    // Accepts an optional $code string to select a more specific error message
+    // (e.g. 'RESTRICTION_ERROR' returns a restriction-specific message).
     private function dbError(\Exception $e, string $code = 'DB_ERROR'): JsonResponse
     {
         Log::error("TreasuryController [{$code}]: " . $e->getMessage());
@@ -41,6 +45,11 @@ class TreasuryController extends Controller
 
     // ── Dashboard / Stats ─────────────────────────────────────────────────────
 
+    // GET /api/treasury/dashboard
+    // Returns high-level financial statistics for the treasury dashboard:
+    // total fees, total paid, total unpaid, number of unpaid records,
+    // number of active restrictions, current semester week, and the 5 most
+    // recent successful payments. Only accessible to users with role 'treasury'.
     public function dashboard(Request $request): JsonResponse
     {
         $this->requireTreasury($request);
@@ -89,6 +98,10 @@ class TreasuryController extends Controller
         }
     }
 
+    // GET /api/treasury/stats
+    // Returns a simplified statistics snapshot: student counts, paid/unpaid counts,
+    // total money collected, total outstanding, and the 5 most recent transactions.
+    // Used for the treasury stats widget on the dashboard.
     public function stats(): JsonResponse
     {
         $totalStudents    = Student::count();
@@ -122,6 +135,11 @@ class TreasuryController extends Controller
 
     // ── Fee Records ───────────────────────────────────────────────────────────
 
+    // GET /api/treasury/fees
+    // Returns all student fee records, with optional 'search' (student name or
+    // matric number) and 'status' (Paid/Unpaid/Partial) query parameters.
+    // Results are sorted so unpaid fees appear first, then partial, then paid,
+    // and within each group by due date ascending.
     public function feeRecords(Request $request): JsonResponse
     {
         $this->requireTreasury($request);
@@ -149,6 +167,10 @@ class TreasuryController extends Controller
         }
     }
 
+    // GET /api/treasury/fees/{fee}
+    // Returns the full detail of a single fee record, including the student's
+    // profile, any active financial restrictions on that student, and the full
+    // payment history for this fee. Only accessible to treasury users.
     public function feeDetail(Request $request, Fee $fee): JsonResponse
     {
         $this->requireTreasury($request);
@@ -194,6 +216,12 @@ class TreasuryController extends Controller
         }
     }
 
+    // POST /api/treasury/fees/{fee}/pay
+    // Records a manual payment against the given fee on behalf of the treasury.
+    // Accepts 'amount' (required, numeric >= 0) and 'remarks' (optional string).
+    // Creates a Payment record with method 'Manual', a random reference number,
+    // and a Transaction record to log any remarks. Recalculates the fee status
+    // (Unpaid/Partial/Paid) after posting. Returns the updated fee row.
     public function updateRecord(Request $request, Fee $fee): JsonResponse
     {
         $this->requireTreasury($request);
@@ -230,6 +258,12 @@ class TreasuryController extends Controller
 
     // ── Unpaid Monitor ────────────────────────────────────────────────────────
 
+    // GET /api/treasury/unpaid
+    // Returns a grouped list of students who have at least one Unpaid or Partial
+    // fee. Each entry aggregates all outstanding fees for that student into a
+    // single summary: total balance, total amount, earliest due date, semester
+    // list, and whether the student is currently under an active restriction.
+    // Uses a pre-fetched set of restricted student IDs for efficient O(1) lookup.
     public function unpaid(Request $request): JsonResponse
     {
         $this->requireTreasury($request);
@@ -282,6 +316,13 @@ class TreasuryController extends Controller
 
     // ── Restriction Management ────────────────────────────────────────────────
 
+    // POST /api/treasury/restrict/{userId}
+    // Places an active 'financial_bar' restriction on the student identified by
+    // $userId. Returns 409 if the student is already restricted.
+    // On success: creates a Restriction record and sends a 'restriction'
+    // notification to the student with the outstanding balance and semester.
+    // The notification is fire-and-forget — a failure is logged but does not
+    // roll back the restriction.
     public function restrict(Request $request, int $userId): JsonResponse
     {
         $this->requireTreasury($request);
@@ -336,6 +377,12 @@ class TreasuryController extends Controller
         return response()->json(['restriction' => $this->restrictionArray($r)], 201);
     }
 
+    // POST /api/treasury/lift/{userId}
+    // Lifts all active 'financial_bar' restrictions on the student identified by
+    // $userId. Sets status to 'Lifted', records the lifted date and the ID of
+    // the treasury user performing the action. Returns 404 if no active
+    // restriction exists. On success, sends an 'access_restored' notification
+    // to the student. Notification failure is logged but does not undo the lift.
     public function lift(Request $request, int $userId): JsonResponse
     {
         $this->requireTreasury($request);
@@ -376,6 +423,9 @@ class TreasuryController extends Controller
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
+    // Converts a Fee model into a flat summary array for treasury list views.
+    // Includes student name, matric number, and user ID so the frontend can
+    // link to the student's profile without a separate lookup.
     private function feeRow(Fee $fee): array
     {
         $user = $fee->student->user ?? null;
@@ -395,6 +445,8 @@ class TreasuryController extends Controller
         ];
     }
 
+    // Converts a Restriction model into a small array for API responses.
+    // Returns just the fields the frontend needs to display or act on a restriction.
     private function restrictionArray(Restriction $r): array
     {
         return [

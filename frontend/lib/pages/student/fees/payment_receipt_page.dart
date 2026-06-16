@@ -36,6 +36,10 @@ class _PaymentReceiptPageState extends State<PaymentReceiptPage> {
     _load();
   }
 
+  // Fetches receipt data for the given paymentId from the backend.
+  // Populates _receipt with a map containing student info, payment details,
+  // fee breakdown, and any sponsor deductions. If isNewPayment is true,
+  // shows a snackbar after load to confirm the notification was sent.
   Future<void> _load() async {
     setState(() { _loading = true; _error = null; });
     try {
@@ -65,6 +69,9 @@ class _PaymentReceiptPageState extends State<PaymentReceiptPage> {
     }
   }
 
+  // Generates the receipt PDF via _buildReceiptPdf() and triggers the platform
+  // share sheet so the student can save or send it. Shows an error snackbar
+  // if PDF generation fails. Uses the transaction ID as the filename.
   Future<void> _downloadReceipt() async {
     if (_receipt == null) return;
     try {
@@ -79,6 +86,9 @@ class _PaymentReceiptPageState extends State<PaymentReceiptPage> {
     }
   }
 
+  // Sends the receipt PDF to the platform's print dialog using the
+  // 'printing' package. Silently swallows any error so the UI does not crash
+  // on devices where printing is unsupported.
   Future<void> _printReceipt() async {
     if (_receipt == null) return;
     try {
@@ -86,6 +96,11 @@ class _PaymentReceiptPageState extends State<PaymentReceiptPage> {
     } catch (_) {}
   }
 
+  // Builds and returns a PDF byte array of the payment receipt using the
+  // 'pdf' package. The layout mirrors the on-screen receipt card: header,
+  // student info, payment details, fee items with sponsor deductions, and a
+  // verification footer. Sponsor amounts are shown as negative line items.
+  // Returns the raw bytes of the generated PDF file.
   Future<Uint8List> _buildReceiptPdf() async {
     final r               = _receipt!;
     final student         = r['student']  as Map<String, dynamic>;
@@ -278,12 +293,18 @@ class _PaymentReceiptPageState extends State<PaymentReceiptPage> {
     return '${neg ? '- ' : ''}RM $whole.${parts[1]}';
   }
 
+  // Converts a monetary amount to a human-readable words string for the receipt
+  // (e.g. "Ringgit Malaysia: One Thousand Two Hundred Fifty Only").
+  // Only uses the whole-number (rounded) part; cents are not spelled out.
   String _amountInWords(double amount) {
     final whole = amount.abs().round();
     if (whole == 0) return 'Ringgit Malaysia: Zero Only';
     return 'Ringgit Malaysia: ${_numToWords(whole)} Only';
   }
 
+  // Recursive helper that converts an integer to English words.
+  // Handles values up to the millions. Returns empty string for n = 0
+  // (the caller in _amountInWords handles the zero case explicitly).
   static String _numToWords(int n) {
     if (n == 0) return '';
     const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven',

@@ -54,6 +54,10 @@ class _ManageFeesDashboardPageState extends State<ManageFeesDashboardPage>
     super.dispose();
   }
 
+  // Loads fees, restriction status, and sponsor data in parallel.
+  // Sets _feesData (fee list + summary), _isRestricted (true if a financial
+  // restriction is active), and _sponsors. Shows the restriction alert banner
+  // when _isRestricted is true, without needing to scan notification data.
   Future<void> _load() async {
     setState(() { _loading = true; _error = null; });
     try {
@@ -73,6 +77,9 @@ class _ManageFeesDashboardPageState extends State<ManageFeesDashboardPage>
     }
   }
 
+  // Lazily loads the ledger (transaction history) when the History tab is
+  // first opened. Only called once; subsequent tab switches reuse _transactions.
+  // Sets _ledgerLoaded = true so repeated tab switches don't re-fetch.
   Future<void> _loadLedger() async {
     setState(() => _ledgerLoading = true);
     try {
@@ -89,13 +96,17 @@ class _ManageFeesDashboardPageState extends State<ManageFeesDashboardPage>
     }
   }
 
-  // All unpaid/partial fees
+  // Returns all fees that are not yet fully paid (status != 'paid').
+  // Used to determine whether to show the Pay Now button and to populate the
+  // fee selection sheet when there are multiple outstanding fees.
   List<Map<String, dynamic>> get _unpaidFees {
     final fees = (_feesData?['fees'] as List?)?.cast<Map<String, dynamic>>() ?? [];
     return fees.where((f) => f['status'] != 'paid').toList();
   }
 
-  // Earliest unpaid due date
+  // Returns the earliest due date across all unpaid/partial fees, formatted
+  // as "D Mon YYYY" (e.g. "15 Jun 2025"). Returns '-' if there are no
+  // outstanding fees. Shown in the hero section to highlight urgency.
   String get _deadline {
     final unpaid = _unpaidFees;
     if (unpaid.isEmpty) return '-';
@@ -110,6 +121,10 @@ class _ManageFeesDashboardPageState extends State<ManageFeesDashboardPage>
     }
   }
 
+  // Handles the "Pay Now" button tap.
+  // If there is only one unpaid fee, navigates directly to MakePaymentPage.
+  // If there are multiple unpaid fees, shows a bottom sheet so the student
+  // can choose which fee to pay first.
   void _goPayNow() {
     final unpaid = _unpaidFees;
     if (unpaid.isEmpty) return;
@@ -136,6 +151,9 @@ class _ManageFeesDashboardPageState extends State<ManageFeesDashboardPage>
     );
   }
 
+  // Pushes MakePaymentPage for the given fee map.
+  // Reloads the dashboard on return so the balance and status reflect
+  // any payment that was just made.
   void _navigateToPayment(Map<String, dynamic> fee) {
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => MakePaymentPage(
@@ -147,6 +165,10 @@ class _ManageFeesDashboardPageState extends State<ManageFeesDashboardPage>
     )).then((_) => _load());
   }
 
+  // Handles the "View Fee Details" button tap.
+  // If there is only one fee record, navigates directly to FeeDetailsPage.
+  // If there are multiple fee records, shows a bottom sheet so the student
+  // can select which fee to inspect. Reloads data on return.
   void _goViewDetails() {
     final allFees = (_feesData?['fees'] as List?)
             ?.cast<Map<String, dynamic>>() ??
