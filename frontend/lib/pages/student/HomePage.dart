@@ -11,6 +11,28 @@ import 'SubjectRegistrationPage.dart';
 import 'fees/manage_fees_dashboard_page.dart';
 import '../../utils/restriction_checker.dart';
 
+// ════════════════════════════════════════════════════════════════════════════
+// Halaman utama pelajar selepas log masuk (Module 2 & lain-lain).
+//
+// Fail ini bertindak sebagai mini-router untuk bahagian pelajar — ia memiliki
+// NavigationBar bawah (Home / Notification / Attend / Profile) dan menukar
+// kandungan badan antara skrin-skrin berikut tanpa menggunakan named routes:
+//   - Dashboard Home              : papar kad aktiviti, kehadiran & KoQ booking
+//   - StudentCurriculumContent    : Module 2 — aktiviti kurikulum & tuntutan kredit
+//   - KoQBookingContent           : tempah slot KoQ (ModuleBookingPage)
+//   - StudentAttendancePage       : kehadiran kelas (Module 3)
+//   - StudentNotificationsPage    : notifikasi
+//   - EditProfilePage             : edit profil pelajar
+//
+// Struktur kelas dalam fail ini:
+//   StudentHomePage       : halaman utama + NavigationBar + penukaran skrin
+//   _InfoRow              : baris ikon + teks untuk paparan maklumat ringkas
+//   _MiniBrandMark        : logo UMPSA kecil dalam header kad
+//   _WelcomeCard          : kad selamat datang dengan nama & maklumat pelajar
+//   _AccessClosedDialog   : dialog amaran apabila akses sistem ditutup Pusat Adab
+//   _ActionCard           : kad navigasi ke modul-modul utama di dashboard
+// ════════════════════════════════════════════════════════════════════════════
+
 /// Top-level home page shown to authenticated students.
 ///
 /// Acts as a mini-router for the student-facing portion of the app: it owns
