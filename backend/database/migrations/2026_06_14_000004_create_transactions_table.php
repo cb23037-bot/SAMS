@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('transactions', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('payment_id')->constrained('payments')->cascadeOnDelete();
+            $table->unsignedBigInteger('payment_id')->nullable();
             $table->string('gateway_reference', 255)->unique()->nullable();
             $table->string('gateway_status', 50)->nullable();
             $table->json('payload')->nullable();

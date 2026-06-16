@@ -1,3 +1,20 @@
+/// Wraps the backend response from POST /lecturer/attendance/sessions/start.
+///
+/// The backend returns HTTP 201 for a new session and HTTP 200 (with the same
+/// body shape) when a session is already active. [alreadyActive] distinguishes
+/// the two cases so the UI can surface an appropriate message.
+class StartSessionResult {
+  const StartSessionResult({
+    required this.session,
+    required this.alreadyActive,
+  });
+
+  final AttendanceSessionModel session;
+
+  /// True when the backend returned an existing active session (HTTP 200).
+  final bool alreadyActive;
+}
+
 /// Represents an attendance session opened by a lecturer for a class.
 ///
 /// A session is created when the lecturer taps "Start Attendance Session"

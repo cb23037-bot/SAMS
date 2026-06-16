@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -93,6 +94,40 @@ class ApiService {
 
       final json = _decodeJson(response.body, response.statusCode);
       if (response.statusCode >= 200 && response.statusCode < 300) return json;
+      throw Exception(_extractMessage(json));
+    } on http.ClientException {
+      throw Exception('Unable to connect to the server. Make sure the backend is running.');
+    } finally {
+      client.close();
+    }
+  }
+
+  /// Like [_request] but also returns the HTTP status code.
+  Future<({int statusCode, Map<String, dynamic> json})> _requestWithStatus({
+    required String method,
+    required String path,
+    String? token,
+    Map<String, dynamic>? body,
+  }) async {
+    final client = http.Client();
+    try {
+      final uri = Uri.parse('${_baseUrl()}$path');
+      final headers = <String, String>{
+        'Accept': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+        if (body != null) 'Content-Type': 'application/json',
+      };
+      http.Response response;
+      switch (method) {
+        case 'POST':
+          response = await client.post(uri, headers: headers, body: body != null ? jsonEncode(body) : null);
+        default:
+          throw Exception('Unsupported method: $method');
+      }
+      final json = _decodeJson(response.body, response.statusCode);
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return (statusCode: response.statusCode, json: json);
+      }
       throw Exception(_extractMessage(json));
     } on http.ClientException {
       throw Exception('Unable to connect to the server. Make sure the backend is running.');
@@ -964,17 +999,20 @@ class ApiService {
   }
 
   /// Starts (or resumes) an attendance session for a class schedule.
-  Future<AttendanceSessionModel> startAttendanceSession({
+  Future<StartSessionResult> startAttendanceSession({
     required String token,
     required int scheduleId,
   }) async {
-    final json = await _request(
+    final result = await _requestWithStatus(
       method: 'POST',
       path: '/lecturer/attendance/sessions/start',
       token: token,
       body: {'schedule_id': scheduleId},
     );
-    return AttendanceSessionModel.fromJson(json['session'] as Map<String, dynamic>);
+    return StartSessionResult(
+      session: AttendanceSessionModel.fromJson(result.json['session'] as Map<String, dynamic>),
+      alreadyActive: result.statusCode == 200,
+    );
   }
 
   /// Generates a new attendance code for an active session.
@@ -1099,6 +1137,11 @@ class ApiService {
 
   /// Returns the correct base URL depending on the platform.
   String _baseUrl() {
+    // Android emulator routes to host via 10.0.2.2; physical devices and other
+    // platforms use the host machine's LAN IP or localhost.
+    if (!kIsWeb && Platform.isAndroid) {
+      return 'http://10.62.81.214:8000/api';
+    }
     return 'http://127.0.0.1:8000/api';
   }
 

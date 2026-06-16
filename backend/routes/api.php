@@ -115,7 +115,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/attendance/sessions/{sessionId}/record', [LecturerAttendanceController::class, 'viewRecord']);
 
         // --- Attendance Reports (Lecturer) ---
-        Route::get('/attendance/report/filters', [AttendanceReportController::class, 'getReportFilters']);
+        Route::get('/attendance/report/filters', [AttendanceReportController::class, 'getFilters']);
         Route::get('/attendance/report', [AttendanceReportController::class, 'generateReport']);
         Route::get('/attendance/report/download', [AttendanceReportController::class, 'downloadReport']);
     });
