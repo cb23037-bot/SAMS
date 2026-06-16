@@ -3,22 +3,42 @@ import 'package:flutter/material.dart';
 import '../../app/app_controller.dart';
 import '../../models/activity_registration.dart';
 
+/// Embedded widget — no Scaffold. Used inside [StudentHomePage] for the
+/// "Notification" tab.
+///
+/// Shows the student's activity registrations that have a status update
+/// (claimed/pending/rejected); fresh "not_claimed" registrations are
+/// excluded since there's nothing to notify about yet. Tapping a card
+/// navigates back to the Curriculum Activity page via [onOpenActivity].
 class StudentNotificationsContent extends StatefulWidget {
   const StudentNotificationsContent({
     super.key,
     required this.controller,
     required this.lastViewed,
+    required this.onOpenActivity,
   });
 
   final AppController controller;
+
+  /// Timestamp of when the student last opened this tab. Registrations
+  /// updated after this time are considered "new" (see [_isNew]).
+  /// Null means the tab has never been viewed, so everything is "new".
   final DateTime? lastViewed;
+
+  /// Called when the student taps a notification card — navigates to the
+  /// related activity registration on the Curriculum Activity page.
+  final void Function(ActivityRegistration reg) onOpenActivity;
 
   @override
   State<StudentNotificationsContent> createState() => _StudentNotificationsContentState();
 }
 
 class _StudentNotificationsContentState extends State<StudentNotificationsContent> {
+  /// The student's registrations with a status update, sorted newest-first.
+  /// Null while [_load] hasn't completed yet (shows a loading spinner).
   List<ActivityRegistration>? _registrations;
+
+  /// Error message from the last failed [_load] call, or null if no error.
   String? _error;
 
   @override
@@ -27,6 +47,9 @@ class _StudentNotificationsContentState extends State<StudentNotificationsConten
     _load();
   }
 
+  /// Fetches the student's registrations, keeps only those with a status
+  /// update (excludes 'not_claimed'), and sorts them newest-first by
+  /// [ActivityRegistration.updatedAt].
   Future<void> _load() async {
     setState(() { _error = null; });
     try {
@@ -45,6 +68,8 @@ class _StudentNotificationsContentState extends State<StudentNotificationsConten
     }
   }
 
+  /// True if [reg] was updated after [widget.lastViewed] (or if the tab has
+  /// never been viewed). Drives the "new" badge/dot shown on each card.
   bool _isNew(ActivityRegistration reg) {
     final lastViewed = widget.lastViewed;
     if (lastViewed == null) return true;
@@ -53,9 +78,13 @@ class _StudentNotificationsContentState extends State<StudentNotificationsConten
     return DateTime.tryParse(updatedAt)?.isAfter(lastViewed) ?? false;
   }
 
+  /// Builds the title row (with a "X new" badge if applicable) and the
+  /// body, which switches between a loading spinner, error view, empty
+  /// state, or the list of notification cards.
   @override
   Widget build(BuildContext context) {
     final regs = _registrations;
+    // Count how many of the loaded registrations are unseen, for the badge.
     final newCount = regs?.where(_isNew).length ?? 0;
 
     return Column(
@@ -141,6 +170,7 @@ class _StudentNotificationsContentState extends State<StudentNotificationsConten
                             itemBuilder: (_, i) => _NotifCard(
                               reg: regs[i],
                               isNew: _isNew(regs[i]),
+                              onTap: () => widget.onOpenActivity(regs[i]),
                             ),
                           ),
                         ),
@@ -152,11 +182,18 @@ class _StudentNotificationsContentState extends State<StudentNotificationsConten
 
 // ── Notification card ──────────────────────────────────────────────────────────
 
+/// Single notification card showing the activity name/code, a status icon
+/// and badge (resolved via [_resolveStyle]), a status message, the
+/// rejection reason if applicable, and a relative timestamp.
+///
+/// Shows an unread dot when [isNew] is true. Tapping the card calls [onTap]
+/// to navigate to the related registration on the Curriculum Activity page.
 class _NotifCard extends StatelessWidget {
-  const _NotifCard({required this.reg, required this.isNew});
+  const _NotifCard({required this.reg, required this.isNew, required this.onTap});
 
   final ActivityRegistration reg;
   final bool isNew;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -175,7 +212,10 @@ class _NotifCard extends StatelessWidget {
           BoxShadow(color: Color(0x0D0D1B2A), blurRadius: 12, offset: Offset(0, 4)),
         ],
       ),
-      child: Padding(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
         padding: const EdgeInsets.all(14),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -240,6 +280,38 @@ class _NotifCard extends StatelessWidget {
                     style.message,
                     style: const TextStyle(fontSize: 13, color: Color(0xFF374151), height: 1.4),
                   ),
+                  if (reg.isRejected &&
+                      reg.rejectionReason != null &&
+                      reg.rejectionReason!.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF5F5),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFFFD9DB)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Reason for rejection',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFFFF3B30),
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            reg.rejectionReason!,
+                            style: const TextStyle(fontSize: 13, color: Color(0xFF374151), height: 1.4),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 8),
                   if (updatedAt != null)
                     Text(
@@ -251,10 +323,13 @@ class _NotifCard extends StatelessWidget {
             ),
           ],
         ),
+        ),
       ),
     );
   }
 
+  /// Maps [reg.claimStatus] ('claimed' | 'pending' | 'rejected' | other) to
+  /// the icon, colors, badge label, and message text shown on the card.
   _NotifStyle _resolveStyle() {
     switch (reg.claimStatus) {
       case 'claimed':
@@ -307,6 +382,8 @@ class _NotifCard extends StatelessWidget {
     }
   }
 
+  /// Formats [dt] as a relative time ("Just now", "5 min ago", "2 days ago")
+  /// followed by an absolute date/time, e.g. "2 days ago  •  Jun 12, 2026  •  3:45 PM".
   String _formatRelative(DateTime dt) {
     final now = DateTime.now();
     final diff = now.difference(dt);
@@ -337,6 +414,8 @@ class _NotifCard extends StatelessWidget {
   }
 }
 
+/// Visual styling for a [_NotifCard], resolved by [_NotifCard._resolveStyle]
+/// based on the registration's claim status.
 class _NotifStyle {
   const _NotifStyle({
     required this.icon,
@@ -357,6 +436,8 @@ class _NotifStyle {
   final String message;
 }
 
+/// Small rounded "pill" label (e.g. "Approved", "Pending", "Rejected")
+/// shown in the top-right corner of a [_NotifCard].
 class _StatusBadge extends StatelessWidget {
   const _StatusBadge({required this.label, required this.bg, required this.fg});
 

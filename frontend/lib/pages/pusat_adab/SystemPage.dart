@@ -5,6 +5,13 @@ import 'AdabNotificationsPage.dart';
 import 'ActivityFormPage.dart';
 import 'CreditClaimPage.dart';
 
+/// Pusat Adab staff home/dashboard page.
+///
+/// Shows summary statistics (total activities, pending/approved/rejected
+/// credit claims), a student-access toggle ([_AccessControlCard]), and
+/// navigation cards into [CurriculumActivitiesPage] (activity management)
+/// and [ManageClaimsPage] (credit claim review). Also surfaces a badge for
+/// pending notifications via [AdabNotificationsPage].
 class PusatAdabDashboardPage extends StatefulWidget {
   const PusatAdabDashboardPage({super.key, required this.controller});
 
@@ -15,12 +22,27 @@ class PusatAdabDashboardPage extends StatefulWidget {
 }
 
 class _PusatAdabDashboardPageState extends State<PusatAdabDashboardPage> {
+  /// Total number of curriculum activities in the system.
   int  _totalActivities = 0;
+
+  /// Number of credit claims currently pending review.
   int  _pending         = 0;
+
+  /// Number of credit claims that have been approved.
   int  _approved        = 0;
+
+  /// Number of credit claims that have been rejected.
   int  _rejected        = 0;
+
+  /// True while the dashboard stats and access state are being fetched.
   bool _loading         = true;
+
+  /// Whether students currently have access to module registration and
+  /// credit claims. Reflects the backend's global access flag.
   bool _accessOpen      = true;
+
+  /// True while [_toggleAccess] is awaiting the API response, used to
+  /// show a spinner and disable the toggle button.
   bool _accessToggling  = false;
 
   @override
@@ -29,6 +51,12 @@ class _PusatAdabDashboardPageState extends State<PusatAdabDashboardPage> {
     _loadStats();
   }
 
+  /// Loads the dashboard stats (activity/claim counts) and the current
+  /// student access state in parallel.
+  ///
+  /// Errors are swallowed so the dashboard keeps showing the last known
+  /// values rather than an error screen — this page is refreshable via
+  /// pull-to-refresh, so a transient failure isn't critical.
   Future<void> _loadStats() async {
     setState(() => _loading = true);
     try {
@@ -51,6 +79,8 @@ class _PusatAdabDashboardPageState extends State<PusatAdabDashboardPage> {
     }
   }
 
+  /// Opens [AdabNotificationsPage] and refreshes the dashboard stats when
+  /// the user returns, so the pending-claims badge stays accurate.
   Future<void> _openNotifications() async {
     await Navigator.of(context).push(
       MaterialPageRoute(
@@ -60,6 +90,12 @@ class _PusatAdabDashboardPageState extends State<PusatAdabDashboardPage> {
     _loadStats(); // refresh pending count badge when returning
   }
 
+  /// Opens or closes student access to module registration and credit
+  /// claims via [AppController.apiService.setAdabAccess].
+  ///
+  /// [_accessOpen] is only updated to the value the backend confirms
+  /// (`result`), not optimistically to [open], so the UI always reflects
+  /// the server's actual state even if the request is rejected.
   Future<void> _toggleAccess(bool open) async {
     setState(() => _accessToggling = true);
     try {
@@ -128,6 +164,7 @@ class _PusatAdabDashboardPageState extends State<PusatAdabDashboardPage> {
                   iconBackground: const Color(0xFFFFEDEE),
                 ),
               const SizedBox(height: 18),
+              // Lets staff open/close student access system-wide.
               _AccessControlCard(
                 accessOpen: _accessOpen,
                 toggling:   _accessToggling,
@@ -135,6 +172,7 @@ class _PusatAdabDashboardPageState extends State<PusatAdabDashboardPage> {
                 onClose:    () => _toggleAccess(false),
               ),
               const SizedBox(height: 18),
+              // Navigation card into activity management.
               _ManagementCard(
                 title: 'Manage Curriculum Activities',
                 description:
@@ -150,6 +188,7 @@ class _PusatAdabDashboardPageState extends State<PusatAdabDashboardPage> {
                 ),
               ),
               const SizedBox(height: 18),
+              // Navigation card into credit claim review.
               _ManagementCard(
                 title: 'Manage Credit Claims',
                 description:
@@ -173,6 +212,8 @@ class _PusatAdabDashboardPageState extends State<PusatAdabDashboardPage> {
   }
 }
 
+/// Dashboard header: brand mark, page title, a notifications button
+/// (with a badge showing [pendingCount]), and a logout button.
 class _HeaderCard extends StatelessWidget {
   const _HeaderCard({
     required this.controller,
@@ -181,7 +222,12 @@ class _HeaderCard extends StatelessWidget {
   });
 
   final AppController controller;
+
+  /// Number of pending credit claims, shown as a red badge on the
+  /// notifications button. Hidden entirely when zero.
   final int pendingCount;
+
+  /// Called when the notifications button is tapped.
   final VoidCallback onNotifTap;
 
   @override
@@ -312,6 +358,8 @@ class _HeaderCard extends StatelessWidget {
   }
 }
 
+/// Small rounded container showing the UMPSA logo at the top of
+/// [_HeaderCard].
 class _DashboardBrandMark extends StatelessWidget {
   const _DashboardBrandMark();
 
@@ -330,6 +378,9 @@ class _DashboardBrandMark extends StatelessWidget {
   }
 }
 
+/// Generic dashboard summary card: a title, a large value, and an icon
+/// badge. Used for the activity/claim count tiles (total activities,
+/// pending/approved/rejected claims).
 class _StatCard extends StatelessWidget {
   const _StatCard({
     required this.title,
@@ -340,6 +391,8 @@ class _StatCard extends StatelessWidget {
   });
 
   final String title;
+
+  /// Display value, e.g. a formatted count or "—" while loading.
   final String value;
   final IconData icon;
   final Color iconColor;
@@ -401,6 +454,13 @@ class _StatCard extends StatelessWidget {
   }
 }
 
+/// Card that shows and controls the system-wide student access toggle.
+///
+/// Displays an OPEN/CLOSED status badge and a description of the current
+/// state. The action button switches based on [accessOpen]: shows
+/// "Close Access" when open, or "Open Access" when closed. While
+/// [toggling] is true, a spinner replaces the button to prevent
+/// double-taps during the API call.
 class _AccessControlCard extends StatelessWidget {
   const _AccessControlCard({
     required this.accessOpen,
@@ -409,9 +469,18 @@ class _AccessControlCard extends StatelessWidget {
     required this.onClose,
   });
 
+  /// Whether students currently have access to registration/credit claims.
   final bool accessOpen;
+
+  /// True while an access-toggle API call is in flight.
   final bool toggling;
+
+  /// Called when the "Open Access" button is tapped (only shown when
+  /// access is currently closed).
   final VoidCallback onOpen;
+
+  /// Called when the "Close Access" button is tapped (only shown when
+  /// access is currently open).
   final VoidCallback onClose;
 
   @override
@@ -560,6 +629,9 @@ class _AccessControlCard extends StatelessWidget {
   }
 }
 
+/// Navigation card linking to a management section (curriculum activities
+/// or credit claims). Shows a title, description, icon, and a full-width
+/// action button that triggers [onPressed] (typically a page push).
 class _ManagementCard extends StatelessWidget {
   const _ManagementCard({
     required this.title,
@@ -574,9 +646,16 @@ class _ManagementCard extends StatelessWidget {
   final String title;
   final String description;
   final IconData icon;
+
+  /// Color used for the leading icon.
   final Color accentColor;
   final String buttonLabel;
+
+  /// Background color of the action button.
   final Color buttonColor;
+
+  /// Called when the action button is tapped — typically navigates to
+  /// the corresponding management page.
   final VoidCallback onPressed;
 
   @override

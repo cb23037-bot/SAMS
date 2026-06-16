@@ -7,6 +7,12 @@ import '../models/activity.dart';
 import '../models/activity_registration.dart';
 import '../models/activity_slot.dart';
 import '../models/app_user.dart';
+import '../models/attendance_report.dart';
+import '../models/attendance_session.dart';
+import '../models/class_attendance_submission.dart';
+import '../models/class_schedule.dart';
+import '../app/app_controller.dart';
+import 'package:http/http.dart' as http;
 
 /// Handles all HTTP communication between the Flutter app and the Laravel backend.
 ///
@@ -17,7 +23,31 @@ import '../models/app_user.dart';
 /// File uploads (proof PDF, attendance photo) use multipart/form-data manually
 /// because Dart's native [HttpClient] does not have a built-in multipart helper.
 class ApiService {
-  // ── Shared request helper ──────────────────────────────────────────────────
+  // ── Controller link ────────────────────────────────────────────────────────
+
+  /// Optional back-reference to the [AppController], set via [setController].
+  /// Lets newer endpoints (academic sessions, subject registration) read the
+  /// current Bearer token without it being passed explicitly on every call.
+  AppController? _controller;
+
+  /// Links this service to the app's [AppController] so [_controller] —
+  /// and therefore the current auth token — becomes available.
+  void setController(AppController controller) {
+    _controller = controller;
+  }
+
+  /// Builds standard JSON headers, including the Bearer token from
+  /// [_controller] if one has been linked via [setController].
+  Future<Map<String, String>> getHeaders() async {
+    final token = _controller?.token;
+    return {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': 'Bearer ${token ?? ''}',
+    };
+  }
+
+  // ── Shared request helpers ─────────────────────────────────────────────────
 
   /// Generic HTTP request handler used by all non-file-upload methods.
   ///
@@ -74,7 +104,7 @@ class ApiService {
       final raw = await response.transform(utf8.decoder).join();
 
       // Some endpoints return an empty body (e.g. DELETE), handle gracefully
-      final json = raw.isEmpty ? <String, dynamic>{} : jsonDecode(raw) as Map<String, dynamic>;
+      final json = _decodeJson(raw, response.statusCode);
 
       // 2xx = success; anything else is an API error
       if (response.statusCode >= 200 && response.statusCode < 300) return json;
@@ -85,6 +115,41 @@ class ApiService {
       throw Exception('Unable to connect to the server. Make sure the backend is running.');
     } finally {
       // Always close the client to free socket resources
+      client.close(force: true);
+    }
+  }
+
+  /// Like [_request], but for GET endpoints whose JSON response is a top-level
+  /// list (e.g. `/academic-sessions`, `/subjects`) rather than an object.
+  Future<List<dynamic>> _requestList({
+    required String path,
+    String? token,
+  }) async {
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 15)
+      ..idleTimeout = const Duration(seconds: 15);
+
+    try {
+      final uri = Uri.parse('${_baseUrl()}$path');
+      final req = await client.getUrl(uri);
+
+      if (token != null) {
+        req.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
+      }
+
+      final response = await req.close();
+      final raw = await response.transform(utf8.decoder).join();
+      final decoded = raw.isEmpty ? <dynamic>[] : jsonDecode(raw);
+
+      if (response.statusCode >= 200 && response.statusCode < 300 && decoded is List) {
+        return decoded;
+      }
+
+      if (decoded is Map<String, dynamic>) throw Exception(_extractMessage(decoded));
+      throw Exception('Unexpected response from server.');
+    } on SocketException {
+      throw Exception('Unable to connect to the server. Make sure the backend is running.');
+    } finally {
       client.close(force: true);
     }
   }
@@ -109,6 +174,30 @@ class ApiService {
   /// Called when the user taps the logout button.
   Future<void> logout({required String token}) async {
     await _request(method: 'POST', path: '/logout', token: token);
+  }
+
+  /// Requests a one-time password (OTP) be emailed to [email] so the user
+  /// can reset their password.
+  Future<void> forgotPassword({required String email}) async {
+    await _request(
+      method: 'POST',
+      path: '/forgot-password',
+      body: {'email': email},
+    );
+  }
+
+  /// Verifies the [otp] sent to [email] and sets a new [password] for the
+  /// account.
+  Future<void> resetPassword({
+    required String email,
+    required String otp,
+    required String password,
+  }) async {
+    await _request(
+      method: 'POST',
+      path: '/reset-password',
+      body: {'email': email, 'otp': otp, 'password': password},
+    );
   }
 
   // ── Profile ────────────────────────────────────────────────────────────────
@@ -209,6 +298,26 @@ class ApiService {
     final json = await _request(
       method: 'POST',
       path: '/activities/$activityId/slots',
+      token: token,
+      body: {'date': date, 'time': time, 'capacity': capacity},
+    );
+    return ActivitySlot.fromJson(json['slot'] as Map<String, dynamic>);
+  }
+
+  /// Updates the date, time, and capacity of an existing slot.
+  /// Requires both [activityId] and [slotId] because the route is nested:
+  /// PUT /activities/{activity}/slots/{slot}
+  Future<ActivitySlot> updateSlot({
+    required String token,
+    required int activityId,
+    required int slotId,
+    required String date,
+    required String time,
+    required int capacity,
+  }) async {
+    final json = await _request(
+      method: 'PUT',
+      path: '/activities/$activityId/slots/$slotId',
       token: token,
       body: {'date': date, 'time': time, 'capacity': capacity},
     );
@@ -323,8 +432,7 @@ class ApiService {
 
       final response = await req.close();
       final raw = await response.transform(utf8.decoder).join();
-      final json =
-          raw.isEmpty ? <String, dynamic>{} : jsonDecode(raw) as Map<String, dynamic>;
+      final json = _decodeJson(raw, response.statusCode);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return ActivityRegistration.fromJson(json['registration'] as Map<String, dynamic>);
@@ -405,8 +513,7 @@ class ApiService {
 
       final response = await req.close();
       final raw = await response.transform(utf8.decoder).join();
-      final json =
-          raw.isEmpty ? <String, dynamic>{} : jsonDecode(raw) as Map<String, dynamic>;
+      final json = _decodeJson(raw, response.statusCode);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final sub = json['submission'] as Map<String, dynamic>;
@@ -523,50 +630,437 @@ class ApiService {
     );
   }
 
-  /// Downloads the proof document (PDF or image) for a specific claim
-  /// as raw bytes. The bytes are then passed to the [printing] package
-  /// to let the admin view or share the file.
-  Future<Uint8List> downloadProof({
-    required String token,
-    required int registrationId,
-  }) async {
-    // Longer timeout for file downloads
+  /// Downloads the proof document (PDF) for a claim as raw bytes.
+  ///
+  /// Fetched directly from the `storage/` static path (served by Laravel's
+  /// `public/storage` symlink) instead of going through a JSON/base64
+  /// controller response — the PHP dev server truncates large JSON bodies,
+  /// but static file serving streams the full file correctly.
+  Future<Uint8List> downloadProof({required String proofPath}) async {
     final client = HttpClient()
-      ..connectionTimeout = const Duration(seconds: 30)
-      ..idleTimeout = const Duration(seconds: 30);
+      ..connectionTimeout = const Duration(seconds: 15)
+      ..idleTimeout = const Duration(seconds: 15);
 
     try {
-      final uri = Uri.parse('${_baseUrl()}/adab/claims/$registrationId/proof');
+      final uri = Uri.parse('${_storageBaseUrl()}/storage/$proofPath');
       final req = await client.getUrl(uri);
-      req.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
       final response = await req.close();
 
-      // Collect all response chunks into a single byte list
-      final chunks = await response.fold<List<int>>([], (p, c) => p..addAll(c));
-
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        return Uint8List.fromList(chunks);
+      if (response.statusCode != 200) {
+        throw Exception('Proof document not found.');
       }
-      final raw = utf8.decode(chunks);
-      final json = raw.isEmpty ? <String, dynamic>{} : jsonDecode(raw) as Map<String, dynamic>;
-      throw Exception(_extractMessage(json));
+
+      final bytes = <int>[];
+      await for (final chunk in response) {
+        bytes.addAll(chunk);
+      }
+      return Uint8List.fromList(bytes);
     } on SocketException {
-      throw Exception('Unable to connect to the server.');
+      throw Exception('Unable to connect to the server. Make sure the backend is running.');
     } finally {
       client.close(force: true);
     }
+  }
+
+  // ── Academic Sessions (Open Registration) ─────────────────────────────────
+  //
+  // NOTE: these endpoints (and /subjects, /student/subject-registrations,
+  // /lecturer/...) require backend controllers that are not part of this
+  // codebase yet (AcademicSessionController, SubjectController,
+  // SubjectRegistrationController). Calls will 404/500 until that backend
+  // work lands.
+
+  /// Creates a new academic session (e.g. "2025/2026 Semester 1").
+  Future<void> createSession(String sessionName) async {
+    await _request(
+      method: 'POST',
+      path: '/academic-sessions',
+      body: {'session_name': sessionName},
+      token: _controller?.token,
+    );
+  }
+
+  /// Deletes an academic session by [sessionId].
+  Future<void> deleteSession(int sessionId) async {
+    await _request(
+      method: 'DELETE',
+      path: '/academic-sessions/$sessionId',
+      token: _controller?.token,
+    );
+  }
+
+  /// Opens or closes subject registration for the given academic session.
+  Future<void> setRegistrationStatus(int sessionId, bool isRegistrationOpen) async {
+    try {
+      await _request(
+        method: 'POST',
+        path: '/academic-sessions/$sessionId/set-registration-status',
+        body: {
+          'is_registration_open': isRegistrationOpen ? 1 : 0,
+        },
+        token: _controller?.token,
+      );
+    } catch (e) {
+      debugPrint('Error in setRegistrationStatus: $e');
+      rethrow;
+    }
+  }
+
+  /// Fetches all academic sessions for the Faculty Registrar session
+  /// management page. Returns an empty list on error so the UI can still render.
+  Future<List<dynamic>> getAcademicSessions() async {
+    try {
+      return await _requestList(
+        path: '/academic-sessions',
+        token: _controller?.token,
+      );
+    } catch (e) {
+      debugPrint('Error in getAcademicSessions: $e');
+      return [];
+    }
+  }
+
+  /// Fetches the currently active academic session, or null if none is
+  /// active / the request fails.
+  Future<Map<String, dynamic>?> getActiveSession({required String token}) async {
+    try {
+      final url = Uri.parse('${_baseUrl()}/academic-sessions/active');
+
+      final response = await http.get(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
+
+      final contentType = response.headers['content-type'];
+      final isJson = contentType != null && contentType.contains('application/json');
+
+      if (response.statusCode == 200 && isJson) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+      debugPrint('getActiveSession: server error ${response.statusCode} — ${response.body}');
+      return null;
+    } catch (e) {
+      debugPrint('Error fetching active session: $e');
+      return null;
+    }
+  }
+
+  // ── Subjects Management ────────────────────────────────────────────────────
+
+  /// Fetches all subjects offered in the active session. Returns an empty
+  /// list on error so the UI can still render.
+  Future<List<dynamic>> getSubjects({required String token}) async {
+    try {
+      return await _requestList(path: '/subjects', token: token);
+    } catch (e) {
+      debugPrint('Error in getSubjects: $e');
+      return [];
+    }
+  }
+
+  /// Creates a new subject with its lecture and lab sections.
+  Future<void> createSubject({
+    required String token,
+    required String code,
+    required String name,
+    required int creditHours,
+    required List<Map<String, dynamic>> lectureSections,
+    required List<Map<String, dynamic>> labSections,
+  }) async {
+    await _request(
+      method: 'POST',
+      path: '/subjects',
+      token: token,
+      body: {
+        'code': code,
+        'name': name,
+        'credit_hours': creditHours,
+        'lecture_sections': lectureSections,
+        'lab_sections': labSections,
+      },
+    );
+  }
+
+  // ── Subject Registration Workflow ──────────────────────────────────────────
+
+  /// Registers a student for a subject with the chosen lecture/lab sections.
+  Future<Map<String, dynamic>> registerStudentSubject({
+    required String token,
+    required int subjectId,
+    required String lectureSection,
+    String? lectureInstructor,
+    String? lectureSchedule,
+    String? labSection,
+    String? labInstructor,
+    String? labSchedule,
+  }) async {
+    // Build the body and drop null section fields (e.g. subjects with no lab).
+    final body = <String, dynamic>{
+      'subject_id': subjectId,
+      'lecture_section': lectureSection,
+      'lecture_instructor': lectureInstructor,
+      'lecture_schedule': lectureSchedule,
+      'lab_section': labSection,
+      'lab_instructor': labInstructor,
+      'lab_schedule': labSchedule,
+    }..removeWhere((key, value) => value == null);
+
+    return _request(
+      method: 'POST',
+      path: '/student/subject-registrations',
+      token: token,
+      body: body,
+    );
+  }
+
+  /// Unregisters a student from a subject.
+  Future<void> unregisterStudentSubject({
+    required String token,
+    required int subjectId,
+  }) async {
+    await _request(
+      method: 'DELETE',
+      path: '/student/subject-registrations/$subjectId',
+      token: token,
+    );
+  }
+
+  /// Submits all of the student's selected subject registrations for
+  /// lecturer/advisor approval.
+  Future<Map<String, dynamic>> submitSubjectRegistration({required String token}) async {
+    return _request(
+      method: 'POST',
+      path: '/student/subject-registrations/submit',
+      token: token,
+    );
+  }
+
+  /// Fetches the authenticated student's current subject registrations.
+  Future<Map<String, dynamic>> getStudentSubjectRegistrations({required String token}) async {
+    return _request(
+      method: 'GET',
+      path: '/student/subject-registrations',
+      token: token,
+    );
+  }
+
+  // ── Lecturer/PA: Subject Registration Approval ─────────────────────────────
+
+  /// Fetches the students who currently have pending subject registrations
+  /// awaiting this lecturer/PA's approval.
+  Future<List<dynamic>> getPendingStudents({required String token}) async {
+    final response = await _request(
+      method: 'GET',
+      path: '/lecturer/subject-registrations/pending',
+      token: token,
+    );
+    return (response['students'] as List<dynamic>?) ?? [];
+  }
+
+  /// Fetches the pending subject registrations for one specific student.
+  Future<List<dynamic>> getStudentPendingSubjects({
+    required String token,
+    required int studentId,
+  }) async {
+    final response = await _request(
+      method: 'GET',
+      path: '/lecturer/student/$studentId/pending-subjects',
+      token: token,
+    );
+    return (response['subjects'] as List<dynamic>?) ?? [];
+  }
+
+  /// Approves all of a student's pending subject registrations at once.
+  Future<void> approveAllRegistrations({required String token, required int studentId}) async {
+    await _request(
+      method: 'POST',
+      path: '/lecturer/student/$studentId/approve-all',
+      token: token,
+    );
+  }
+
+  // ── Class Attendance (Lecturer) ────────────────────────────────────────────
+
+  /// Fetches all class schedules assigned to the authenticated lecturer.
+  Future<List<ClassScheduleModel>> getLecturerClassSchedules({required String token}) async {
+    final json = await _request(method: 'GET', path: '/lecturer/attendance/schedules', token: token);
+    return (json['schedules'] as List<dynamic>)
+        .map((e) => ClassScheduleModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Fetches the authenticated lecturer's class schedules for today.
+  Future<List<ClassScheduleModel>> getLecturerTodaySchedules({required String token}) async {
+    final json = await _request(method: 'GET', path: '/lecturer/attendance/schedules/today', token: token);
+    return (json['schedules'] as List<dynamic>)
+        .map((e) => ClassScheduleModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Starts an attendance session. Returns the session and whether one was
+  /// already active [A1: Active Session Already Exists].
+  Future<({AttendanceSessionModel session, bool alreadyActive})> startAttendanceSession({
+    required String token,
+    required int scheduleId,
+  }) async {
+    final json = await _request(
+      method: 'POST',
+      path: '/lecturer/attendance/sessions/start',
+      token: token,
+      body: {'schedule_id': scheduleId},
+    );
+    final session = AttendanceSessionModel.fromJson(json['session'] as Map<String, dynamic>);
+    final alreadyActive = (json['message'] as String? ?? '').contains('already active');
+    return (session: session, alreadyActive: alreadyActive);
+  }
+
+  /// Generates a new attendance code for an active session.
+  Future<AttendanceSessionModel> generateAttendanceCode({
+    required String token,
+    required int sessionId,
+  }) async {
+    final json = await _request(
+      method: 'POST',
+      path: '/lecturer/attendance/sessions/$sessionId/generate-code',
+      token: token,
+    );
+    return AttendanceSessionModel.fromJson(json['session'] as Map<String, dynamic>);
+  }
+
+  /// Fetches the live list of submissions for an active session (used for polling).
+  Future<LiveAttendanceModel> getLiveAttendance({
+    required String token,
+    required int sessionId,
+  }) async {
+    final json = await _request(method: 'GET', path: '/lecturer/attendance/sessions/$sessionId/live', token: token);
+    return LiveAttendanceModel.fromJson(json);
+  }
+
+  /// Closes an active attendance session.
+  Future<AttendanceSessionModel> closeAttendanceSession({
+    required String token,
+    required int sessionId,
+  }) async {
+    final json = await _request(
+      method: 'POST',
+      path: '/lecturer/attendance/sessions/$sessionId/close',
+      token: token,
+    );
+    return AttendanceSessionModel.fromJson(json['session'] as Map<String, dynamic>);
+  }
+
+  /// Fetches the full attendance record (present, rejected, absent) for a session.
+  Future<AttendanceRecordModel> getAttendanceRecord({
+    required String token,
+    required int sessionId,
+  }) async {
+    final json = await _request(method: 'GET', path: '/lecturer/attendance/sessions/$sessionId/record', token: token);
+    return AttendanceRecordModel.fromJson(json);
+  }
+
+  /// Fetches the list of classes the lecturer can generate an attendance report for.
+  Future<List<ReportClassModel>> getAttendanceReportFilters({required String token}) async {
+    final json = await _request(method: 'GET', path: '/lecturer/attendance/report/filters', token: token);
+    return (json['classes'] as List<dynamic>)
+        .map((e) => ReportClassModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Generates the attendance report summary for a class.
+  Future<ReportSummaryModel> generateAttendanceReport({
+    required String token,
+    required int classId,
+  }) async {
+    final json = await _request(
+      method: 'GET',
+      path: '/lecturer/attendance/report?class_id=$classId',
+      token: token,
+    );
+    return ReportSummaryModel.fromJson(json);
+  }
+
+  // ── Class Attendance (Student) ─────────────────────────────────────────────
+
+  /// Fetches the class schedules the authenticated student is enrolled in.
+  Future<List<ClassScheduleModel>> getStudentClassSchedules({required String token}) async {
+    final json = await _request(method: 'GET', path: '/student/attendance/schedules', token: token);
+    return (json['schedules'] as List<dynamic>)
+        .map((e) => ClassScheduleModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Checks whether a class the student is enrolled in has an active attendance session.
+  Future<AttendanceSessionModel?> getActiveAttendanceSession({
+    required String token,
+    required int scheduleId,
+  }) async {
+    final json = await _request(
+      method: 'GET',
+      path: '/student/attendance/schedules/$scheduleId/active-session',
+      token: token,
+    );
+    final session = json['session'];
+    if (session == null) return null;
+    return AttendanceSessionModel.fromJson(session as Map<String, dynamic>);
+  }
+
+  /// Submits the student's attendance code and GPS location for an active session.
+  Future<String> submitClassAttendance({
+    required String token,
+    required int scheduleId,
+    required String attendanceCode,
+    required double latitude,
+    required double longitude,
+  }) async {
+    final json = await _request(
+      method: 'POST',
+      path: '/student/attendance/submit',
+      token: token,
+      body: {
+        'schedule_id': scheduleId,
+        'attendance_code': attendanceCode,
+        'gps_latitude': latitude,
+        'gps_longitude': longitude,
+      },
+    );
+    return json['message'] as String? ?? 'Attendance marked successfully.';
   }
 
   // ── Private Helpers ────────────────────────────────────────────────────────
 
   /// Returns the correct base URL depending on the platform.
   ///
-  /// Android emulators use 10.0.2.2 to reach the host machine's localhost.
-  /// Web and other platforms use 127.0.0.1 directly.
+  /// For an Android emulator, change this to `http://10.0.2.2:8000/api`
+  /// (the emulator's alias for the host machine's localhost). For a
+  /// physical device over USB, run `adb reverse tcp:8000 tcp:8000` so its
+  /// 127.0.0.1 reaches the host, same as web and other platforms.
   String _baseUrl() {
-    if (kIsWeb) return 'http://127.0.0.1:8000/api';
-    if (Platform.isAndroid) return 'http://10.0.2.2:8000/api';
     return 'http://127.0.0.1:8000/api';
+  }
+
+  /// Returns the server's root URL (without the `/api` suffix), used to
+  /// fetch static files served from Laravel's `public/storage` symlink.
+  String _storageBaseUrl() {
+    final base = _baseUrl();
+    return base.substring(0, base.length - '/api'.length);
+  }
+
+  /// Safely decodes a JSON response body.
+  ///
+  /// If the server returns a non-JSON body (e.g. an HTML error page from a
+  /// 500 server error), `jsonDecode` throws a [FormatException] whose message
+  /// includes the raw HTML — this would otherwise leak onto the screen via
+  /// `e.toString()`. Instead, throw a clean, user-friendly [Exception].
+  Map<String, dynamic> _decodeJson(String raw, int statusCode) {
+    if (raw.isEmpty) return <String, dynamic>{};
+    try {
+      return jsonDecode(raw) as Map<String, dynamic>;
+    } catch (_) {
+      throw Exception('Server error (code $statusCode). Please try again later.');
+    }
   }
 
   /// Extracts a human-readable error message from the backend's JSON response.

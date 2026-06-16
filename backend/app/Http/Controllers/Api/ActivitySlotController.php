@@ -31,6 +31,35 @@ class ActivitySlotController extends Controller
         ], 201);
     }
 
+    public function update(Request $request, Activity $activity, ActivitySlot $slot): JsonResponse
+    {
+        $this->requireAdab($request);
+
+        if ($slot->activity_id !== $activity->id) {
+            return response()->json(['status' => 'error', 'message' => 'Slot not found.'], 404);
+        }
+
+        $validated = $request->validate([
+            'date'     => ['required', 'date'],
+            'time'     => ['required', 'string', 'max:50'],
+            'capacity' => ['required', 'integer', 'min:1'],
+        ]);
+
+        if ($validated['capacity'] < $slot->registered) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => "Capacity cannot be less than the {$slot->registered} student(s) already registered.",
+            ], 422);
+        }
+
+        $slot->update($validated);
+
+        return response()->json([
+            'status' => 'success',
+            'slot'   => self::slotArray($slot),
+        ]);
+    }
+
     public function destroy(Request $request, Activity $activity, ActivitySlot $slot): JsonResponse
     {
         $this->requireAdab($request);

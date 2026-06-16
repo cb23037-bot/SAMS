@@ -66,6 +66,7 @@ class ActivityRegistration {
     required this.hasProof,
     required this.activity,
     required this.slot,
+    this.rejectionReason,
     this.updatedAt,
   });
 
@@ -79,6 +80,10 @@ class ActivityRegistration {
   /// True if the student has uploaded a proof document for this claim.
   /// Used to show/hide the "View Proof" button on the curriculum page.
   final bool hasProof;
+
+  /// Reason Pusat Adab gave when rejecting this claim.
+  /// Only set when [claimStatus] is 'rejected'.
+  final String? rejectionReason;
 
   /// The activity this registration belongs to.
   final RegistrationActivity activity;
@@ -111,12 +116,13 @@ class ActivityRegistration {
   /// without re-fetching the entire list from the server.
   ActivityRegistration copyWith({String? claimStatus, bool? hasProof}) {
     return ActivityRegistration(
-      id:          id,
-      claimStatus: claimStatus ?? this.claimStatus,
-      hasProof:    hasProof ?? this.hasProof,
-      activity:    activity,
-      slot:        slot,
-      updatedAt:   updatedAt,
+      id:              id,
+      claimStatus:     claimStatus ?? this.claimStatus,
+      hasProof:        hasProof ?? this.hasProof,
+      activity:        activity,
+      slot:            slot,
+      rejectionReason: rejectionReason,
+      updatedAt:       updatedAt,
     );
   }
 
@@ -125,12 +131,13 @@ class ActivityRegistration {
   /// Deserializes from the JSON returned by the student registrations endpoint.
   factory ActivityRegistration.fromJson(Map<String, dynamic> json) {
     return ActivityRegistration(
-      id:          (json['id'] as num).toInt(),
-      claimStatus: json['claim_status'] as String,
-      hasProof:    (json['has_proof'] as bool?) ?? false,
-      activity:    RegistrationActivity.fromJson(json['activity'] as Map<String, dynamic>),
-      slot:        ActivitySlot.fromJson(json['slot'] as Map<String, dynamic>),
-      updatedAt:   json['updated_at'] as String?,
+      id:              (json['id'] as num).toInt(),
+      claimStatus:     json['claim_status'] as String,
+      hasProof:        (json['has_proof'] as bool?) ?? false,
+      activity:        RegistrationActivity.fromJson(json['activity'] as Map<String, dynamic>),
+      slot:            ActivitySlot.fromJson(json['slot'] as Map<String, dynamic>),
+      rejectionReason: json['rejection_reason'] as String?,
+      updatedAt:       json['updated_at'] as String?,
     );
   }
 }

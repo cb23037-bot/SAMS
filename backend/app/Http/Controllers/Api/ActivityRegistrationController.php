@@ -18,10 +18,11 @@ class ActivityRegistrationController extends Controller
         $activity = $slot->activity;
 
         return [
-            'id'           => $reg->id,
-            'claim_status' => $reg->claim_status,
-            'has_proof'    => !is_null($reg->proof_path),
-            'updated_at'   => $reg->updated_at?->toISOString(),
+            'id'               => $reg->id,
+            'claim_status'     => $reg->claim_status,
+            'has_proof'        => !is_null($reg->proof_path),
+            'rejection_reason' => $reg->rejection_reason,
+            'updated_at'       => $reg->updated_at?->toISOString(),
             'activity'     => [
                 'id'            => $activity->id,
                 'name'          => $activity->name,

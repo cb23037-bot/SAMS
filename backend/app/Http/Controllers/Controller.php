@@ -24,4 +24,11 @@ class Controller extends BaseController
             abort(403, 'Unauthorized.');
         }
     }
+
+    protected function requireLecturer(Request $request): void
+    {
+        if ($request->user()->role !== 'lecturer') {
+            abort(403, 'Unauthorized.');
+        }
+    }
 }

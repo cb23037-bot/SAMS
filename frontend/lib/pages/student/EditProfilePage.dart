@@ -2,6 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../app/app_controller.dart';
 
+/// Lets a student edit a limited set of profile fields (phone number,
+/// current semester, academic advisor, address).
+///
+/// Read-only fields (name, student ID, course, email) are sourced directly
+/// from the database/admin records and are displayed but not editable here.
+/// On save, [AppController.updateProfile] sends only the editable fields to
+/// the backend and replaces [AppController.currentUser] with the response.
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({super.key, required this.controller});
 
@@ -12,8 +19,11 @@ class EditProfilePage extends StatefulWidget {
 }
 
 class _EditProfilePageState extends State<EditProfilePage> {
+  /// Used to validate the editable fields before saving.
   final _formKey = GlobalKey<FormState>();
 
+  // Controllers for each editable field, pre-filled with the current
+  // user's values in initState() and disposed in dispose().
   late final TextEditingController _phoneController;
   late final TextEditingController _semesterController;
   late final TextEditingController _advisorController;
@@ -22,6 +32,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
   @override
   void initState() {
     super.initState();
+    // Seed each controller with the current value from AppController so the
+    // form opens pre-filled with the student's existing profile data.
     final user = widget.controller.currentUser!;
     _phoneController    = TextEditingController(text: user.phoneNumber ?? '');
     _semesterController = TextEditingController(text: user.currentSemester ?? '');
@@ -38,6 +50,12 @@ class _EditProfilePageState extends State<EditProfilePage> {
     super.dispose();
   }
 
+  /// Validates the form, then sends only the editable fields to the backend
+  /// via [AppController.updateProfile].
+  ///
+  /// On success, pops back to the previous page and shows a confirmation
+  /// snackbar. On failure, shows the error message (with the "Exception: "
+  /// prefix stripped) in a snackbar without navigating away.
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -62,6 +80,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
     }
   }
 
+  /// Builds the form: a read-only section (name, student ID, course, email)
+  /// followed by the editable section (phone, semester, advisor, address),
+  /// and Cancel/Save buttons at the bottom.
   @override
   Widget build(BuildContext context) {
     final user = widget.controller.currentUser!;
@@ -83,6 +104,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            // ── Read-only profile info (from admin records) ──────────────
             _SectionCard(
               children: [
                 _ReadOnlyField(label: 'Name', value: user.name),
@@ -92,6 +114,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
               ],
             ),
             const SizedBox(height: 16),
+            // ── Editable fields ───────────────────────────────────────────
             _SectionCard(
               children: [
                 _EditableField(
@@ -120,6 +143,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
               ],
             ),
             const SizedBox(height: 24),
+            // ── Cancel / Save buttons ─────────────────────────────────────
+            // Both are disabled while a save request is in flight to avoid
+            // duplicate submissions; Save shows a spinner during the request.
             Row(
               children: [
                 Expanded(
@@ -175,6 +201,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
   }
 }
 
+/// White rounded card container used to group related fields together.
 class _SectionCard extends StatelessWidget {
   const _SectionCard({required this.children});
 
@@ -199,6 +226,9 @@ class _SectionCard extends StatelessWidget {
   }
 }
 
+/// Displays a label and a non-editable value in a greyed-out box.
+/// Used for profile fields the student cannot change themselves
+/// (name, student ID, course, email).
 class _ReadOnlyField extends StatelessWidget {
   const _ReadOnlyField({
     required this.label,
@@ -251,6 +281,8 @@ class _ReadOnlyField extends StatelessWidget {
   }
 }
 
+/// Displays a label and an editable [TextFormField] bound to [controller].
+/// Used for the profile fields the student is allowed to update.
 class _EditableField extends StatelessWidget {
   const _EditableField({
     required this.label,

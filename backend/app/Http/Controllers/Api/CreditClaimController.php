@@ -7,8 +7,6 @@ use App\Models\Activity;
 use App\Models\ActivityRegistration;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
-use Illuminate\Support\Facades\Storage;
 
 class CreditClaimController extends Controller
 {
@@ -171,28 +169,6 @@ class CreditClaimController extends Controller
         return response()->json([
             'pending_count' => $pending->count(),
             'claims'        => $pending->map(fn ($r) => self::claimArray($r))->values(),
-        ]);
-    }
-
-    // GET /api/adab/claims/{registration}/proof
-    public function downloadProof(Request $request, ActivityRegistration $registration): mixed
-    {
-        $this->requireAdab($request);
-
-        if (!$registration->proof_path || !Storage::disk('public')->exists($registration->proof_path)) {
-            return response()->json(['message' => 'Proof document not found.'], 404);
-        }
-
-        // Use Storage::get() + a plain response instead of response()->file() — the PHP
-        // built-in dev server (artisan serve) drops the TCP connection mid-stream when
-        // using BinaryFileResponse, causing "HttpConnection closed while receiving data".
-        $contents = Storage::disk('public')->get($registration->proof_path);
-        $mime     = Storage::disk('public')->mimeType($registration->proof_path) ?: 'application/octet-stream';
-
-        return response($contents, 200, [
-            'Content-Type'        => $mime,
-            'Content-Length'      => strlen($contents),
-            'Content-Disposition' => 'inline; filename="proof_' . $registration->id . '.pdf"',
         ]);
     }
 }

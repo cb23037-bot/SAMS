@@ -1,7 +1,15 @@
 import 'package:flutter/material.dart';
 
 import '../../app/app_controller.dart';
+import 'CreditClaimPage.dart';
 
+/// Pusat Adab staff page showing pending credit claim notifications.
+///
+/// Fetches the list of pending credit claims and a running pending count
+/// from [AppController.apiService.getAdabNotifications]. Claims submitted
+/// after the page was last closed are highlighted as "new" using
+/// [_sLastViewed]. Tapping a claim navigates to [ManageClaimsPage] with the
+/// related activity and claim pre-selected.
 class AdabNotificationsPage extends StatefulWidget {
   const AdabNotificationsPage({super.key, required this.controller});
 
@@ -13,11 +21,22 @@ class AdabNotificationsPage extends StatefulWidget {
 
 class _AdabNotificationsPageState extends State<AdabNotificationsPage> {
   // Persists across rebuilds so "new" status is accurate after returning.
+  // Static so the "last viewed" timestamp survives this widget being
+  // disposed and recreated (e.g. when navigating back from ManageClaimsPage).
   static DateTime? _sLastViewed;
 
+  /// Pending credit claims fetched from the API, or null before the first
+  /// load completes.
   List<_ClaimNotif>? _claims;
+
+  /// Total number of pending claims (shown in the reminder card), which may
+  /// be larger than [_claims]?.length if the backend caps the returned list.
   int _pendingCount = 0;
+
+  /// Error message to display if [_load] fails, or null if no error.
   String? _error;
+
+  /// True while the notifications are being fetched.
   bool _loading = true;
 
   @override
@@ -34,6 +53,8 @@ class _AdabNotificationsPageState extends State<AdabNotificationsPage> {
     super.dispose();
   }
 
+  /// Fetches pending claim notifications and the overall pending count
+  /// from the API. Sets [_error] on failure.
   Future<void> _load() async {
     setState(() { _loading = true; _error = null; });
     try {
@@ -54,6 +75,26 @@ class _AdabNotificationsPageState extends State<AdabNotificationsPage> {
     }
   }
 
+  // Opens Manage Credit Claims, drills into the related activity, and shows
+  // the detail dialog for the specific claim that was tapped.
+  Future<void> _openClaim(_ClaimNotif notif) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ManageClaimsPage(
+          controller: widget.controller,
+          initialActivityId: notif.activityId,
+          initialClaimId: notif.claimId,
+        ),
+      ),
+    );
+  }
+
+  /// Returns true if [notif] was submitted after the last time this page
+  /// was viewed (i.e. should be highlighted as "new").
+  ///
+  /// If [_sLastViewed] is null (first time opening this page in the current
+  /// app session), every claim is considered new. If the claim has no
+  /// [submittedAt] timestamp, it is never considered new.
   bool _isNew(_ClaimNotif notif) {
     final lastViewed = _sLastViewed;
     if (lastViewed == null) return true;
@@ -170,6 +211,8 @@ class _AdabNotificationsPageState extends State<AdabNotificationsPage> {
                                 padding: const EdgeInsets.all(16),
                                 // +1 for the "Pending Claims Reminder" card at the end
                                 itemCount: claims.length + 1,
+                                // Last item (index == claims.length) is always the
+                                // reminder card; all earlier indexes map to claims.
                                 separatorBuilder: (_, _) => const SizedBox(height: 12),
                                 itemBuilder: (_, i) {
                                   if (i == claims.length) {
@@ -178,6 +221,7 @@ class _AdabNotificationsPageState extends State<AdabNotificationsPage> {
                                   return _NewClaimCard(
                                     notif: claims[i],
                                     isNew: _isNew(claims[i]),
+                                    onTap: () => _openClaim(claims[i]),
                                   );
                                 },
                               ),
@@ -192,9 +236,12 @@ class _AdabNotificationsPageState extends State<AdabNotificationsPage> {
 
 // ── Data model ────────────────────────────────────────────────────────────────
 
+/// A single pending credit claim notification, combining info about the
+/// student, the activity, and when the claim was submitted.
 class _ClaimNotif {
   const _ClaimNotif({
     required this.claimId,
+    required this.activityId,
     required this.studentName,
     required this.studentIdStr,
     required this.activityName,
@@ -202,18 +249,29 @@ class _ClaimNotif {
     this.submittedAt,
   });
 
+  /// Database primary key of the credit claim (registration) record.
   final int claimId;
+
+  /// ID of the activity the claim belongs to — used to drill into
+  /// [ManageClaimsPage] with the correct activity pre-selected.
+  final int activityId;
   final String studentName;
   final String studentIdStr;
   final String activityName;
   final String activityCode;
+
+  /// ISO 8601 timestamp of when the claim was submitted, used by [_isNew]
+  /// and to display a relative time on the card.
   final String? submittedAt;
 
+  /// Deserializes from the notifications endpoint JSON, which nests
+  /// student and activity details under their own keys.
   factory _ClaimNotif.fromJson(Map<String, dynamic> json) {
     final student  = json['student']  as Map<String, dynamic>;
     final activity = json['activity'] as Map<String, dynamic>;
     return _ClaimNotif(
       claimId:      (json['id'] as num).toInt(),
+      activityId:   (activity['id'] as num).toInt(),
       studentName:  student['name'] as String,
       studentIdStr: student['student_id'] as String? ?? '',
       activityName: activity['name'] as String,
@@ -225,11 +283,20 @@ class _ClaimNotif {
 
 // ── New Claim card ────────────────────────────────────────────────────────────
 
+/// Card representing one pending credit claim notification.
+///
+/// Shows the activity, requesting student, and a relative submission time.
+/// When [isNew] is true, an unread dot and highlighted border are shown.
+/// Tapping the card triggers [onTap], which navigates to the claim's
+/// detail view in [ManageClaimsPage].
 class _NewClaimCard extends StatelessWidget {
-  const _NewClaimCard({required this.notif, required this.isNew});
+  const _NewClaimCard({required this.notif, required this.isNew, required this.onTap});
 
   final _ClaimNotif notif;
+
+  /// Whether to show the "unread" indicator (blue dot + highlighted border).
   final bool isNew;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -247,7 +314,10 @@ class _NewClaimCard extends StatelessWidget {
           BoxShadow(color: Color(0x0D0D1B2A), blurRadius: 10, offset: Offset(0, 4)),
         ],
       ),
-      child: Padding(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
         padding: const EdgeInsets.all(14),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -363,10 +433,16 @@ class _NewClaimCard extends StatelessWidget {
             ),
           ],
         ),
+        ),
       ),
     );
   }
 
+  /// Formats [dt] as a combined relative + absolute timestamp, e.g.
+  /// "2 hours ago  •  June 14, 2026  •  3:45 PM".
+  ///
+  /// The relative portion buckets into "Just now", "X min ago", "X hour(s)
+  /// ago", "1 day ago", or "X days ago" depending on how long ago [dt] was.
   String _formatRelative(DateTime dt) {
     final now = DateTime.now();
     final diff = now.difference(dt);
@@ -402,9 +478,13 @@ class _NewClaimCard extends StatelessWidget {
 
 // ── Pending Claims Reminder card ──────────────────────────────────────────────
 
+/// Reminder card always shown as the last item in the notifications list,
+/// summarizing the total number of pending credit claims ([count]) that
+/// still need to be reviewed by Pusat Adab staff.
 class _PendingReminderCard extends StatelessWidget {
   const _PendingReminderCard({required this.count});
 
+  /// Total number of pending claims awaiting review.
   final int count;
 
   @override
