@@ -34,7 +34,17 @@ class StudentAttendanceController extends Controller
     }
 
     /**
-     * Check whether a class the student is enrolled in has an active attendance session.
+     * getActiveSession(student_id, schedule_id)
+     *
+     * Retrieves the currently active attendance session for a class schedule
+     * the student is enrolled in. Verifies that the student is actually enrolled
+     * before returning session details. Also checks if the student has already
+     * submitted for this session.
+     * Called when the student opens the attendance submission form.
+     *
+     * @param  Request $request    — Authenticated student request. student_id from auth.
+     * @param  int     $scheduleId — The class schedule to check for an active session.
+     * Returns: AttendanceSession — The active session with already_submitted flag, or null.
      */
     public function getActiveSession(Request $request, int $scheduleId): JsonResponse
     {
@@ -69,7 +79,19 @@ class StudentAttendanceController extends Controller
     }
 
     /**
-     * Submit attendance for an active session using the attendance code and GPS location.
+     * submitAttendance(student_id, attendance_code, gps_latitude, gps_longitude)
+     *
+     * Processes a student's attendance submission for an active session.
+     * Runs the full verification pipeline in order:
+     *   1. Checks the session is still active.
+     *   2. verifyAttendanceCode()  — validates the entered code.
+     *   3. verifyGPSLocation()     — checks the student is within campus.
+     *   4. checkDuplicateSubmission() — prevents double submission.
+     *   5. saveAttendanceRecord()  — persists the submission as 'present'.
+     *
+     * @param  Request $request — Must contain schedule_id, attendance_code,
+     *                            gps_latitude, gps_longitude. student_id from auth.
+     * Returns: Boolean — true (HTTP 201) if submission saved, error response otherwise.
      */
     public function submitAttendance(Request $request): JsonResponse
     {
@@ -141,6 +163,90 @@ class StudentAttendanceController extends Controller
             'message' => 'Attendance marked successfully.',
             'submission' => $submission,
         ], 201);
+    }
+
+    /**
+     * verifyAttendanceCode(attendance_code)
+     *
+     * Verifies that the code entered by the student matches the active session's
+     * attendance code. Comparison is case-insensitive (both sides uppercased).
+     * Called during the submitAttendance() pipeline before GPS verification.
+     *
+     * @param  string $submittedCode — The code entered by the student (already uppercased).
+     * @param  string $sessionCode   — The correct code stored on the session.
+     * Returns: Boolean — true if codes match, false otherwise.
+     */
+    private function verifyAttendanceCode(string $submittedCode, string $sessionCode): bool
+    {
+        return $submittedCode === strtoupper($sessionCode);
+    }
+
+    /**
+     * verifyGPSLocation(gps_latitude, gps_longitude)
+     *
+     * Checks whether the student's GPS coordinates are within the campus
+     * boundary radius attached to the session. Delegates to
+     * CampusBoundary::verifyLocation() which applies the Haversine formula.
+     * Called during the submitAttendance() pipeline after code verification.
+     *
+     * @param  float $latitude    — Student's GPS latitude at time of submission.
+     * @param  float $longitude   — Student's GPS longitude at time of submission.
+     * @param  int   $boundaryId  — The campus boundary ID to check against.
+     * Returns: Boolean — true if within allowed radius, false otherwise.
+     */
+    private function verifyGPSLocation(float $latitude, float $longitude, int $boundaryId): bool
+    {
+        return CampusBoundary::verifyLocation($latitude, $longitude, $boundaryId);
+    }
+
+    /**
+     * checkDuplicateSubmission(attendance_session_id, student_id)
+     *
+     * Checks whether the student has already submitted attendance for the
+     * given session to prevent duplicate records.
+     * Called during the submitAttendance() pipeline after GPS verification.
+     *
+     * @param  int $sessionId — The attendance session ID to check.
+     * @param  int $studentId — The student ID to check.
+     * Returns: Boolean — true if a submission already exists, false otherwise.
+     */
+    private function checkDuplicateSubmission(int $sessionId, int $studentId): bool
+    {
+        return ClassAttendanceSubmission::hasSubmitted($sessionId, $studentId);
+    }
+
+    /**
+     * saveAttendanceRecord(attendance_session_id, student_id, submitted_code,
+     *                      gps_latitude, gps_longitude)
+     *
+     * Persists a new attendance submission record with status 'present'.
+     * Records the submitted code, GPS coordinates, and the current timestamp.
+     * Called as the final step in the submitAttendance() pipeline after all
+     * verifications have passed.
+     *
+     * @param  int    $sessionId     — The attendance session being submitted to.
+     * @param  int    $studentId     — The student submitting attendance.
+     * @param  string $submittedCode — The uppercased attendance code entered by the student.
+     * @param  float  $latitude      — Student's GPS latitude.
+     * @param  float  $longitude     — Student's GPS longitude.
+     * Returns: Boolean (ClassAttendanceSubmission) — The saved submission record.
+     */
+    private function saveAttendanceRecord(
+        int $sessionId,
+        int $studentId,
+        string $submittedCode,
+        float $latitude,
+        float $longitude
+    ): ClassAttendanceSubmission {
+        return ClassAttendanceSubmission::create([
+            'attendance_session_id' => $sessionId,
+            'student_id' => $studentId,
+            'submitted_code' => $submittedCode,
+            'submitted_at' => now(),
+            'gps_latitude' => $latitude,
+            'gps_longitude' => $longitude,
+            'attendance_status' => 'present',
+        ]);
     }
 
     private function formatSchedule(ClassSchedule $schedule, int $studentId): array

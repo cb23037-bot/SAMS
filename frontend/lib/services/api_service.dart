@@ -26,15 +26,15 @@ import '../app/app_controller.dart';
 class ApiService {
   static void Function()? onUnauthorized;
 
-  // ── Controller link ────────────────────────────────────────────────────────
+  // -- Controller link -------------------------------------------------------
 
   /// Optional back-reference to the [AppController], set via [setController].
   /// Lets newer endpoints (academic sessions, subject registration) read the
   /// current Bearer token without it being passed explicitly on every call.
   AppController? _controller;
 
-  /// Links this service to the app's [AppController] so [_controller] —
-  /// and therefore the current auth token — becomes available.
+  /// Links this service to the app's [AppController] so [_controller] --
+  /// and therefore the current auth token -- becomes available.
   void setController(AppController controller) {
     _controller = controller;
   }
@@ -50,7 +50,7 @@ class ApiService {
     };
   }
 
-  // ── Shared request helpers ─────────────────────────────────────────────────
+  // -- Shared request helpers ------------------------------------------------
 
   /// Generic HTTP request handler used by all non-file-upload methods.
   ///
@@ -58,10 +58,10 @@ class ApiService {
   /// decoding the response, checking status codes, and extracting error
   /// messages. Throws an [Exception] on HTTP errors or connection failures.
   ///
-  /// [method]  — HTTP verb: 'GET', 'POST', 'PUT', or 'DELETE'
-  /// [path]    — API path relative to base URL (e.g. '/activities')
-  /// [token]   — Bearer token for authenticated routes; null for public routes
-  /// [body]    — Optional JSON body, only sent for POST and PUT
+  /// [method]  -- HTTP verb: 'GET', 'POST', 'PUT', or 'DELETE'
+  /// [path]    -- API path relative to base URL (e.g. '/activities')
+  /// [token]   -- Bearer token for authenticated routes; null for public routes
+  /// [body]    -- Optional JSON body, only sent for POST and PUT
   Future<Map<String, dynamic>> _request({
     required String method,
     required String path,
@@ -131,7 +131,7 @@ class ApiService {
     }
   }
 
-  // ── Authentication ─────────────────────────────────────────────────────────
+  // -- Authentication --------------------------------------------------------
 
   /// Sends login credentials to the backend and returns a [LoginResponse]
   /// containing the Sanctum token and the authenticated user's data.
@@ -177,7 +177,7 @@ class ApiService {
     );
   }
 
-  // ── Profile ────────────────────────────────────────────────────────────────
+  // -- Profile ---------------------------------------------------------------
 
   /// Updates editable profile fields for the currently authenticated user.
   /// Returns the full updated [AppUser] so [AppController] can replace
@@ -190,7 +190,7 @@ class ApiService {
     return AppUser.fromJson(json['user'] as Map<String, dynamic>);
   }
 
-  // ── Curriculum Activities ──────────────────────────────────────────────────
+  // -- Curriculum Activities -------------------------------------------------
 
   /// Fetches all curriculum activities from the backend, each including
   /// their nested list of slots. Used by both the student KoQ booking page
@@ -261,7 +261,7 @@ class ApiService {
     await _request(method: 'DELETE', path: '/activities/$id', token: token);
   }
 
-  // ── Activity Slots ─────────────────────────────────────────────────────────
+  // -- Activity Slots --------------------------------------------------------
 
   /// Adds a new date/time slot to an existing activity.
   /// [capacity] controls how many students can register for this slot.
@@ -282,8 +282,6 @@ class ApiService {
   }
 
   /// Updates the date, time, and capacity of an existing slot.
-  /// Requires both [activityId] and [slotId] because the route is nested:
-  /// PUT /activities/{activity}/slots/{slot}
   Future<ActivitySlot> updateSlot({
     required String token,
     required int activityId,
@@ -302,8 +300,6 @@ class ApiService {
   }
 
   /// Deletes a specific slot from an activity.
-  /// Requires both [activityId] and [slotId] because the route is nested:
-  /// DELETE /activities/{activity}/slots/{slot}
   Future<void> deleteSlot({
     required String token,
     required int activityId,
@@ -316,11 +312,9 @@ class ApiService {
     );
   }
 
-  // ── Student Registrations ──────────────────────────────────────────────────
+  // -- Student Registrations -------------------------------------------------
 
   /// Fetches all activity registrations belonging to the authenticated student.
-  /// Each registration includes the activity info, slot info, claim status,
-  /// and whether a proof document has been uploaded.
   Future<List<ActivityRegistration>> getStudentRegistrations({required String token}) async {
     final json = await _request(method: 'GET', path: '/student/registrations', token: token);
     return (json['registrations'] as List<dynamic>)
@@ -329,7 +323,6 @@ class ApiService {
   }
 
   /// Registers the authenticated student for a specific activity slot.
-  /// The backend validates capacity limits and duplicate registrations.
   Future<ActivityRegistration> registerSlot({
     required String token,
     required int slotId,
@@ -356,13 +349,6 @@ class ApiService {
   }
 
   /// Submits a credit claim with a proof document (PDF or image).
-  ///
-  /// Uses multipart/form-data instead of JSON because we are sending a file.
-  /// The boundary string is a unique separator that tells the server where
-  /// each part of the multipart body begins and ends.
-  ///
-  /// On success, the backend updates claim_status to 'pending' and returns
-  /// the updated registration record.
   Future<ActivityRegistration> claimWithProof({
     required String token,
     required int registrationId,
@@ -400,17 +386,9 @@ class ApiService {
     }
   }
 
-  // ── Attendance Submission ──────────────────────────────────────────────────
+  // -- Attendance Submission -------------------------------------------------
 
   /// Submits the student's attendance for a specific slot.
-  ///
-  /// Requires the 6-character attendance code displayed by Pusat Adab,
-  /// a selfie photo, and optionally the device's GPS coordinates.
-  /// The backend verifies the code, records the location, and generates
-  /// a unique receipt ID and hash for verification purposes.
-  ///
-  /// Uses multipart/form-data to send both text fields and the photo file
-  /// in a single request.
   Future<AttendanceResult> submitAttendance({
     required String token,
     required int slotId,
@@ -459,7 +437,6 @@ class ApiService {
   }
 
   /// Withdraws a pending credit claim, resetting claim_status back to 'not_claimed'.
-  /// This allows the student to re-submit with a different proof file.
   Future<ActivityRegistration> cancelClaim({
     required String token,
     required int registrationId,
@@ -472,17 +449,15 @@ class ApiService {
     return ActivityRegistration.fromJson(json['registration'] as Map<String, dynamic>);
   }
 
-  // ── Student: Access State ─────────────────────────────────────────────────
+  // -- Student: Access State -------------------------------------------------
 
   /// Checks whether Pusat Adab has opened student access (registration & claims).
-  /// Returns true if open, false if closed. Used by the student home page to
-  /// show or hide registration and claim buttons.
   Future<bool> getStudentAccessOpen({required String token}) async {
     final json = await _request(method: 'GET', path: '/student/access', token: token);
     return (json['student_access'] as String) == 'open';
   }
 
-  // ── Pusat Adab: Access Control ─────────────────────────────────────────────
+  // -- Pusat Adab: Access Control --------------------------------------------
 
   /// Fetches the current student access state for the Pusat Adab dashboard.
   Future<bool> getAdabAccess({required String token}) async {
@@ -491,8 +466,6 @@ class ApiService {
   }
 
   /// Toggles student access open or closed.
-  /// [open] = true opens access; false closes it.
-  /// Returns the new state from the server to confirm the change was applied.
   Future<bool> setAdabAccess({required String token, required bool open}) async {
     final json = await _request(
       method: 'PUT',
@@ -503,23 +476,19 @@ class ApiService {
     return (json['student_access'] as String) == 'open';
   }
 
-  // ── Pusat Adab: Credit Claim Management ───────────────────────────────────
+  // -- Pusat Adab: Credit Claim Management -----------------------------------
 
   /// Fetches all pending credit claims for the Pusat Adab notification page.
-  /// Returns pending_count and a list of claim details.
   Future<Map<String, dynamic>> getAdabNotifications({required String token}) async {
     return _request(method: 'GET', path: '/adab/notifications', token: token);
   }
 
   /// Fetches the claims overview for the Manage Claims page.
-  /// Returns global stats (total, pending, approved, rejected) and a list
-  /// of activities that have at least one claim submitted.
   Future<Map<String, dynamic>> getClaimsOverview({required String token}) async {
     return _request(method: 'GET', path: '/adab/claims', token: token);
   }
 
   /// Fetches all individual student claims for a specific activity.
-  /// Used when Pusat Adab drills into a specific activity to see per-student claims.
   Future<Map<String, dynamic>> getActivityClaims({
     required String token,
     required int activityId,
@@ -527,8 +496,7 @@ class ApiService {
     return _request(method: 'GET', path: '/adab/claims/$activityId', token: token);
   }
 
-  /// Approves a student's credit claim. Optional [remarks] can be included
-  /// as feedback to the student. Updates claim_status to 'claimed'.
+  /// Approves a student's credit claim.
   Future<Map<String, dynamic>> approveClaim({
     required String token,
     required int registrationId,
@@ -543,8 +511,6 @@ class ApiService {
   }
 
   /// Rejects a student's credit claim with a mandatory [reason].
-  /// Updates claim_status to 'rejected'. The reason is stored so the
-  /// student can see why their claim was rejected.
   Future<Map<String, dynamic>> rejectClaim({
     required String token,
     required int registrationId,
@@ -559,11 +525,6 @@ class ApiService {
   }
 
   /// Downloads the proof document (PDF) for a claim as raw bytes.
-  ///
-  /// Fetched via the authenticated `/adab/claims/{id}/proof` API endpoint
-  /// rather than the `storage/` static path — static files are served
-  /// directly by the web server (bypassing Laravel entirely), so they never
-  /// get CORS headers and fail when called from Flutter Web.
   Future<Uint8List> downloadProof({required String token, required int registrationId}) async {
     try {
       final uri = Uri.parse('${_baseUrl()}/adab/claims/$registrationId/proof');
@@ -578,13 +539,7 @@ class ApiService {
     }
   }
 
-  // ── Academic Sessions (Open Registration) ─────────────────────────────────
-  //
-  // NOTE: these endpoints (and /subjects, /student/subject-registrations,
-  // /lecturer/...) require backend controllers that are not part of this
-  // codebase yet (AcademicSessionController, SubjectController,
-  // SubjectRegistrationController). Calls will 404/500 until that backend
-  // work lands.
+  // -- Academic Sessions (Open Registration) ---------------------------------
 
   /// Creates a new academic session (e.g. "2025/2026 Semester 1").
   Future<void> createSession(String sessionName) async {
@@ -623,7 +578,7 @@ class ApiService {
   }
 
   /// Fetches all academic sessions for the Faculty Registrar session
-  /// management page. Returns an empty list on error so the UI can still render.
+  /// management page.
   Future<List<dynamic>> getAcademicSessions() async {
     try {
       return await _requestList(
@@ -636,8 +591,7 @@ class ApiService {
     }
   }
 
-  /// Fetches the currently active academic session, or null if none is
-  /// active / the request fails.
+  /// Fetches the currently active academic session, or null if none is active.
   Future<Map<String, dynamic>?> getActiveSession({required String token}) async {
     try {
       final url = Uri.parse('${_baseUrl()}/academic-sessions/active');
@@ -656,7 +610,7 @@ class ApiService {
       if (response.statusCode == 200 && isJson) {
         return jsonDecode(response.body) as Map<String, dynamic>;
       }
-      debugPrint('getActiveSession: server error ${response.statusCode} — ${response.body}');
+      debugPrint('getActiveSession: server error ${response.statusCode} -- ${response.body}');
       return null;
     } catch (e) {
       debugPrint('Error fetching active session: $e');
@@ -664,10 +618,9 @@ class ApiService {
     }
   }
 
-  // ── Subjects Management ────────────────────────────────────────────────────
+  // -- Subjects Management ---------------------------------------------------
 
-  /// Fetches all subjects offered in the active session. Returns an empty
-  /// list on error so the UI can still render.
+  /// Fetches all subjects offered in the active session.
   Future<List<dynamic>> getSubjects({required String token}) async {
     try {
       return await _requestList(path: '/subjects', token: token);
@@ -700,7 +653,7 @@ class ApiService {
     );
   }
 
-  // ── Subject Registration Workflow ──────────────────────────────────────────
+  // -- Subject Registration Workflow -----------------------------------------
 
   /// Registers a student for a subject with the chosen lecture/lab sections.
   Future<Map<String, dynamic>> registerStudentSubject({
@@ -713,7 +666,6 @@ class ApiService {
     String? labInstructor,
     String? labSchedule,
   }) async {
-    // Build the body and drop null section fields (e.g. subjects with no lab).
     final body = <String, dynamic>{
       'subject_id': subjectId,
       'lecture_section': lectureSection,
@@ -763,7 +715,7 @@ class ApiService {
     );
   }
 
-  // ── Lecturer/PA: Subject Registration Approval ─────────────────────────────
+  // -- Lecturer/PA: Subject Registration Approval ----------------------------
 
   /// Fetches the students who currently have pending subject registrations
   /// awaiting this lecturer/PA's approval.
@@ -798,7 +750,7 @@ class ApiService {
     );
   }
 
-  // ── Module 3: Fees (Student) ──────────────────────────────────────────────
+  // -- Module 3: Fees (Student) ----------------------------------------------
 
   Future<Map<String, dynamic>> getStudentFees({required String token}) async {
     return _request(method: 'GET', path: '/fees', token: token);
@@ -836,7 +788,7 @@ class ApiService {
     return _request(method: 'GET', path: '/payments/$paymentId/receipt', token: token);
   }
 
-  // ── Module 3: Fees (Treasury) ─────────────────────────────────────────────
+  // -- Module 3: Fees (Treasury) ---------------------------------------------
 
   Future<Map<String, dynamic>> getTreasuryDashboard({required String token}) async {
     return _request(method: 'GET', path: '/treasury/dashboard', token: token);
@@ -890,7 +842,7 @@ class ApiService {
     await _request(method: 'PUT', path: '/treasury/settings', token: token, body: settings);
   }
 
-  // ── Module 3: Restriction ─────────────────────────────────────────────────
+  // -- Module 3: Restriction -------------------------------------------------
 
   Future<Map<String, dynamic>> getRestrictionStatus({required String token}) async {
     return _request(method: 'GET', path: '/student/restriction-status', token: token);
@@ -912,7 +864,7 @@ class ApiService {
     await _request(method: 'DELETE', path: '/treasury/restrict/$userId', token: token);
   }
 
-  // ── Module 3: Notifications ───────────────────────────────────────────────
+  // -- Module 3: Notifications -----------------------------------------------
 
   Future<Map<String, dynamic>> getNotifications({required String token}) async {
     return _request(method: 'GET', path: '/notifications', token: token);
@@ -988,12 +940,12 @@ class ApiService {
     return unified;
   }
 
-  // ── Module 3: Receipt PDF ─────────────────────────────────────────────────
+  // -- Module 3: Receipt PDF -------------------------------------------------
 
   String receiptDownloadUrl(int paymentId) =>
       '${_baseUrl()}/receipts/$paymentId/download';
 
-  // ── Class Attendance (Lecturer) ────────────────────────────────────────────
+  // -- Class Attendance (Lecturer) -------------------------------------------
 
   /// Fetches all class schedules assigned to the authenticated lecturer.
   Future<List<ClassScheduleModel>> getLecturerClassSchedules({required String token}) async {
@@ -1091,12 +1043,12 @@ class ApiService {
   }
 
   /// Returns the URL for downloading the attendance report CSV for a class.
-  /// Open this URL in a browser tab — the backend streams the file directly.
+  /// Open this URL in a browser tab -- the backend streams the file directly.
   Future<String> getAttendanceReportDownloadUrl({required String token}) {
     return Future.value('${_baseUrl()}/lecturer/attendance/report/download?token=$token');
   }
 
-  // ── Class Attendance (Student) ─────────────────────────────────────────────
+  // -- Class Attendance (Student) --------------------------------------------
 
   /// Fetches the class schedules the authenticated student is enrolled in.
   Future<List<ClassScheduleModel>> getStudentClassSchedules({required String token}) async {
@@ -1143,24 +1095,14 @@ class ApiService {
     return json['message'] as String? ?? 'Attendance marked successfully.';
   }
 
-  // ── Private Helpers ────────────────────────────────────────────────────────
+  // -- Private Helpers -------------------------------------------------------
 
   /// Returns the correct base URL depending on the platform.
-  ///
-  /// For an Android emulator, change this to `http://10.0.2.2:8000/api`
-  /// (the emulator's alias for the host machine's localhost). For a
-  /// physical device over USB, run `adb reverse tcp:8000 tcp:8000` so its
-  /// 127.0.0.1 reaches the host, same as web and other platforms.
   String _baseUrl() {
     return 'http://127.0.0.1:8000/api';
   }
 
   /// Safely decodes a JSON response body.
-  ///
-  /// If the server returns a non-JSON body (e.g. an HTML error page from a
-  /// 500 server error), `jsonDecode` throws a [FormatException] whose message
-  /// includes the raw HTML — this would otherwise leak onto the screen via
-  /// `e.toString()`. Instead, throw a clean, user-friendly [Exception].
   Map<String, dynamic> _decodeJson(String raw, int statusCode) {
     if (raw.isEmpty) return <String, dynamic>{};
     try {
@@ -1171,13 +1113,6 @@ class ApiService {
   }
 
   /// Extracts a human-readable error message from the backend's JSON response.
-  ///
-  /// Laravel returns errors in two formats:
-  /// 1. { "message": "Some error" }
-  /// 2. { "errors": { "field": ["Validation error message"] } }
-  ///
-  /// This method handles both and falls back to a generic message if neither
-  /// format is present.
   String _extractMessage(Map<String, dynamic> json) {
     final message = json['message'];
     if (message is String && message.isNotEmpty) return message;
@@ -1191,7 +1126,7 @@ class ApiService {
   }
 }
 
-// ── Response models ────────────────────────────────────────────────────────────
+// -- Response models -----------------------------------------------------------
 
 /// Holds the result of a successful login: the Sanctum token and user data.
 class LoginResponse {

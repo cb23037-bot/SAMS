@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -15,20 +14,30 @@ use App\Models\ClassEnrollment;
 use App\Models\AttendanceSession;
 use App\Models\ClassAttendanceSubmission;
 
-
+/**
+ * User Model -- SAMS-PACK-401
+ *
+ * Manages lecturer and student user information used for authentication,
+ * role identification, and attendance access control.
+ *
+ * Attributes:
+ *   - id (user_id) : int       -- Primary key, unique user identifier.
+ *   - name         : String    -- Full name of the user.
+ *   - email        : String    -- Email address used for login.
+ *   - password     : String    -- Hashed password for authentication.
+ *   - role         : String    -- User role: 'lecturer', 'student', etc.
+ *   - status       : String    -- Account status: 'active' or 'inactive'.
+ *   - created_at   : Timestamp -- Record creation timestamp.
+ */
 class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var array<int, string>
-     */
     protected $fillable = [
         'name',
         'email',
         'role',
+        'status',
         'student_id',
         'course',
         'phone_number',
@@ -38,11 +47,6 @@ class User extends Authenticatable
         'password',
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var array<int, string>
-     */
     protected $hidden = [
         'password',
     ];
@@ -51,8 +55,78 @@ class User extends Authenticatable
         'password' => 'hashed',
     ];
 
+    // =========================================================================
+    // SDD Methods -- SAMS-PACK-401
+    // =========================================================================
+
     /**
-     * Get the subject registrations for this user.
+     * login()
+     *
+     * Authenticates user credentials against the system.
+     * Finds the user by email, checks the account status is 'active',
+     * and verifies the password matches the stored hash.
+     * Creates and returns a Sanctum API token on success.
+     * Returns false if the user is not found, account is inactive,
+     * or the password does not match.
+     */
+    public static function login(string $email, string $password): bool
+    {
+        $user = static::where('email', $email)->first();
+
+        if (!$user) {
+            return false;
+        }
+
+        if ($user->status !== 'active') {
+            return false;
+        }
+
+        if (!\Illuminate\Support\Facades\Hash::check($password, $user->password)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * logout()
+     *
+     * Terminates the current user session by revoking all Sanctum API tokens
+     * issued to this user. After this, any further requests using the old
+     * token will be rejected as unauthenticated.
+     */
+    public function logout(): void
+    {
+        $this->tokens()->delete();
+    }
+
+    /**
+     * getUserRole()
+     *
+     * Retrieves the role assigned to this user.
+     */
+    public function getUserRole(): string
+    {
+        return $this->role;
+    }
+
+    /**
+     * updateStatus()
+     *
+     * Updates the account status of this user to the given value.
+     */
+    public function updateStatus(string $newStatus): bool
+    {
+        $this->status = $newStatus;
+        return $this->save();
+    }
+
+    // =========================================================================
+    // Eloquent Relationships
+    // =========================================================================
+
+    /**
+     * Get the subject registrations belonging to this user.
      */
     public function subjectRegistrations(): HasMany
     {

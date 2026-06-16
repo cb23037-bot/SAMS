@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../app/app_controller.dart';
 import '../../models/app_user.dart';
+import '../../models/class_schedule.dart';
 import 'EditProfilePage.dart';
 import 'ModuleBookingPage.dart';
 import 'CurriculumActivityPage.dart';
@@ -46,6 +47,9 @@ class _StudentHomePageState extends State<StudentHomePage> {
   /// Number of unread notifications, shown as a badge on the Notification tab.
   int _notifUnreadCount = 0;
 
+  /// SAMS-PACK-411: checkActiveAttendance() — classes that currently have an active session.
+  List<ClassScheduleModel> _activeAttendanceClasses = [];
+
   // Set when the student taps a notification, so the Curriculum Activity
   // page can scroll to and highlight the related registration on load.
   int? _highlightRegistrationId;
@@ -53,9 +57,8 @@ class _StudentHomePageState extends State<StudentHomePage> {
   @override
   void initState() {
     super.initState();
-    // Fetch the unread notification count as soon as the home page loads,
-    // so the badge on the Notification tab is accurate immediately.
     _loadNotifCount();
+    checkActiveAttendance(widget.controller.currentUser!.id);
   }
 
   /// Counts unread unified notifications (Module 2 + Module 3) and stores
@@ -69,6 +72,38 @@ class _StudentHomePageState extends State<StudentHomePage> {
       if (!mounted) return;
       setState(() => _notifUnreadCount = notifs.where((n) => !n.isRead).length);
     } catch (_) {}
+  }
+
+  /// SAMS-PACK-411: checkActiveAttendance(student_id)
+  /// Checks whether any of the student's enrolled classes currently have an
+  /// active attendance session that the student hasn't submitted yet.
+  /// Fetches enrolled schedules by student_id and filters for active sessions.
+  /// Result drives the notification banner on the Home tab.
+  /// Returns: AttendanceSession — stored in [_activeAttendanceClasses].
+  Future<void> checkActiveAttendance(int studentId) async {
+    try {
+      final schedules = await widget.controller.apiService.getStudentClassSchedules(
+        token: widget.controller.token!,
+      );
+      if (!mounted) return;
+      setState(() {
+        _activeAttendanceClasses = schedules
+            .where((s) => s.hasActiveSession && !s.alreadySubmitted)
+            .toList();
+      });
+    } catch (_) {}
+  }
+
+  /// SAMS-PACK-411: navigateToAttendanceForm()
+  /// Navigates to the student attendance page (class list) where the student
+  /// can select a class and open the attendance submission form.
+  /// Returns: void
+  void navigateToAttendanceForm() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => StudentAttendancePage(controller: widget.controller),
+      ),
+    );
   }
 
   /// Opens the Curriculum Activity module, but first checks with the backend
@@ -264,6 +299,37 @@ class _StudentHomePageState extends State<StudentHomePage> {
         children: [
           _WelcomeCard(user: user),
           const SizedBox(height: 18),
+
+          // SAMS-PACK-411: checkActiveAttendance() — active session notification banner.
+          if (_activeAttendanceClasses.isNotEmpty) ...[
+            GestureDetector(
+              onTap: navigateToAttendanceForm,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEEFFF5),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFF22C55E)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.notifications_active, color: Color(0xFF22C55E), size: 22),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        '${_activeAttendanceClasses.length} class${_activeAttendanceClasses.length > 1 ? 'es have' : ' has'} an active attendance session. Tap to mark attendance.',
+                        style: const TextStyle(color: Color(0xFF15803D), fontWeight: FontWeight.w600, fontSize: 13),
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right, color: Color(0xFF22C55E)),
+                  ],
+                ),
+              ),
+            ),
+          ],
+
           const Text(
             'Quick Actions',
             style: TextStyle(

@@ -33,7 +33,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/activities', [ActivityController::class, 'store']);
     Route::put('/activities/{activity}', [ActivityController::class, 'update']);
     Route::delete('/activities/{activity}', [ActivityController::class, 'destroy']);
-    
+
     Route::post('/activities/{activity}/slots', [ActivitySlotController::class, 'store']);
     Route::put('/activities/{activity}/slots/{slot}', [ActivitySlotController::class, 'update']);
     Route::delete('/activities/{activity}/slots/{slot}', [ActivitySlotController::class, 'destroy']);
@@ -94,10 +94,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('lecturer')->middleware('auth:sanctum')->group(function () {
         // List all pending registrations for the lecturer/PA to see
         Route::get('/subject-registrations/pending', [SubjectRegistrationController::class, 'getPendingApprovals']);
-        
+
         // Update the status of a specific registration (Approve or Reject)
         Route::patch('/subject-registrations/{registration}/status', [SubjectRegistrationController::class, 'updateStatus']);
-        
+
         // View a specific student's pending subjects
         Route::get('/student/{studentId}/pending-subjects', [SubjectRegistrationController::class, 'getStudentPendingSubjects']);
 
@@ -120,7 +120,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/attendance/report/download', [AttendanceReportController::class, 'downloadReport']);
     });
 
-    // ── Module 3: Fees (student) ─────────────────────────────────────────────
+    // -- Module 3: Fees (student) ---
     Route::get('/fees', [FeeController::class, 'index']);
     Route::get('/fees/{fee}', [FeeController::class, 'show']);
     Route::post('/fees/{fee}/pay', [FeeController::class, 'pay']);
@@ -129,16 +129,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/student/sponsors', [FeeController::class, 'sponsors']);
     Route::get('/student/ledger', [FeeController::class, 'ledger']);
 
-    // ── Module 3: Notifications ──────────────────────────────────────────────
+    // -- Module 3: Notifications ---
     Route::get('/notifications', [NotificationController::class, 'index']);
     Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
     Route::put('/notifications/{notification}/read', [NotificationController::class, 'markRead']);
     Route::put('/notifications/read-all', [NotificationController::class, 'markAllRead']);
 
-    // ── Module 3: Receipt PDF download ───────────────────────────────────────
+    // -- Module 3: Receipt PDF download ---
     Route::get('/receipts/{payment}/download', [ReceiptController::class, 'download']);
 
-    // ── Module 3: Treasury ───────────────────────────────────────────────────
+    // -- Module 3: Treasury ---
     Route::get('/treasury/dashboard', [TreasuryController::class, 'dashboard']);
     Route::get('/treasury/stats', [TreasuryController::class, 'stats']);
     Route::get('/treasury/fees', [TreasuryController::class, 'feeRecords']);

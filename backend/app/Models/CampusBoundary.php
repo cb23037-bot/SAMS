@@ -4,6 +4,22 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * CampusBoundary Model — SAMS-PACK-403
+ *
+ * Manages campus GPS boundary information used to verify whether students
+ * are within the permitted campus area when submitting attendance.
+ *
+ * Attributes:
+ *   - campus_boundary_id   : int       — Primary key, unique boundary identifier.
+ *   - campus_name          : String    — Name of the campus location.
+ *   - center_latitude      : Decimal   — GPS latitude of the campus center point.
+ *   - center_longitude     : Decimal   — GPS longitude of the campus center point.
+ *   - allowed_radius_meter : int       — Maximum allowed distance from center in meters.
+ *   - status               : String    — Boundary status: 'active' or 'inactive'.
+ *   - created_at           : Timestamp — Record creation timestamp.
+ *   - updated_at           : Timestamp — Record last update timestamp.
+ */
 class CampusBoundary extends Model
 {
     protected $table = 'campus_boundaries';
@@ -18,8 +34,14 @@ class CampusBoundary extends Model
         'status',
     ];
 
+    // =========================================================================
+    // SDD Methods — SAMS-PACK-403
+    // =========================================================================
+
     /**
      * Get the currently active campus boundary.
+     * Returns null if none is found.
+     * Called before starting an attendance session to attach the boundary to it.
      */
     public static function getActiveBoundary(): ?self
     {

@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import 'app/app_controller.dart';
 import 'pages/LoginPage.dart';
 import 'pages/pusat_adab/SystemPage.dart';
-import 'pages/lecturer/LecturerDashboardPage.dart';
+import 'pages/lecturer/lecturer_dashboard.dart';
 import 'pages/faculty_registrar/dashboard_page.dart';
-import 'pages/student/HomePage.dart';
+import 'pages/student/student_dashboard.dart';
 import 'pages/treasury/treasury_dashboard_page.dart';
 import 'services/api_service.dart';
 

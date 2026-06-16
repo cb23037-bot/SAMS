@@ -13,7 +13,14 @@ use Illuminate\Http\JsonResponse;
 class LecturerAttendanceController extends Controller
 {
     /**
-     * List all class schedules assigned to the authenticated lecturer.
+     * getAssignedSchedules(lecturer_id)
+     *
+     * Retrieves all class schedules assigned to the authenticated lecturer.
+     * Uses lecturer_id from the authenticated user to filter schedules.
+     * Called when the lecturer opens the Manage Attendance page.
+     *
+     * @param  Request $request — Authenticated lecturer request.
+     * Returns: List<ClassSchedule> — All schedules assigned to the lecturer.
      */
     public function getSchedules(Request $request): JsonResponse
     {
@@ -57,7 +64,16 @@ class LecturerAttendanceController extends Controller
     }
 
     /**
-     * Start (or resume) an attendance session for a class schedule.
+     * startSession(schedule_id, lecturer_id)
+     *
+     * Creates a new active attendance session for the given class schedule.
+     * Checks for an existing active session first — if one exists, returns it
+     * with a message so the Flutter app can detect the [A1] flow.
+     * Verifies an active campus boundary exists before creating the session.
+     * Sets session_date to today and status to 'active'.
+     *
+     * @param  Request $request — Must contain schedule_id. lecturer_id is taken from auth.
+     * Returns: AttendanceSession — The newly created (or existing) session.
      */
     public function startSession(Request $request): JsonResponse
     {
@@ -104,7 +120,16 @@ class LecturerAttendanceController extends Controller
     }
 
     /**
-     * Generate a new attendance code for an active session.
+     * generateCode(attendance_session_id)
+     *
+     * Generates a new unique 6-character attendance code for the given session
+     * and saves it, replacing any previously generated code.
+     * The session must be active and owned by the authenticated lecturer.
+     * Called when the lecturer taps "Generate Attendance Code" or "New Code".
+     *
+     * @param  Request $request    — Authenticated lecturer request.
+     * @param  int     $sessionId  — The attendance session to generate a code for.
+     * Returns: String — The newly generated attendance code.
      */
     public function generateCode(Request $request, int $sessionId): JsonResponse
     {
@@ -125,7 +150,16 @@ class LecturerAttendanceController extends Controller
     }
 
     /**
-     * Get the live list of submissions for an active session (for polling).
+     * getLiveSubmissions(attendance_session_id)
+     *
+     * Retrieves the live list of student attendance submissions for an active
+     * session, along with the enrolled student count and present count.
+     * Polled every 5 seconds by the lecturer's active session page.
+     * Returns both present and rejected submissions ordered by submitted_at.
+     *
+     * @param  Request $request    — Authenticated lecturer request.
+     * @param  int     $sessionId  — The attendance session to retrieve submissions for.
+     * Returns: List<AttendanceSubmission> — All submissions with student details.
      */
     public function getLiveSubmissions(Request $request, int $sessionId): JsonResponse
     {
@@ -149,7 +183,16 @@ class LecturerAttendanceController extends Controller
     }
 
     /**
-     * Close an active attendance session.
+     * closeSession(attendance_session_id)
+     *
+     * Closes the active attendance session by setting its status to 'closed'
+     * and recording the closed_at timestamp.
+     * After this, students can no longer submit attendance for the session.
+     * The session must be active and owned by the authenticated lecturer.
+     *
+     * @param  Request $request    — Authenticated lecturer request.
+     * @param  int     $sessionId  — The attendance session to close.
+     * Returns: Boolean — true (HTTP 200) if closed successfully.
      */
     public function closeSession(Request $request, int $sessionId): JsonResponse
     {
@@ -169,7 +212,16 @@ class LecturerAttendanceController extends Controller
     }
 
     /**
-     * View the full attendance record for a session, including absentees.
+     * viewRecord(attendance_session_id)
+     *
+     * Retrieves the full attendance record for a session, including present
+     * students (with submission details), rejected submissions, and absent
+     * students (enrolled but did not submit).
+     * Called when the lecturer views the attendance record after closing a session.
+     *
+     * @param  Request $request    — Authenticated lecturer request.
+     * @param  int     $sessionId  — The attendance session to retrieve records for.
+     * Returns: List<AttendanceSubmission> — present, rejected, and absent lists.
      */
     public function viewRecord(Request $request, int $sessionId): JsonResponse
     {
