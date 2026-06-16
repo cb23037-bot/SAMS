@@ -251,12 +251,16 @@ class StudentAttendanceController extends Controller
 
     private function formatSchedule(ClassSchedule $schedule, int $studentId): array
     {
-        $activeSession = AttendanceSession::getActiveSessionForClass($schedule->class_id);
-        $alreadySubmitted = false;
+        // Only look at sessions for this specific schedule, not the whole class.
+        // This prevents Monday's submission from marking Tuesday as "Attendance Marked".
+        $activeSession = AttendanceSession::where('schedule_id', $schedule->schedule_id)
+            ->where('status', 'active')
+            ->latest('started_at')
+            ->first();
 
-        if ($activeSession) {
-            $alreadySubmitted = ClassAttendanceSubmission::hasSubmitted($activeSession->attendance_session_id, $studentId);
-        }
+        $alreadySubmitted = ClassAttendanceSubmission::whereHas('session', function ($q) use ($schedule) {
+            $q->where('schedule_id', $schedule->schedule_id);
+        })->where('student_id', $studentId)->exists();
 
         return [
             'schedule_id' => $schedule->schedule_id,
