@@ -101,6 +101,10 @@ class ReceiptController extends Controller
         ]);
     }
 
+    // Converts an integer (e.g. 1250) to its English word representation
+    // (e.g. "One Thousand Two Hundred Fifty"). Used to write the receipt
+    // amount in words, as required on official payment receipts.
+    // Handles values up to the millions. Returns 'Zero' for n = 0.
     private function numToWords(int $n): string
     {
         if ($n === 0) return 'Zero';

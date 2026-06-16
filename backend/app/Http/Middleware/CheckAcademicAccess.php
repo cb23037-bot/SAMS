@@ -9,6 +9,12 @@ use Symfony\Component\HttpFoundation\Response;
 
 class CheckAcademicAccess
 {
+    // Route middleware — blocks student requests when an active financial restriction exists.
+    // Registered as the 'academic.access' alias in Kernel.php.
+    // Applied to POST /student/registrations and POST /student/attendances so that
+    // students with unpaid fees cannot register for courses or mark attendance.
+    // Non-student roles (staff, treasury, admin) pass through without any check.
+    // Returns 403 JSON with restriction=true when the student is blocked.
     public function handle(Request $request, Closure $next): Response
     {
         $user = $request->user();

@@ -27,6 +27,9 @@ class _FeeDetailsPageState extends State<FeeDetailsPage> {
     _load();
   }
 
+  // Fetches the full details of a single fee record (identified by widget.feeId)
+  // from the backend, including all payment history for that fee.
+  // Populates _fee (the fee map) and _payments (list of past payments).
   Future<void> _load() async {
     setState(() { _loading = true; _error = null; });
     try {

@@ -48,6 +48,11 @@ class _MakePaymentPageState extends State<MakePaymentPage> {
     super.dispose();
   }
 
+  // Validates the entered amount (must be > 0 and <= outstanding balance),
+  // then calls makePayment() via the API service. On success, replaces the
+  // current route with PaymentReceiptPage so the student cannot go back to
+  // this page and accidentally re-submit. On GATEWAY_UNAVAILABLE, shows a
+  // dialog; for other errors, shows a red snackbar.
   Future<void> _submit() async {
     final amt = double.tryParse(_amountCtrl.text.trim());
     if (amt == null || amt <= 0) {
