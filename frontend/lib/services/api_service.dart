@@ -1163,7 +1163,7 @@ class ApiService {
   /// physical device over USB, run `adb reverse tcp:8000 tcp:8000` so its
   /// 127.0.0.1 reaches the host, same as web and other platforms.
   String _baseUrl() {
-    return 'http://127.0.0.1:8000/api';
+    return 'http://10.62.94.91:8080/api';
   }
 
   /// Safely decodes a JSON response body.
