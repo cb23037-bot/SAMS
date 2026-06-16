@@ -5,6 +5,29 @@ import 'package:printing/printing.dart';
 
 import '../../app/app_controller.dart';
 
+// ════════════════════════════════════════════════════════════════════════════
+// Halaman pengurusan tuntutan kredit CATs untuk staf Pusat Adab (Module 2).
+//
+// Fail ini membolehkan staf menyemak, meluluskan atau menolak tuntutan kredit
+// yang dihantar oleh pelajar selepas menghadiri aktiviti kurikulum.
+//
+// Halaman ini mempunyai dua skrin yang dikawal oleh _selectedActivity:
+//   1. Skrin Overview   — senarai semua aktiviti yang ada tuntutan, dengan
+//                         statistik agregat dan bar carian.
+//   2. Skrin Drill-down — tuntutan untuk satu aktiviti, dengan tab tapis
+//                         (Semua / Pending / Approved / Rejected) dan carian
+//                         nama pelajar. Klik baris membuka _ClaimDetailDialog.
+//
+// Struktur kelas dalam fail ini:
+//   Model dalaman (private):
+//     _Stats, _ClaimActivity, _Student, _ActivityInfo, _SlotInfo, _CreditClaim
+//   ManageClaimsPage        : halaman utama — overview + drill-down tuntutan
+//   _ClaimDetailDialog      : dialog butiran tuntutan + butang lulus/tolak
+//   _PdfViewerPage          : halaman pratonton PDF dokumen sokongan
+//   _ApproveDialog          : dialog pengesahan & catatan semasa meluluskan
+//   _RejectDialog           : dialog sebab penolakan semasa menolak tuntutan
+// ════════════════════════════════════════════════════════════════════════════
+
 // ── Internal models ───────────────────────────────────────────────────────────
 // These are lightweight, file-private models used only to display data fetched
 // from the Pusat Adab "claims overview" and "activity claims" endpoints. They
