@@ -44,7 +44,8 @@ public function setRegistrationStatus(Request $request, $id) {
 
     public function destroy($id)
     {
-        return AcademicSession::destroy($id);
+        AcademicSession::destroy($id);
+        return response()->json(['message' => 'Session deleted']);
     }
 
     public function getActiveSession()
